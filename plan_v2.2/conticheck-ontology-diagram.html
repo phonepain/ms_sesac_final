@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ContiCheck 온톨로지 v2.2</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Noto Sans KR',-apple-system,sans-serif;background:#0a0a0f;color:#e4e4e7;overflow:hidden;height:100vh}
+.app{display:flex;height:100vh}.sb{width:300px;border-right:1px solid rgba(63,63,70,.25);background:rgba(9,9,14,.95);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.sb-h{padding:12px 14px;border-bottom:1px solid rgba(63,63,70,.15)}.sb-h h1{font-size:14px;font-weight:800;color:#fff}.sb-h p{font-size:9px;color:#52525b;margin-top:2px}
+.sb-c{flex:1;overflow-y:auto;padding:6px}.sb-c::-webkit-scrollbar{width:4px}.sb-c::-webkit-scrollbar-thumb{background:#3f3f46;border-radius:2px}
+.tabs{display:flex;gap:2px;padding:5px 6px;border-bottom:1px solid rgba(63,63,70,.12);flex-wrap:wrap}.tab{padding:3px 8px;border-radius:4px;font-size:9px;font-weight:600;color:#52525b;cursor:pointer;border:none;background:none}.tab.on{background:rgba(16,185,129,.1);color:#34d399}
+.nc{padding:6px 8px;border-radius:6px;margin-bottom:2px;cursor:pointer;transition:all .15s;border:1px solid transparent}.nc:hover{background:rgba(39,39,42,.25)}.nc.sel{border-color:rgba(16,185,129,.3);background:rgba(16,185,129,.05)}
+.nc .nm{font-size:10px;font-weight:600;display:flex;align-items:center;gap:4}.nc .ds{font-size:8px;color:#52525b;margin-top:1px}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.ec{padding:5px 8px;border-radius:5px;margin-bottom:2px;cursor:pointer;border:1px solid transparent}.ec:hover{background:rgba(39,39,42,.25)}.ec.sel{border-color:rgba(245,158,11,.25);background:rgba(245,158,11,.03)}
+.cv{flex:1;position:relative;overflow:hidden}
+.dt{position:absolute;bottom:10px;left:10px;right:10px;background:rgba(12,12,18,.95);border:1px solid rgba(63,63,70,.25);border-radius:10px;padding:12px;backdrop-filter:blur(12px);max-height:42vh;overflow-y:auto;display:none;z-index:10}
+.dt.show{display:block;animation:su .25s ease-out}.dt h3{font-size:12px;font-weight:700;color:#fff;margin-bottom:6px;display:flex;align-items:center;gap:5}
+.dt .cl{position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:4px;background:rgba(39,39,42,.4);border:none;color:#71717a;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px}
+.dt table{width:100%;border-collapse:collapse;margin-top:4px}.dt th{text-align:left;font-size:8px;font-weight:600;color:#52525b;padding:2px 4px}.dt td{font-size:9px;color:#d4d4d8;padding:2px 4px;border-top:1px solid rgba(63,63,70,.08)}
+.dt .tg{display:inline-block;padding:1px 4px;border-radius:2px;font-size:7px;font-weight:600;margin-right:2px}
+.dt .qb{background:rgba(39,39,42,.2);border-radius:5px;padding:7px;margin-top:4px;font-size:8px;line-height:1.5;color:#a1a1aa;white-space:pre-wrap}
+.lg{position:absolute;top:8px;right:8px;background:rgba(12,12,18,.9);border:1px solid rgba(63,63,70,.15);border-radius:7px;padding:7px 10px;z-index:5;font-size:8px}
+.lg-t{font-weight:700;color:#52525b;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em;font-size:7px}
+.lg-i{display:flex;align-items:center;gap:4;margin-bottom:2px;color:#a1a1aa}
+.lg-d{width:6px;height:6px;border-radius:50%}.lg-l{width:12px;height:2px;border-radius:1px}
+.st{font-size:8px}.st-s{font-weight:700;color:#52525b;padding:4px 0 2px;text-transform:uppercase;letter-spacing:.05em;font-size:7px}
+.hs{display:inline-block;padding:1px 4px;border-radius:2px;font-size:7px;font-weight:700;margin-left:4px}
+.hard{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.2)}
+.soft{background:rgba(250,204,21,.08);color:#fbbf24;border:1px solid rgba(250,204,21,.15)}
+@keyframes su{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const NODES=[
+  {id:'character',label:'Character',desc:'캐릭터',color:'#34d399',attrs:[{k:'name',t:'string',d:'이름'},{k:'aliases',t:'string[]',d:'별명'},{k:'tier',t:'1~4',d:'중요도'}]},
+  {id:'fact',label:'KnowledgeFact',desc:'사실/정보',color:'#38bdf8',attrs:[{k:'content',t:'string',d:'사실 내용'},{k:'is_secret',t:'bool',d:'비밀 여부'},{k:'is_true',t:'bool',d:'실제로 참인지 (거짓말 추적)'}]},
+  {id:'event',label:'Event',desc:'이벤트/장면',color:'#c084fc',attrs:[{k:'discourse_order',t:'float',d:'텍스트 등장 순서 (항상 단조 증가)'},{k:'story_order',t:'float|null',d:'서사 세계 실제 시점 (null=미확정)'},{k:'is_linear',t:'bool',d:'discourse=story 방향 일치'},{k:'event_type',t:'enum',d:'9종'},{k:'environment',t:'object',d:'시간/날씨/조명/특수조건'}]},
+  {id:'trait',label:'Trait',desc:'캐릭터 특성/설정',color:'#f472b6',attrs:[{k:'key',t:'string',d:'속성 키'},{k:'value',t:'string',d:'속성 값'},{k:'is_immutable',t:'bool',d:'불변 여부'},{k:'category',t:'enum',d:'+goal/motivation'}]},
+  {id:'organization',label:'Organization',desc:'세력/조직',color:'#14b8a6',attrs:[{k:'name',t:'string',d:'조직 이름'},{k:'org_type',t:'enum',d:'7종'}]},
+  {id:'location',label:'Location',desc:'장소',color:'#fb923c',attrs:[{k:'name',t:'string',d:'장소명'},{k:'location_type',t:'enum',d:'6종'},{k:'travel_constraints',t:'string',d:'이동 제약'}]},
+  {id:'item',label:'Item',desc:'소유물/아이템',color:'#facc15',attrs:[{k:'name',t:'string',d:'아이템명'},{k:'is_unique',t:'bool',d:'유일 여부'},{k:'location_id',t:'string',d:'아이템 위치'}]},
+  {id:'source',label:'Source',desc:'데이터 출처',color:'#71717a',attrs:[{k:'source_type',t:'enum',d:'worldview/settings/scenario/manuscript'},{k:'name',t:'string',d:'파일명'}]},
+  {id:'confirmation',label:'UserConfirmation',desc:'사용자 확인 요청',color:'#f87171',attrs:[{k:'confirmation_type',t:'enum',d:'9종'},{k:'status',t:'enum',d:'pending/confirmed/deferred'},{k:'source_excerpts',t:'list',d:'원본 발췌 (필수)'}]},
+];
+const EDGES=[
+  {id:'learns',label:'LEARNS',from:'character',to:'fact',color:'#34d399',cat:'정보 비대칭',desc:'사실을 알게 됨',hs:'hard',query:'MENTIONS.story_order < LEARNS.story_order → HARD\nbelieved_true로 거짓말에 속은 상태 추적\nstory_order=null → 판단 보류'},
+  {id:'mentions',label:'MENTIONS',from:'character',to:'fact',color:'#fbbf24',cat:'정보 비대칭',desc:'사실을 언급함',hs:'both',query:'story_order 확정 시 → HARD\nstory_order 미확정/추론 가능 → SOFT'},
+  {id:'participates',label:'PARTICIPATES_IN',from:'character',to:'event',color:'#c084fc',cat:'타임라인',desc:'이벤트에 참여',hs:'hard',query:'사망 후 등장(story_order 확정) → HARD\nstory_order=null → SOFT(사용자 확인)\n환경 제약 위반 → SOFT'},
+  {id:'has_status',label:'HAS_STATUS',from:'character',to:'event',color:'#a78bfa',cat:'타임라인',desc:'상태 변화',hs:'hard',query:'dead 후 등장(story_order 확정, 부활 없음) → HARD'},
+  {id:'at_location',label:'AT_LOCATION',from:'character',to:'location',color:'#fb923c',cat:'타임라인',desc:'위치 추적',hs:'both',query:'같은 story_order 다른 장소 → HARD\n비현실적 이동 → SOFT(세계관 확인)'},
+  {id:'related_to',label:'RELATED_TO',from:'character',to:'character',color:'#fb923c',cat:'관계',desc:'캐릭터 간 관계',hs:'both',query:'CONFLICT_MATRIX critical → HARD\nCONFLICT_MATRIX warning → SOFT'},
+  {id:'belongs_to',label:'BELONGS_TO',from:'character',to:'organization',color:'#14b8a6',cat:'관계',desc:'조직 소속',hs:'both',query:'적대 조직 동시 공개 소속 → HARD\n비밀 소속 누출 → SOFT'},
+  {id:'feels',label:'FEELS',from:'character',to:'character',color:'#ec4899',cat:'감정',desc:'감정 추적',hs:'soft',query:'이벤트 없이 감정 급변 → SOFT\n감정-행동 불일치 → SOFT'},
+  {id:'has_trait',label:'HAS_TRAIT',from:'character',to:'trait',color:'#f472b6',cat:'성격·설정',desc:'특성 보유',hs:'both',query:'immutable 충돌 → HARD\nmutable 변화 → SOFT'},
+  {id:'violates_trait',label:'VIOLATES_TRAIT',from:'event',to:'trait',color:'#ef4444',cat:'성격·설정',desc:'설정 위반 (결과)',hs:'both',query:'confidence≥0.8 → 자동(warning)\nconfidence<0.8 → SOFT(사용자 확인)'},
+  {id:'possesses',label:'POSSESSES',from:'character',to:'item',color:'#facc15',cat:'소유물',desc:'아이템 소유',hs:'both',query:'unique 중복 소유 → HARD\ncan_access 없이 사용 → HARD\n상실 후 사용 → SOFT'},
+  {id:'loses',label:'LOSES',from:'character',to:'item',color:'#a3a3a3',cat:'소유물',desc:'아이템 상실',hs:'soft',query:'상실 후 사용 → SOFT(같은 아이템?)'},
+  {id:'sourced_from',label:'SOURCED_FROM',from:'(all)',to:'source',color:'#52525b',cat:'출처',desc:'원본 출처 추적',hs:null,query:'근거 제시 시 원본 위치 표시'},
+];
+const CONFIRM_TYPES=[
+  {id:'intentional_change',label:'의도적 변화',color:'#f472b6',desc:'설정 변화가 캐릭터 성장인지',hs:'soft'},
+  {id:'foreshadowing',label:'복선 여부',color:'#fbbf24',desc:'모순인지 의도적 장치인지',hs:'soft'},
+  {id:'source_conflict',label:'소스 충돌',color:'#f87171',desc:'다중 소스 정보 다름 → 원본 나란히',hs:'soft'},
+  {id:'emotion_shift',label:'감정 변화',color:'#ec4899',desc:'이벤트 없이 감정 급변',hs:'soft'},
+  {id:'relationship_ambiguity',label:'관계 모호성',color:'#fb923c',desc:'관계 충돌이 의도적인지',hs:'soft'},
+  {id:'item_discrepancy',label:'아이템 불일치',color:'#facc15',desc:'소유 이력과 사용 불일치',hs:'soft'},
+  {id:'timeline_ambiguity',label:'시간/공간',color:'#a78bfa',desc:'story_order 미확정 또는 비현실적 이동',hs:'soft'},
+  {id:'unreliable_narrator',label:'신뢰성',color:'#71717a',desc:'화자의 서술 신뢰 여부',hs:'soft'},
+];
+const DESIGN=[
+  {id:'dual_time',label:'이중 시간 축',color:'#c084fc',desc:'discourse_order(텍스트 순서, 단조 증가) + story_order(서사 시점, null 가능). 회상/비선형 서사를 예외 분기 없이 처리.'},
+  {id:'hard_soft',label:'Hard/Soft 구분',color:'#ef4444',desc:'Hard: 논리적 불가능, 자동 판정. Soft: 맥락에 따라 의도적, 사용자 확인. 판정: hard? → 자동 / LLM≥0.8? → 자동 / 나머지 → UserConfirmation'},
+  {id:'graph_isolation',label:'임시 그래프 격리',color:'#38bdf8',desc:'analyze() 시 canonical graph를 In-Memory 스냅샷으로 복제. 복제본에서만 작업. Push 시에만 canonical 업데이트. 오염 가능성 0%.'},
+  {id:'truth_belief',label:'Truth vs Belief',color:'#34d399',desc:'Fact.is_true(서사 세계의 진실) + LEARNS.believed_true(캐릭터의 믿음). 거짓말 전파 체인 추적.'},
+];
+
+const POS={character:{x:400,y:130},fact:{x:700,y:60},event:{x:400,y:310},trait:{x:100,y:260},organization:{x:100,y:130},location:{x:700,y:260},item:{x:100,y:400},source:{x:700,y:420},confirmation:{x:400,y:480}};
+
+function draw(canvas,selN,selE,hovN){
+  const ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+  const sc=Math.min(W/850,H/560),ox=(W-850*sc)/2,oy=(H-560*sc)/2;
+  const tx=x=>ox+x*sc,ty=y=>oy+y*sc,np=id=>{const p=POS[id];return{x:tx(p.x),y:ty(p.y)}};
+  const R=30*sc;
+  ctx.strokeStyle='rgba(63,63,70,.04)';ctx.lineWidth=1;
+  for(let x=0;x<W;x+=36){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+  for(let y=0;y<H;y+=36){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+  EDGES.forEach(e=>{
+    const isSel=selE===e.id;const fn=e.from==='(all)'?null:NODES.find(n=>n.id===e.from);const tn=NODES.find(n=>n.id===e.to);if(!fn||!tn)return;
+    const f=np(fn.id),t=np(tn.id);
+    if(fn.id===tn.id){ctx.beginPath();ctx.strokeStyle=isSel?e.color:`${e.color}30`;ctx.lineWidth=isSel?2.5:1;const cx=f.x-R*1.2,cy=f.y-R*1.2;ctx.arc(cx,cy,R*.7,0,Math.PI*1.8);ctx.stroke();ctx.font=`${isSel?'bold ':''}${7*sc}px monospace`;ctx.fillStyle=isSel?e.color:`${e.color}50`;ctx.textAlign='center';ctx.fillText(e.label,cx-R*.3,cy-R*.5);return}
+    const dx=t.x-f.x,dy=t.y-f.y,dist=Math.sqrt(dx*dx+dy*dy),nx=dx/dist,ny=dy/dist;
+    const par=EDGES.filter(x=>(x.from===e.from&&x.to===e.to)||(x.from===e.to&&x.to===e.from));
+    let off=0;if(par.length>1){const idx=par.indexOf(e);off=(idx-(par.length-1)/2)*12*sc}
+    const px=-ny*off,py=nx*off;const sx=f.x+nx*R+px,sy=f.y+ny*R+py,ex=t.x-nx*(R+5*sc)+px,ey=t.y-ny*(R+5*sc)+py;const mx=(sx+ex)/2+px*2,my=(sy+ey)/2+py*2;
+    ctx.beginPath();ctx.strokeStyle=isSel?e.color:`${e.color}28`;ctx.lineWidth=isSel?2:1;ctx.moveTo(sx,sy);ctx.quadraticCurveTo(mx,my,ex,ey);ctx.stroke();
+    const as=4*sc,ang=Math.atan2(ey-my,ex-mx);ctx.beginPath();ctx.fillStyle=isSel?e.color:`${e.color}40`;ctx.moveTo(ex,ey);ctx.lineTo(ex-as*Math.cos(ang-.4),ey-as*Math.sin(ang-.4));ctx.lineTo(ex-as*Math.cos(ang+.4),ey-as*Math.sin(ang+.4));ctx.fill();
+    ctx.font=`${isSel?'bold ':''}${7*sc}px monospace`;ctx.fillStyle=isSel?e.color:`${e.color}60`;ctx.textAlign='center';ctx.fillText(e.label,mx,my-4*sc);
+  });
+  const srcP=np('source'),isSrcSel=selE==='sourced_from';
+  NODES.filter(n=>n.id!=='source'&&n.id!=='confirmation').forEach(n=>{const p=np(n.id);ctx.beginPath();ctx.strokeStyle=isSrcSel?'#71717a':'rgba(113,113,122,.07)';ctx.lineWidth=isSrcSel?1:.5;ctx.setLineDash([3*sc,3*sc]);ctx.moveTo(p.x,p.y);ctx.lineTo(srcP.x,srcP.y);ctx.stroke();ctx.setLineDash([])});
+  NODES.forEach(n=>{
+    const p=np(n.id),isSel=selN===n.id,isHov=hovN===n.id,nr=R+(isSel?2:isHov?1:0);
+    if(isSel||isHov){ctx.beginPath();ctx.arc(p.x,p.y,nr+8*sc,0,Math.PI*2);const g=ctx.createRadialGradient(p.x,p.y,nr,p.x,p.y,nr+8*sc);g.addColorStop(0,`${n.color}14`);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fill()}
+    ctx.beginPath();ctx.arc(p.x,p.y,nr,0,Math.PI*2);ctx.fillStyle=isSel?`${n.color}20`:`${n.color}0a`;ctx.fill();ctx.strokeStyle=isSel?n.color:`${n.color}40`;ctx.lineWidth=isSel?2:1.2;ctx.stroke();
+    ctx.font=`bold ${9*sc}px sans-serif`;ctx.fillStyle=isSel?'#fff':n.color;ctx.textAlign='center';ctx.textBaseline='middle';
+    const lbl=n.label.length>14?n.label.slice(0,12)+'..':n.label;
+    ctx.fillText(lbl,p.x,p.y-2*sc);ctx.font=`${7*sc}px sans-serif`;ctx.fillStyle=isSel?'#a1a1aa':'#52525b';ctx.fillText(n.desc,p.x,p.y+9*sc);
+  });
+}
+function hsTag(hs){if(!hs)return'';if(hs==='hard')return'<span class="hs hard">HARD</span>';if(hs==='soft')return'<span class="hs soft">SOFT</span>';if(hs==='both')return'<span class="hs hard">HARD</span><span class="hs soft">SOFT</span>';return''}
+function App(){
+  const root=document.getElementById('root');
+  let state={tab:'nodes',selN:null,selE:null,hovN:null,detail:null,detailType:null};
+  const set=u=>{Object.assign(state,u);render()};
+  function render(){
+    root.innerHTML=`<div class="app"><div class="sb"><div class="sb-h"><h1>온톨로지 v2.2</h1><p>9 Vertices · 13 Edges · 7 모순 · Hard/Soft · 이중 시간 축</p></div>
+    <div class="tabs"><button class="tab ${state.tab==='nodes'?'on':''}" onclick="app.tab('nodes')">노드(9)</button><button class="tab ${state.tab==='edges'?'on':''}" onclick="app.tab('edges')">엣지(13)</button><button class="tab ${state.tab==='confirm'?'on':''}" onclick="app.tab('confirm')">확인(8)</button><button class="tab ${state.tab==='design'?'on':''}" onclick="app.tab('design')">설계</button></div>
+    <div class="sb-c">${state.tab==='nodes'?rNodes():''}${state.tab==='edges'?rEdges():''}${state.tab==='confirm'?rConfirm():''}${state.tab==='design'?rDesign():''}</div></div>
+    <div class="cv"><canvas id="cv"></canvas>${rLegend()}${rDetail()}</div></div>`;
+    requestAnimationFrame(setupCanvas);
+  }
+  function rNodes(){return NODES.map(n=>`<div class="nc ${state.selN===n.id?'sel':''}" onclick="app.selN('${n.id}')" onmouseenter="app.hov('${n.id}')" onmouseleave="app.hov(null)"><div class="nm"><div class="dot" style="background:${n.color}"></div>${n.label}</div><div class="ds">${n.desc}</div></div>`).join('')}
+  function rEdges(){const g={};EDGES.forEach(e=>{if(!g[e.cat])g[e.cat]=[];g[e.cat].push(e)});return Object.entries(g).map(([c,es])=>`<div class="st"><div class="st-s">${c}</div>${es.map(e=>`<div class="ec ${state.selE===e.id?'sel':''}" onclick="app.selE('${e.id}')"><div style="flex:1"><div style="font-size:10px;font-weight:600;color:${e.color};display:flex;align-items:center">${e.label}${hsTag(e.hs)}</div><div style="font-size:7px;color:#52525b">${e.from} → ${e.to}</div></div></div>`).join('')}</div>`).join('')}
+  function rConfirm(){return CONFIRM_TYPES.map(c=>`<div class="nc" onclick="app.selConf('${c.id}')"><div class="nm"><div class="dot" style="background:${c.color}"></div>${c.label}${hsTag(c.hs)}</div><div class="ds">${c.desc}</div></div>`).join('')}
+  function rDesign(){return DESIGN.map(d=>`<div class="nc" onclick="app.selDesign('${d.id}')"><div class="nm"><div class="dot" style="background:${d.color}"></div>${d.label}</div><div class="ds">${d.desc.slice(0,60)}...</div></div>`).join('')}
+  function rLegend(){return`<div class="lg"><div class="lg-t">범례</div>${NODES.map(n=>`<div class="lg-i"><div class="lg-d" style="background:${n.color}"></div>${n.label}</div>`).join('')}<div style="margin-top:4px;border-top:1px solid rgba(63,63,70,.08);padding-top:4px"><div class="lg-i" style="color:#f87171;font-weight:600">HARD = 자동 판정</div><div class="lg-i" style="color:#fbbf24;font-weight:600">SOFT = 사용자 확인</div></div></div>`}
+  function rDetail(){
+    if(!state.detail)return'<div class="dt"></div>';let c='';
+    if(state.detailType==='node'){
+      const n=NODES.find(x=>x.id===state.detail);if(!n)return'<div class="dt"></div>';
+      const re=EDGES.filter(e=>e.from===n.id||e.to===n.id);
+      c=`<h3><div class="dot" style="background:${n.color}"></div>${n.label} <span style="font-size:9px;color:#52525b;font-weight:400">${n.desc}</span></h3><table><tr><th>속성</th><th>타입</th><th>설명</th></tr>${n.attrs.map(a=>`<tr><td style="color:${n.color};font-family:monospace;font-size:8px">${a.k}</td><td style="font-family:monospace;font-size:8px">${a.t}</td><td>${a.d}</td></tr>`).join('')}</table><div style="margin-top:6px;font-size:8px;font-weight:600;color:#52525b">연결 엣지(${re.length})</div><div style="margin-top:2px;display:flex;flex-wrap:wrap;gap:2px">${re.map(e=>`<span class="tg" style="background:${e.color}10;color:${e.color};border:1px solid ${e.color}25;cursor:pointer" onclick="app.selE('${e.id}')">${e.label}${e.hs?(' '+(e.hs==='hard'?'H':e.hs==='soft'?'S':'H/S')):''}</span>`).join('')}</div>`;
+    }
+    if(state.detailType==='edge'){
+      const e=EDGES.find(x=>x.id===state.detail);if(!e)return'<div class="dt"></div>';
+      c=`<h3 style="color:${e.color}">${e.label} ${hsTag(e.hs)}<span style="font-size:9px;color:#52525b;font-weight:400;margin-left:6px">${e.from} → ${e.to}</span></h3><p style="color:#a1a1aa;font-size:10px;margin-bottom:4px">${e.desc}</p><span class="tg" style="background:rgba(16,185,129,.05);color:#34d399;border:1px solid rgba(16,185,129,.12)">${e.cat}</span>${e.query?`<div style="margin-top:6px;font-size:8px;font-weight:600;color:#52525b">탐지 로직 (Hard/Soft)</div><div class="qb">${e.query}</div>`:''}`;
+    }
+    if(state.detailType==='confirm'){
+      const ct=CONFIRM_TYPES.find(x=>x.id===state.detail);if(!ct)return'<div class="dt"></div>';
+      c=`<h3><div class="dot" style="background:${ct.color}"></div>${ct.label}${hsTag(ct.hs)}</h3><p style="color:#a1a1aa;font-size:10px;margin-bottom:5px">${ct.desc}</p><div style="background:rgba(248,113,113,.04);border:1px solid rgba(248,113,113,.08);border-radius:5px;padding:7px;margin-top:4px"><div style="font-size:8px;font-weight:600;color:#f87171;margin-bottom:2px">Soft Inconsistency → 사용자 확인</div><p style="font-size:9px;color:#e4e4e7;line-height:1.5">질문 + <strong>관련 원본 발췌</strong> 필수. 사용자가 "모순" 또는 "의도적"으로 판정.</p></div>`;
+    }
+    if(state.detailType==='design'){
+      const d=DESIGN.find(x=>x.id===state.detail);if(!d)return'<div class="dt"></div>';
+      c=`<h3><div class="dot" style="background:${d.color}"></div>${d.label}</h3><p style="color:#a1a1aa;font-size:10px;line-height:1.6">${d.desc}</p>`;
+    }
+    return`<div class="dt show"><button class="cl" onclick="app.closeDt()">✕</button>${c}</div>`;
+  }
+  function setupCanvas(){const cv=document.getElementById('cv');if(!cv)return;const ct=cv.parentElement,dpr=window.devicePixelRatio||1;cv.width=ct.clientWidth*dpr;cv.height=ct.clientHeight*dpr;cv.style.width=ct.clientWidth+'px';cv.style.height=ct.clientHeight+'px';cv.getContext('2d').scale(dpr,dpr);draw(cv,state.selN,state.selE,state.hovN)}
+  window.app={
+    tab(t){set({tab:t,selN:null,selE:null,detail:null,detailType:null})},
+    selN(id){set({selN:id,selE:null,detail:id,detailType:'node'})},
+    selE(id){set({selE:id,selN:null,detail:id,detailType:'edge',tab:'edges'})},
+    selConf(id){set({detail:id,detailType:'confirm'})},
+    selDesign(id){set({detail:id,detailType:'design'})},
+    hov(id){state.hovN=id;const cv=document.getElementById('cv');if(cv)draw(cv,state.selN,state.selE,state.hovN)},
+    closeDt(){set({detail:null,detailType:null})},
+  };
+  window.addEventListener('resize',()=>requestAnimationFrame(setupCanvas));
+  render();
+}
+App();
+</script>
+</body>
+</html>
