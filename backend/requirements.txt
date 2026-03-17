@@ -2,28 +2,21 @@
 fastapi
 uvicorn[standard]
 
-# Config & Logging
+# Data Validation & Env
+pydantic>=2.0
+pydantic-settings
 python-dotenv
-structlog
 
-# Azure CosmosDB (Gremlin)
+# Database (Azure Cosmos DB)
+azure-cosmos
 gremlinpython
 
-# Azure AI Search
-azure-search-documents
-azure-identity
-
-# LLM
-openai
-anthropic
-
-# Workflow
+# LLM & Graph Orchestration
+langchain
 langgraph
+openai
 
-# Data Validation
-pydantic
-
-# File Upload & Parsing
-python-multipart
-pypdf2
+# Utilities
+structlog
 httpx
+pytest
