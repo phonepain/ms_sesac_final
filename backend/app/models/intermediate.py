@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-
+from typing import List, Optional, Dict, Any, Literal
 # ==========================================
 #[계층 1: Extraction 결과물]
 # LLM에게 "반드시 이 JSON 형태로 대답해!"라고 강제할 스키마들입니다.
@@ -48,14 +48,14 @@ class RawEmotion(BaseModel):
 class RawItemEvent(BaseModel):
     character_name: str
     item_name: str
-    action: str  # possesses, loses, uses
+    action: Literal["possesses", "loses", "uses"] = Field(description="반드시 이 3개 중 하나여야 함")
     source_chunk_id: Optional[str] = None
 
 class RawKnowledgeEvent(BaseModel):
     """(중요) 정보 비대칭 및 거짓말 탐지를 위한 핵심 추출 모델"""
     character_name: str
     fact_content: str
-    event_type: str  # learns, mentions 중 하나
+    event_type: Literal["learns", "mentions"] = Field(description="새로 알게됨(learns), 이미 아는걸 말함(mentions)")
     method: Optional[str] = None
     via_character: Optional[str] = None
     dialogue_text: Optional[str] = None
