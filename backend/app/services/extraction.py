@@ -110,6 +110,9 @@ class ExtractionService:
 
                 data = json.loads(response)
 
+                data["source_chunk_id"] = chunk.id
+                data["chunk_index"] = chunk.chunk_index
+
                 """
                 Step 5
                 Pydantic Validation

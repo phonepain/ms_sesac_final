@@ -66,18 +66,22 @@ class RawKnowledgeEvent(BaseModel):
     dialogue_text: Optional[str] = None
     source_chunk_id: str
 
+
 class ExtractionResult(BaseModel):
     """문서 청크 단위 추출 결과 모음"""
     characters: List[RawCharacter] = Field(default_factory=list)
     facts: List[RawFact] = Field(default_factory=list)
     events: List[RawEvent] = Field(default_factory=list)
     traits: List[RawTrait] = Field(default_factory=list)
+
     relationships: List[RawRelationship] = Field(default_factory=list)
     emotions: List[RawEmotion] = Field(default_factory=list)
+
     item_events: List[RawItemEvent] = Field(default_factory=list)
     knowledge_events: List[RawKnowledgeEvent] = Field(default_factory=list)
-    source_chunk_id: str
 
+    source_chunk_id: str
+    chunk_index: int
 
 # ==========================================
 # Normalized Entities (계층 2 출력)

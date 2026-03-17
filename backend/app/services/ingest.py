@@ -7,39 +7,27 @@ from typing import List
 from fastapi import HTTPException
 
 from app.models.api import DocumentChunk
-from app.models.enums import SourceType, SourceLocation
+from app.models.enums import SourceType
 
 
 CHUNK_SIZE = 500
-OVERLAP = 100
 
 
 class IngestService:
+
     """
     Phase 1 - Ingest Layer
 
-    역할:
-    파일 → DocumentChunk
-
-    데이터 흐름
-
-    File Upload
-        ↓
-    IngestService.parse_txt / parse_pdf
-        ↓
-    DocumentChunk 생성
-        ↓
-    ExtractionService 전달
+    File → DocumentChunk
     """
 
-    # ----------------------------------------------------------
-    # TXT 파일 파싱
-    # ----------------------------------------------------------
     async def parse_txt(self, file_path: str, source_type: SourceType) -> List[DocumentChunk]:
 
+        source_id = str(uuid.uuid4())
+        file_name = Path(file_path).name
+
         try:
-            # Step 1: UTF-8 시도
-            # Step 2: 실패 시 cp949 fallback
+
             try:
                 text = await asyncio.to_thread(
                     Path(file_path).read_text,
@@ -47,7 +35,7 @@ class IngestService:
                 )
 
             except UnicodeDecodeError:
-                # Windows 한글 파일 대응
+
                 text = await asyncio.to_thread(
                     Path(file_path).read_text,
                     encoding="cp949"
@@ -60,27 +48,27 @@ class IngestService:
                 detail=f"Failed to read txt file: {str(e)}"
             )
 
-        return self._chunk_text(text, file_path, source_type)
+        return self._chunk_text(text, source_id, file_name, source_type)
 
 
-    # ----------------------------------------------------------
-    # PDF 파싱
-    # ----------------------------------------------------------
     async def parse_pdf(self, file_path: str, source_type: SourceType):
 
-        try:
-            from PyPDF2 import PdfReader
+        from PyPDF2 import PdfReader
 
+        source_id = str(uuid.uuid4())
+        file_name = Path(file_path).name
+
+        try:
             reader = PdfReader(file_path)
 
         except Exception as e:
+
             raise HTTPException(
                 status_code=400,
                 detail=f"Failed to parse PDF: {str(e)}"
             )
 
         chunks = []
-        discourse = 1.0
         chunk_index = 0
 
         for page_index, page in enumerate(reader.pages):
@@ -92,43 +80,67 @@ class IngestService:
 
             page_chunks = self._chunk_text(
                 text,
-                source_id=file_path,
-                source_type=source_type
+                source_id,
+                file_name,
+                source_type
             )
 
             for chunk in page_chunks:
 
                 chunk.chunk_index = chunk_index
-                chunk.location.page = page_index + 1
+                chunk.location["page"] = page_index + 1
 
                 chunks.append(chunk)
 
-                discourse += 0.1
                 chunk_index += 1
 
         return chunks
 
 
-    # ----------------------------------------------------------
-    # 텍스트 Chunking
-    #
-    # 500 token 단위
-    # 100 token overlap
-    # ----------------------------------------------------------
-    def _chunk_text(self, text: str, source_id: str, source_type: SourceType):
+    def _chunk_text(self, text: str, source_id: str, file_name: str, source_type: SourceType):
 
-        tokens = text.split()
+        paragraphs = text.split("\n\n")
 
         chunks = []
-
-        start = 0
+        buffer = []
+        current_length = 0
         chunk_index = 0
 
-        while start < len(tokens):
+        for paragraph in paragraphs:
 
-            end = start + CHUNK_SIZE
+            words = paragraph.split()
 
-            content = " ".join(tokens[start:end])
+            if current_length + len(words) > CHUNK_SIZE and buffer:
+
+                content = "\n\n".join(buffer)
+
+                chunk = DocumentChunk(
+                    id=str(uuid.uuid4()),
+                    source_id=source_id,
+                    chunk_index=chunk_index,
+                    content=content,
+                    location={
+                        "source_id": source_id,
+                        "source_name": file_name,
+                        "source_type": source_type,
+                        "page": None,
+                        "chapter": None,
+                        "line_range": None
+                    }
+                )
+
+                chunks.append(chunk)
+
+                buffer = []
+                current_length = 0
+                chunk_index += 1
+
+            buffer.append(paragraph)
+            current_length += len(words)
+
+        if buffer:
+
+            content = "\n\n".join(buffer)
 
             chunk = DocumentChunk(
                 id=str(uuid.uuid4()),
@@ -137,7 +149,8 @@ class IngestService:
                 content=content,
                 location={
                     "source_id": source_id,
-                    "source_name": source_id,
+                    "source_name": file_name,
+                    "source_type": source_type,
                     "page": None,
                     "chapter": None,
                     "line_range": None
@@ -145,8 +158,5 @@ class IngestService:
             )
 
             chunks.append(chunk)
-
-            chunk_index += 1
-            start += CHUNK_SIZE - OVERLAP
 
         return chunks

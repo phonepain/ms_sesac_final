@@ -11,8 +11,8 @@ from app.models.enums import SourceType
 async def test_ingest_and_extract(tmp_path):
 
     sample_text = """
-    A: 나는 범인을 봤어.
-    B: 어디에서?
+    철수는 범인을 봤다.
+    그러나 영희는 철수가 범인을 봤다는 걸 모른다.
     """
 
     file = tmp_path / "sample.txt"
@@ -27,9 +27,12 @@ async def test_ingest_and_extract(tmp_path):
     )
 
     assert len(chunks) > 0
-
+    
     extractor = MockExtractionService()
 
     result = await extractor.extract_from_chunk(chunks[0])
 
+    assert result.chunk_index == 0
+
     assert len(result.characters) == 2
+
