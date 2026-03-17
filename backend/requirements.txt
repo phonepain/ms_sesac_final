@@ -1,0 +1,29 @@
+# Web Framework
+fastapi
+uvicorn[standard]
+
+# Config & Logging
+python-dotenv
+structlog
+
+# Azure CosmosDB (Gremlin)
+gremlinpython
+
+# Azure AI Search
+azure-search-documents
+azure-identity
+
+# LLM
+openai
+anthropic
+
+# Workflow
+langgraph
+
+# Data Validation
+pydantic
+
+# File Upload & Parsing
+python-multipart
+pypdf2
+httpx
