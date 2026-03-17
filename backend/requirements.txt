@@ -1,0 +1,22 @@
+# Web Framework
+fastapi
+uvicorn[standard]
+
+# Data Validation & Env
+pydantic>=2.0
+pydantic-settings
+python-dotenv
+
+# Database (Azure Cosmos DB)
+azure-cosmos
+gremlinpython
+
+# LLM & Graph Orchestration
+langchain
+langgraph
+openai
+
+# Utilities
+structlog
+httpx
+pytest
