@@ -1,30 +1,150 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
-from backend.app.models.enums import EntityType, new_id
+from typing import Optional, List
+from datetime import datetime
+from pydantic import ConfigDict, Field
 
-class BaseVertex(BaseModel):
-    id: str
-    label: EntityType
-    properties: Dict[str, Any] = Field(default_factory=dict)
+from app.models.enums import (
+    VertexBase, CharacterTier, FactCategory, FactImportance, EventType,
+    TraitCategory, OrgType, SourceType, ConfirmationType, ConfirmationStatus
+)
 
-class Character(BaseVertex):
+# ---------------------------------------------------------
+# Vertices (9종)
+# ---------------------------------------------------------
+
+class Character(VertexBase):
+    """서사에 등장하는 캐릭터"""
     name: str
-    aliases: List[str] = []
+    aliases: List[str] = Field(default_factory=list)
+    tier: CharacterTier
     description: Optional[str] = None
 
-class KnowledgeFact(BaseVertex):
-    content: str
-    is_true: bool = True  # v2.1 거짓말 추적용
-    category: Optional[str] = None
+    @property
+    def partition_key(self) -> str:
+        return "character"
 
-class Event(BaseVertex):
+
+class KnowledgeFact(VertexBase):
+    """서사 세계 내에서 참인 정보 단위"""
+    content: str
+    category: FactCategory
+    importance: FactImportance
+    is_secret: bool = False
+    is_true: bool = True
+    established_order: float
+    source_location: str
+
+    @property
+    def partition_key(self) -> str:
+        return "fact"
+
+
+class EventEnvironment(VertexBase):
+    """이벤트(장면) 환경 조건 - 별도의 Vertex로 분리되거나 Dictionary로 저장 (여기서는 딕셔너리로 Event 모델 내재)"""
+    pass
+
+
+class Event(VertexBase):
+    """사건/장면"""
+    discourse_order: float
+    story_order: Optional[float] = None
+    is_linear: bool = True
+    event_type: EventType
     description: str
-    discourse_order: float  # 서사 순서 (작품 내 등장 순서)
-    story_order: float     # 실제 시간 순서 (연대기)
-    environment: Optional[str] = None  # 장면 환경 제약
+    location: Optional[str] = None
+    environment: Optional[dict] = None  # {time_of_day, weather, lighting, special_conditions}
+    source_location: str
+
+    @property
+    def partition_key(self) -> str:
+        return "event"
+
+
+class Trait(VertexBase):
+    """캐릭터에 귀속된 특성/설정"""
+    category: TraitCategory
+    key: str
+    value: str
+    description: Optional[str] = None
+    is_immutable: bool = False
+    source_location: str
+
+    @property
+    def partition_key(self) -> str:
+        return "trait"
+
+
+class Organization(VertexBase):
+    """조직/세력/단체"""
+    name: str
+    org_type: OrgType
+    description: Optional[str] = None
+
+    @property
+    def partition_key(self) -> str:
+        return "organization"
+
+
+class Location(VertexBase):
+    """서사 세계 내 물리적 장소"""
+    name: str
+    location_type: str  # Enum 확장이 가능하나 가이드에 따라 string 선언 (region/city/building/room/outdoor/abstract)
+    parent_location_id: Optional[str] = None
+    description: Optional[str] = None
+    travel_constraints: Optional[str] = None
+
+    @property
+    def partition_key(self) -> str:
+        return "location"
+
+
+class Item(VertexBase):
+    """유일/추적 아이템"""
+    name: str
+    is_unique: bool
+    description: Optional[str] = None
     location_id: Optional[str] = None
 
-class Item(BaseVertex):
+    @property
+    def partition_key(self) -> str:
+        return "item"
+
+
+class Source(VertexBase):
+    """자료/소스 문서 (세계관, 설정집 등)"""
+    source_type: SourceType
     name: str
-    description: Optional[str] = None
-    current_location_id: Optional[str] = None
+    metadata: str  # JSON string
+    ingested_at: datetime = Field(default_factory=datetime.now)
+    status: Optional[str] = "active"
+
+    @property
+    def partition_key(self) -> str:
+        return "source"
+
+
+class SourceExcerpt(VertexBase):
+    """UserConfirmation 내부 사용을 위한 Pydantic 구조"""
+    source_name: str
+    source_location: str
+    text: str
+    highlight_range: Optional[tuple[int, int]] = None
+
+    @property
+    def partition_key(self) -> str:
+        return "excerpt"
+
+
+class UserConfirmation(VertexBase):
+    """사용자가 직접 판별해야 하는 모호한 모순, 의도적 변경 로그"""
+    confirmation_type: ConfirmationType
+    status: ConfirmationStatus
+    question: str
+    context_summary: str
+    source_excerpts: List[SourceExcerpt] = Field(default_factory=list)
+    related_entity_ids: List[str] = Field(default_factory=list)
+    user_response: Optional[str] = None
+    resolved_at: Optional[datetime] = None
+
+    @property
+    def partition_key(self) -> str:
+        return "confirmation"
