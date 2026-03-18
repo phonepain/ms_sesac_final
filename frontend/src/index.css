@@ -1,9 +1,49 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer base {
-  body {
-    @apply bg-slate-50 text-slate-900;
+@layer components {
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  
+  .fade { animation: fadeIn 0.25s ease-out; }
+  .spin { animation: spin 1s linear infinite; }
+  .pulse { animation: pulse 2s ease-in-out infinite; }
+  
+  .dz {
+    transition: all 0.2s;
+    border: 2px dashed rgba(63,63,70,0.4);
+    border-radius: 10px;
+    padding: 16px 10px;
+    text-align: center;
+    cursor: pointer;
+    background: rgba(39,39,42,0.06);
+  }
+  .dz:hover, .dz.ov {
+    border-color: #10b981;
+    background: rgba(16,185,129,0.05);
   }
 }
+
+@layer utilities {
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+}
+
+body {
+  font-family: 'Noto Sans KR', -apple-system, sans-serif;
+  background: #09090b;
+  color: #e4e4e7;
+  height: 100vh;
+  overflow: hidden;
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
