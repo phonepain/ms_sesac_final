@@ -2,7 +2,7 @@
 import structlog
 from typing import List
 from openai import AsyncAzureOpenAI
-
+import json
 from app.config import settings
 from app.models.intermediate import ExtractionResult
 from app.prompts.extract_entities import WORLDVIEW_PROMPT, SETTINGS_PROMPT, SCENARIO_PROMPT
@@ -50,7 +50,17 @@ class ExtractionService:
                 response_format=ExtractionResult,
             )
             
-            result: ExtractionResult = response.choices[0].message.parsed
+            try:
+                result = response.choices[0].message.parsed
+            except Exception:
+                try:
+                    content = response.choices[0].message.content
+                    data = json.loads(content)
+                    result = ExtractionResult(**data)
+                except Exception:
+                    logger.error("Failed to parse LLM output", content=content)
+                    result = ExtractionResult(source_chunk_id=chunk_id)
+
             result.source_chunk_id = chunk_id
             return result
             
