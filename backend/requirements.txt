@@ -12,5 +12,3 @@ pydantic
 python-multipart
 pypdf2
 httpx
-pytest
-pytest-asyncio
