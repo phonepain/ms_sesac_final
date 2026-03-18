@@ -14,13 +14,17 @@ from gremlin_python.structure.graph import Graph
 from gremlin_python.driver.driver_remote_connection import DriverRemoteConnection
 from gremlin_python.process.graph_traversal import __
 
-from app.models.intermediate import NormalizationResult # 정규화 파이프라인의 최종 결과물 (계층 3 Graph Materialization의 입력값)
-from app.models.edges import RELATIONSHIP_CONFLICT_MATRIX # 관계 모순 판별용 행렬 가이드라인 (Conflict Matrix)
+from app.models.intermediate import NormalizationResult
+from app.models.edges import RELATIONSHIP_CONFLICT_MATRIX
 from app.models.enums import (
     ConfirmationType, ConfirmationStatus, ContradictionType,
     Severity, RelationshipType,
+    CharacterTier, FactCategory, FactImportance
 )
-from app.models.api import KBStats # Knowledge Base (KB) Status
+from app.models.vertices import (
+    Character, KnowledgeFact, UserConfirmation, Source, SourceExcerpt
+)
+from app.models.api import KBStats
 
 
 # ─────────────────────────────────────────────────────────────
@@ -97,6 +101,30 @@ def _make_violation(
 # ─────────────────────────────────────────────────────────────
 # Gremlin 클라이언트 팩토리
 # ─────────────────────────────────────────────────────────────
+
+def _vertex_to_dict(v: Any) -> Dict[str, Any]:
+    """Pydantic VertexBase → 스토리지용 flat dict.
+    - UUID/datetime → str 변환
+    - list/dict 필드 → JSON 문자열 (Gremlin 호환)
+    - partition_key property 포함
+    """
+    d = v.model_dump(mode="json")
+    d["id"] = str(v.id)
+    d["partition_key"] = v.partition_key
+    # created_at 이미 model_dump(mode="json")에 의해 str 변환됨
+    for k, val in list(d.items()):
+        if isinstance(val, (list, dict)):
+            d[k] = json.dumps(val, ensure_ascii=False)
+    return d
+
+
+def _safe_enum(enum_cls: Any, value: Any, default: Any) -> Any:
+    """문자열 → enum 변환 실패 시 default 반환"""
+    try:
+        return enum_cls(value)
+    except (ValueError, KeyError):
+        return default
+
 
 def create_gremlin_client(endpoint: str, key: str, database: str, container: str):
     url = endpoint if endpoint.startswith("wss://") else f"wss://{endpoint}:443/"
@@ -327,76 +355,100 @@ class GremlinGraphService:
 
     # ── 계층 3: Graph 적재 ────────────────────────────────────
 
-    def materialize(self, normalized: NormalizationResult, source: Any) -> Dict[str, List[str]]:
-        """NormalizationResult → Cosmos DB Graph 적재"""
-        source_id = str(getattr(source, "id", source))
-        now = datetime.now().isoformat()
-        created: Dict[str, List[str]] = {"characters": [], "facts": [], "confirmations": []}
+    def materialize(self, normalized: NormalizationResult, source: Source) -> Dict[str, List[str]]:
+        """NormalizationResult → Cosmos DB Graph 적재
+
+        Steps:
+          0. Source vertex 적재
+          1. NormalizedCharacter → Character vertex + SOURCED_FROM
+          2. NormalizedFact     → KnowledgeFact vertex + SOURCED_FROM (discourse_order 자동 부여)
+          3. SourceConflict     → UserConfirmation vertex + SOURCED_FROM
+        """
+        source_id = str(source.id)
+        created: Dict[str, List[str]] = {
+            "source": [], "characters": [], "facts": [], "confirmations": [],
+        }
 
         logger.info("Materializing NormalizationResult", source_id=source_id)
         try:
+            # 0. Source vertex 적재
+            src_dict = _vertex_to_dict(source)
+            # Source 자신의 source_id는 자기 id를 참조
+            src_dict["source_id"] = source_id
+            self.add_source(src_dict)
+            created["source"].append(source_id)
+
             # 1. Character vertices
             for nc in normalized.characters:
-                char_id = str(uuid.uuid4())
-                self.add_character({
-                    "id": char_id,
-                    "name": nc.canonical_name,
-                    "aliases": str(nc.all_aliases),
-                    "tier": nc.tier,
-                    "description": nc.description or "",
+                char = Character(
+                    source_id=source_id,
+                    name=nc.canonical_name,
+                    aliases=nc.all_aliases,
+                    tier=_safe_enum(CharacterTier, nc.tier, CharacterTier.TIER_4),
+                    description=nc.description,
+                )
+                char_dict = _vertex_to_dict(char)
+                self.add_character(char_dict)
+                self.add_sourced_from(char_dict["id"], source_id, {
                     "source_id": source_id,
-                    "partition_key": "character",
-                    "created_at": now,
+                    "source_location": "",
+                    "created_at": char_dict["created_at"],
                 })
-                self.add_sourced_from(char_id, source_id, {
-                    "source_id": source_id, "source_location": "", "created_at": now,
-                })
-                created["characters"].append(char_id)
+                created["characters"].append(char_dict["id"])
 
             # 2. KnowledgeFact vertices (discourse_order 자동 부여)
             for nf in normalized.facts:
                 do = self._get_next_discourse_order()
-                fact_id = str(uuid.uuid4())
-                self.add_fact({
-                    "id": fact_id,
-                    "content": nf.content,
-                    "category": nf.category,
-                    "importance": nf.importance,
-                    "is_secret": nf.is_secret,
-                    "is_true": nf.is_true,
-                    "established_order": do,
-                    "source_location": "",
+                fact = KnowledgeFact(
+                    source_id=source_id,
+                    content=nf.content,
+                    category=_safe_enum(FactCategory, nf.category, FactCategory.EVENT_FACT),
+                    importance=_safe_enum(FactImportance, nf.importance, FactImportance.MINOR),
+                    is_secret=nf.is_secret,
+                    is_true=nf.is_true,
+                    established_order=do,
+                    source_location="",
+                )
+                fact_dict = _vertex_to_dict(fact)
+                self.add_fact(fact_dict)
+                self.add_sourced_from(fact_dict["id"], source_id, {
                     "source_id": source_id,
-                    "partition_key": "fact",
-                    "created_at": now,
+                    "source_location": "",
+                    "created_at": fact_dict["created_at"],
                 })
-                self.add_sourced_from(fact_id, source_id, {
-                    "source_id": source_id, "source_location": "", "created_at": now,
-                })
-                created["facts"].append(fact_id)
+                created["facts"].append(fact_dict["id"])
 
             # 3. SourceConflict → UserConfirmation vertices
             for conflict in normalized.source_conflicts:
-                conf_id = str(uuid.uuid4())
-                excerpts = "; ".join(
-                    f"[{d.source_id}] {d.text}" for d in conflict.descriptions
-                )
-                self.add_user_confirmation({
-                    "id": conf_id,
-                    "confirmation_type": ConfirmationType.SOURCE_CONFLICT.value,
-                    "status": ConfirmationStatus.PENDING.value,
-                    "question": (
+                excerpts = [
+                    SourceExcerpt(
+                        source_id=source_id,
+                        source_name=d.source_id,
+                        source_location="",
+                        text=d.text,
+                    )
+                    for d in conflict.descriptions
+                ]
+                conf = UserConfirmation(
+                    source_id=source_id,
+                    confirmation_type=ConfirmationType.SOURCE_CONFLICT,
+                    status=ConfirmationStatus.PENDING,
+                    question=(
                         f"소스 충돌: '{conflict.entity_type}'에 대해 "
                         f"소스들이 서로 다른 내용을 기술합니다. 어느 것이 정본입니까?"
                     ),
-                    "context_summary": f"충돌 값: {', '.join(conflict.conflicting_values)}",
-                    "source_excerpts": excerpts,
-                    "related_entity_ids": "",
+                    context_summary=f"충돌 값: {', '.join(conflict.conflicting_values)}",
+                    source_excerpts=excerpts,
+                    related_entity_ids=[],
+                )
+                conf_dict = _vertex_to_dict(conf)
+                self.add_user_confirmation(conf_dict)
+                self.add_sourced_from(conf_dict["id"], source_id, {
                     "source_id": source_id,
-                    "partition_key": "confirmation",
-                    "created_at": now,
+                    "source_location": "",
+                    "created_at": conf_dict["created_at"],
                 })
-                created["confirmations"].append(conf_id)
+                created["confirmations"].append(conf_dict["id"])
 
             logger.info("Materialization complete", **{k: len(v) for k, v in created.items()})
             return created
@@ -1142,46 +1194,98 @@ class InMemoryGraphService:
 
     # ── 계층 3: 적재 ──────────────────────────────────────────
 
-    def materialize(self, normalized: NormalizationResult, source: Any) -> Dict[str, List[str]]:
-        source_id = str(getattr(source, "id", source))
-        now = datetime.now().isoformat()
-        created: Dict[str, List[str]] = {"characters": [], "facts": [], "confirmations": []}
+    def materialize(self, normalized: NormalizationResult, source: Source) -> Dict[str, List[str]]:
+        """NormalizationResult → In-Memory Graph 적재
 
+        Steps:
+          0. Source vertex 적재
+          1. NormalizedCharacter → Character vertex + SOURCED_FROM
+          2. NormalizedFact     → KnowledgeFact vertex + SOURCED_FROM (discourse_order 자동 부여)
+          3. SourceConflict     → UserConfirmation vertex + SOURCED_FROM
+        """
+        source_id = str(source.id)
+        created: Dict[str, List[str]] = {
+            "source": [], "characters": [], "facts": [], "confirmations": [],
+        }
+
+        # 0. Source vertex 적재
+        src_dict = _vertex_to_dict(source)
+        src_dict["source_id"] = source_id
+        self.add_source(src_dict)
+        created["source"].append(source_id)
+
+        # 1. Character vertices
         for nc in normalized.characters:
-            char_id = str(uuid.uuid4())
-            self.add_character({
-                "id": char_id, "name": nc.canonical_name,
-                "aliases": str(nc.all_aliases), "tier": nc.tier,
-                "description": nc.description or "", "source_id": source_id, "created_at": now,
+            char = Character(
+                source_id=source_id,
+                name=nc.canonical_name,
+                aliases=nc.all_aliases,
+                tier=_safe_enum(CharacterTier, nc.tier, CharacterTier.TIER_4),
+                description=nc.description,
+            )
+            char_dict = _vertex_to_dict(char)
+            self.add_character(char_dict)
+            self.add_sourced_from(char_dict["id"], source_id, {
+                "source_id": source_id,
+                "source_location": "",
+                "created_at": char_dict["created_at"],
             })
-            self.add_sourced_from(char_id, source_id, {"source_id": source_id, "source_location": ""})
-            created["characters"].append(char_id)
+            created["characters"].append(char_dict["id"])
 
+        # 2. KnowledgeFact vertices (discourse_order 자동 부여)
         for nf in normalized.facts:
             do = self._get_next_discourse_order()
-            fact_id = str(uuid.uuid4())
-            self.add_fact({
-                "id": fact_id, "content": nf.content, "category": nf.category,
-                "importance": nf.importance, "is_secret": nf.is_secret, "is_true": nf.is_true,
-                "established_order": do, "source_location": "", "source_id": source_id, "created_at": now,
+            fact = KnowledgeFact(
+                source_id=source_id,
+                content=nf.content,
+                category=_safe_enum(FactCategory, nf.category, FactCategory.EVENT_FACT),
+                importance=_safe_enum(FactImportance, nf.importance, FactImportance.MINOR),
+                is_secret=nf.is_secret,
+                is_true=nf.is_true,
+                established_order=do,
+                source_location="",
+            )
+            fact_dict = _vertex_to_dict(fact)
+            self.add_fact(fact_dict)
+            self.add_sourced_from(fact_dict["id"], source_id, {
+                "source_id": source_id,
+                "source_location": "",
+                "created_at": fact_dict["created_at"],
             })
-            self.add_sourced_from(fact_id, source_id, {"source_id": source_id, "source_location": ""})
-            created["facts"].append(fact_id)
+            created["facts"].append(fact_dict["id"])
 
+        # 3. SourceConflict → UserConfirmation vertices
         for conflict in normalized.source_conflicts:
-            conf_id = str(uuid.uuid4())
-            excerpts = "; ".join(f"[{d.source_id}] {d.text}" for d in conflict.descriptions)
-            self.add_user_confirmation({
-                "id": conf_id,
-                "confirmation_type": ConfirmationType.SOURCE_CONFLICT.value,
-                "status": ConfirmationStatus.PENDING.value,
-                "question": f"소스 충돌: '{conflict.entity_type}'의 정본을 선택하세요.",
-                "context_summary": f"충돌 값: {', '.join(conflict.conflicting_values)}",
-                "source_excerpts": excerpts, "related_entity_ids": "",
-                "source_id": source_id, "created_at": now,
+            excerpts = [
+                SourceExcerpt(
+                    source_id=source_id,
+                    source_name=d.source_id,
+                    source_location="",
+                    text=d.text,
+                )
+                for d in conflict.descriptions
+            ]
+            conf = UserConfirmation(
+                source_id=source_id,
+                confirmation_type=ConfirmationType.SOURCE_CONFLICT,
+                status=ConfirmationStatus.PENDING,
+                question=(
+                    f"소스 충돌: '{conflict.entity_type}'의 정본을 선택하세요."
+                ),
+                context_summary=f"충돌 값: {', '.join(conflict.conflicting_values)}",
+                source_excerpts=excerpts,
+                related_entity_ids=[],
+            )
+            conf_dict = _vertex_to_dict(conf)
+            self.add_user_confirmation(conf_dict)
+            self.add_sourced_from(conf_dict["id"], source_id, {
+                "source_id": source_id,
+                "source_location": "",
+                "created_at": conf_dict["created_at"],
             })
-            created["confirmations"].append(conf_id)
+            created["confirmations"].append(conf_dict["id"])
 
+        self.log.info("materialize_complete", **{k: len(v) for k, v in created.items()})
         return created
 
     # ── 7가지 모순 탐지 쿼리 ──────────────────────────────────
