@@ -31,7 +31,4 @@ Thumbs.db
 # 로그
 *.log
 logs/
-<<<<<<< HEAD
 .claude/
-=======
->>>>>>> 881791a134106f5eb4b26a490cc89f4f14d46afd
