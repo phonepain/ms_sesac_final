@@ -30,4 +30,5 @@ Thumbs.db
 
 # 로그
 *.log
+logs/
 .claude/
