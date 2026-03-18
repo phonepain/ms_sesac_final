@@ -29,7 +29,7 @@ SETTINGS_PROMPT = """
 
 SCENARIO_PROMPT = """
 이 텍스트는 서사 작품의 '시나리오/대본'입니다.
-다음 지침에 따라 추출하세요.
+다음 지침에 따라 JSON 형식으로 추출하세요.
 
 [추출 대상]
 1. 장면/이벤트 (설명, 장소) -> events
@@ -40,13 +40,12 @@ SCENARIO_PROMPT = """
     - "loses" : 잃어버림
     - "uses" : 사용)
     예시:
-    {
-    "character_name": "철수",
-    "item_name": "권총",
-    "action": "possesses"
-    }
+    {{
+      "character_name": "철수",
+      "item_name": "권총",
+      "action": "possesses"
+    }}
 4. 등장 캐릭터 -> characters
-
 
 입력 텍스트:
 {text}
