@@ -1,5 +1,4 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
 from typing import List, Optional, Dict, Any, Literal
 # ==========================================
 #[계층 1: Extraction 결과물]
