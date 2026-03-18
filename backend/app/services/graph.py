@@ -4,7 +4,6 @@ import structlog
 from gremlin_python.driver import client, serializer
 from gremlin_python.structure.graph import Graph
 from gremlin_python.driver.driver_remote_connection import DriverRemoteConnection
-from gremlin_python.process.graph_traversal import __
 
 logger = structlog.get_logger()
 
@@ -61,7 +60,7 @@ class GremlinGraphService:
         data["id"] = vid
 
         # g.addV(label).property('id', id).property('pk', partition_key)...
-        t = self.g.addV(label).property('id', vid).property('partition_key', partition_key)
+        t = self.g.addV(label).property('id', vid).property(partition_key, partition_key)
         t = self._dict_to_properties(t, data)
         result = t.toList()
         logger.debug(f"Added vertex {label}", vid=vid)
