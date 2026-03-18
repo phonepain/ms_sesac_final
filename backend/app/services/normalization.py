@@ -46,7 +46,14 @@ class NormalizationService:
             )
             
             result: NormalizationResult = response.choices[0].message.parsed
-            
+
+            for char in result.characters:
+                merged = []
+                for raw in all_raw_characters:
+                    if raw.name == char.canonical_name or raw.name in char.all_aliases:
+                        merged.append(raw)
+                char.merged_from = merged
+
             # (TODO: 향후 Facts 통합, Source 충돌 감지 로직도 여기에 추가)
             
             return result
