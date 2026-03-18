@@ -10,13 +10,13 @@ from gremlin_python.structure.graph import Graph
 from gremlin_python.driver.driver_remote_connection import DriverRemoteConnection
 from gremlin_python.process.graph_traversal import __
 
-from app.models.intermediate import NormalizationResult
-from app.models.edges import RELATIONSHIP_CONFLICT_MATRIX
+from app.models.intermediate import NormalizationResult # 정규화 파이프라인의 최종 결과물 (계층 3 Graph Materialization의 입력값)
+from app.models.edges import RELATIONSHIP_CONFLICT_MATRIX # 관계 모순 판별용 행렬 가이드라인 (Conflict Matrix)
 from app.models.enums import (
     ConfirmationType, ConfirmationStatus, ContradictionType,
     Severity, RelationshipType,
 )
-from app.models.api import KBStats
+from app.models.api import KBStats # Knowledge Base (KB) Status
 
 logger = structlog.get_logger()
 
