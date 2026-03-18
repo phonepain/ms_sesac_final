@@ -1,3 +1,4 @@
+# backend/app/config.py
 import os
 from pydantic_settings import BaseSettings
 
@@ -21,11 +22,16 @@ class Settings(BaseSettings):
     search_endpoint: str = os.getenv("SEARCH_ENDPOINT", "https://localhost")
     search_key: str = os.getenv("SEARCH_KEY", "")
     
-    # LLM (Azure Foundry)
-    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
-    anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
+    # === [추가됨] Azure Foundry (LLM) Settings ===
+    AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+    AZURE_OPENAI_API_KEY: str = os.getenv("AZURE_OPENAI_API_KEY", "")
+    AZURE_OPENAI_EXTRACTION_DEPLOYMENT: str = os.getenv("AZURE_OPENAI_EXTRACTION_DEPLOYMENT", "gpt-5-mini")
+    AZURE_OPENAI_NORMALIZATION_DEPLOYMENT: str = os.getenv("AZURE_OPENAI_NORMALIZATION_DEPLOYMENT", "gpt-5-mini")
+    AZURE_OPENAI_DETECTION_DEPLOYMENT: str = os.getenv("AZURE_OPENAI_DETECTION_DEPLOYMENT", "gpt-5.3-chat")
+    AZURE_OPENAI_API_VERSION: str = os.getenv("AZURE_OPENAI_API_VERSION", "2024-08-01-preview") # 최신 API 버전 지정
     
     class Config:
         env_file = ".env"
+        extra = "ignore" # 정의되지 않은 환경변수는 무시
 
 settings = Settings()
