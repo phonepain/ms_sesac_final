@@ -100,7 +100,7 @@ def analyze_manuscript(manuscript: ManuscriptInput):
     dummy_report = ContradictionReport(
         id="report-001",
         type=ContradictionType.TIMELINE,
-        severity=Severity.HIGH,
+        severity=Severity.CRITICAL,
         character_name="형사 A",
         description="죽은 줄 알았던 캐릭터가 5년 전 과거 회상 없이 현재에 등장합니다.",
         confidence=0.85,
@@ -109,7 +109,8 @@ def analyze_manuscript(manuscript: ManuscriptInput):
     
     # 더미 User Confirmation 1개 생성
     dummy_confirmation = UserConfirmation(
-        id="conf-001",
+        id="11111111-1111-1111-1111-111111111111",
+        source_id="dummy-source",
         confirmation_type="timeline_ambiguity",
         status=ConfirmationStatus.PENDING,
         question="캐릭터 A와 B의 관계가 이전 장에서는 '원수'였으나 지금은 '협력자'로 묘사됩니다. 의도된 변화입니까?",
