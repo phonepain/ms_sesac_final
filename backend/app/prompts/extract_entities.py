@@ -35,7 +35,18 @@ SCENARIO_PROMPT = """
 1. 장면/이벤트 (설명, 장소) -> events
 2. 대화를 통해 알게 된 정보 (누가 무엇을 들었는지/언급했는지) -> knowledge_events
 3. 아이템의 획득/분실 -> item_events
+    (action 값은 반드시 아래 3개 중 하나만 사용하세요:
+    - "possesses" : 새로 획득
+    - "loses" : 잃어버림
+    - "uses" : 사용)
+    예시:
+    {
+    "character_name": "철수",
+    "item_name": "권총",
+    "action": "possesses"
+    }
 4. 등장 캐릭터 -> characters
+
 
 입력 텍스트:
 {text}

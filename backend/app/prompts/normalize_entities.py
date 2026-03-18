@@ -19,8 +19,11 @@ NORMALIZE_PROMPT = """
     {{
       "canonical_name": "대표 이름",
       "all_aliases": ["별명1", "별명2"],
-      "role_summary": "캐릭터 역할 요약"
+      "description": "캐릭터 역할 요약",
+      "tier": 4
     }}
-  ]
+  ],
+  "facts": [],
+  "source_conflicts": []  
 }}
 """
