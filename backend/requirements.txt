@@ -1,14 +1,15 @@
 fastapi
 uvicorn
 python-dotenv
+pydantic
+pydantic-settings
 structlog
+openai
 gremlinpython
 azure-search-documents
 azure-identity
-openai
 anthropic
 langgraph
-pydantic
 python-multipart
 pypdf2
 httpx

@@ -97,10 +97,15 @@ class NormalizedFact(BaseModel):
     is_true: bool = True
     merged_from: List[RawFact] = Field(default_factory=list)
 
+class ConflictDescription(BaseModel):
+    """딕셔너리(Dict) 대신 사용할 명시적 키-값 구조체"""
+    source_id: str
+    text: str
+
 class SourceConflict(BaseModel):
     """다중 소스 간 충돌(세계관 vs 시나리오) 감지용"""
     entity_type: str
-    descriptions: Dict[str, str] = Field(default_factory=dict) # source_id -> text
+    descriptions: List[ConflictDescription] = Field(default_factory=list) # 👈 Dict 대신 List로 변경
     conflicting_values: List[str] = Field(default_factory=list)
 
 class NormalizationResult(BaseModel):
