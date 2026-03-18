@@ -1,6 +1,10 @@
 from typing import List, Dict, Any, Optional, Tuple
 import uuid
 import copy
+import os
+import json
+import re
+import logging
 import structlog
 from collections import defaultdict
 from datetime import datetime
@@ -18,7 +22,30 @@ from app.models.enums import (
 )
 from app.models.api import KBStats # Knowledge Base (KB) Status
 
-logger = structlog.get_logger()
+
+# ─────────────────────────────────────────────────────────────
+# CONFIG
+# ─────────────────────────────────────────────────────────────
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_JSON_PATH = os.path.join(BASE_DIR, "data", "graph_input.json")
+
+
+# ─────────────────────────────────────────────────────────────
+# LOGGING
+# ─────────────────────────────────────────────────────────────
+
+logging.basicConfig(level=logging.INFO)
+
+structlog.configure(
+    processors=[
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.add_log_level,
+        structlog.processors.JSONRenderer(),
+    ]
+)
+
+logger = structlog.get_logger().bind(service="graph_service")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -868,10 +895,16 @@ class GremlinGraphService:
 class InMemoryGraphService:
     """GremlinGraphService와 동일 인터페이스의 In-Memory 구현체."""
 
-    def __init__(self):
+    def __init__(self, json_path: Optional[str] = None):
         self.vertices: Dict[str, Dict[str, Any]] = {}
         self.edges: List[Dict[str, Any]] = []
         self._discourse_counter: float = 0.0
+        self.log = logger.bind(instance_id=str(uuid.uuid4()))
+        self.log.info("graph_initialized")
+
+        # json_path가 주어지면 자동 로드
+        if json_path and os.path.exists(json_path):
+            self._load_from_json(json_path)
 
     # ── 내부 헬퍼 ─────────────────────────────────────────────
 
@@ -894,6 +927,79 @@ class InMemoryGraphService:
     def _get_next_discourse_order(self) -> float:
         self._discourse_counter = round(self._discourse_counter + 0.1, 4)
         return self._discourse_counter
+
+    def _assign_time_axes_text(self, text: str) -> Tuple[float, float, bool]:
+        """텍스트 힌트 기반 discourse/story_order 추정 (JSON 인제스트용).
+        반환: (discourse_order, story_order, is_linear)
+        """
+        d = self._get_next_discourse_order()
+        if re.search(r"(전|과거|years ago)", text):
+            return d, round(d - 1.0, 4), False
+        if re.search(r"(후|later|며칠 후)", text):
+            return d, round(d + 1.0, 4), False
+        return d, d, True
+
+    # ── JSON 로딩 ──────────────────────────────────────────────
+
+    def _load_from_json(self, path: str) -> None:
+        """JSON 파일에서 그래프 데이터를 로드한다.
+
+        기대 포맷:
+        {
+            "characters": [{"name": "...", "source_id": "..."}],
+            "facts":      [{"content": "...", "is_true": true, "source_id": "..."}],
+            "edges": [
+                {"type": "LEARNS", "from": "<vertex_id>", "to": "<vertex_id>", ...}
+            ]
+        }
+        """
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.log.info("json_loaded", path=path)
+            self._ingest_json(data)
+        except Exception as e:
+            self.log.error("json_load_failed", path=path, error=str(e))
+
+    def _ingest_json(self, data: dict) -> None:
+        """dict 형태의 그래프 데이터를 In-Memory 그래프에 적재한다."""
+        # Characters
+        for c in data.get("characters", []):
+            name = c.get("name", "")
+            d, s, lin = self._assign_time_axes_text(name)
+            self.add_character({
+                "id": c.get("id"),
+                "name": name,
+                "tier": c.get("tier", 4),
+                "description": c.get("description"),
+                "discourse_order": d,
+                "story_order": s,
+                "is_linear": lin,
+                "source_id": c.get("source_id"),
+            })
+
+        # Facts
+        for f in data.get("facts", []):
+            self.add_fact({
+                "id": f.get("id"),
+                "content": f.get("content"),
+                "category": f.get("category", "event_fact"),
+                "importance": f.get("importance", "minor"),
+                "is_true": f.get("is_true", True),
+                "is_secret": f.get("is_secret", False),
+                "established_order": self._get_next_discourse_order(),
+                "source_location": f.get("source_location", ""),
+                "source_id": f.get("source_id"),
+            })
+
+        # Edges: "from"/"to" 키를 from_id/to_id로 정규화
+        for e in data.get("edges", []):
+            label = e.get("type", "UNKNOWN")
+            from_id = e.get("from") or e.get("from_id")
+            to_id = e.get("to") or e.get("to_id")
+            if from_id and to_id:
+                props = {k: v for k, v in e.items() if k not in ("type", "from", "to")}
+                self._add_edge(label, from_id, to_id, props)
 
     # ── Vertex CRUD (9종) ─────────────────────────────────────
 
@@ -1484,3 +1590,16 @@ class InMemoryGraphService:
         removed = {"vertices": orig_v - len(self.vertices), "edges": orig_e - len(self.edges)}
         logger.info("remove_source complete", source_id=source_id, **removed)
         return removed
+
+
+# ─────────────────────────────────────────────────────────────
+# 팩토리 함수
+# ─────────────────────────────────────────────────────────────
+
+def get_graph_service(json_path: Optional[str] = None) -> InMemoryGraphService:
+    """InMemoryGraphService 인스턴스를 반환하는 팩토리.
+
+    json_path 미지정 시 DEFAULT_JSON_PATH를 사용한다.
+    파일이 존재하지 않으면 빈 그래프로 초기화된다.
+    """
+    return InMemoryGraphService(json_path=json_path or DEFAULT_JSON_PATH)
