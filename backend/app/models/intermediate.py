@@ -114,3 +114,13 @@ class NormalizationResult(BaseModel):
     facts: List[NormalizedFact] = Field(default_factory=list)
     # (필요에 따라 events, traits, relationships 등을 추가/확장합니다)
     source_conflicts: List[SourceConflict] = Field(default_factory=list)
+
+#phase4  모순을 판단한 결과를 담을 그릇
+class ContradictionVerification(BaseModel):
+    """LLM이 모순 후보를 정밀 검증한 결과"""
+    is_contradiction: bool = Field(description="실제 모순인지 여부")
+    confidence: float = Field(ge=0.0, le=1.0, description="판단 확신도 (0.8 이상이면 확실한 모순)")
+    severity: Literal["critical", "major", "minor"] = Field(description="심각도")
+    reasoning: str = Field(description="왜 모순인지(혹은 아닌지)에 대한 논리적 근거")
+    suggestion: Optional[str] = Field(None, description="수정 제안")
+    user_question: Optional[str] = Field(None, description="모호할 때 사용자에게 물어볼 질문")
