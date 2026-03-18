@@ -41,13 +41,24 @@ async def upload_source(
     file: UploadFile = File(...),
     source_type: str = Form(description="worldview, settings, scenario 중 하나")
 ):
+    ### ingest ###
+    content = await file.read()
+    source_id = f"src-{uuid.uuid4().hex[:8]}"
+    
+    ingest_service = IngestService()
+    chunks = await ingest_service.process_file(content, file.filename, source_id)
+    
+    # 이후 로직: chunks를 ExtractionService에 전달하여 엔티티 추출
+    # extraction_service = ExtractionService()
+    # extractions = [await extraction_service.extract_from_chunk(c.content, source_type, c.id) for c in chunks]
+
     """3분류(worldview/settings/scenario) 업로드 (Dummy)"""
     return IngestResponse(
         source_id="dummy-source-123",
         source_name=file.filename or "unknown.txt",
         status="processed",
-        stats={"chunks": 10},
-        extracted_entities=5
+        stats={"chunks": len(chunks)},
+        extracted_entities=0 # 추출된 엔티티 수 계산 로직 추가 필요
     )
 
 @app.get("/api/sources")
