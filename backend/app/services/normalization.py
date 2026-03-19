@@ -17,14 +17,15 @@ logger = structlog.get_logger(__name__)
 
 class NormalizationService:
     def __init__(self):
-        self.use_mock = not (settings.azure_openai_endpoint and settings.azure_openai_api_key)
+        # [CHANGED][PHASE0-3][CONFIG-COMPAT] Config field names aligned to original config.py (AZURE_OPENAI_*).
+        self.use_mock = not (settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_API_KEY)
         if not self.use_mock:
             self.client = AsyncAzureOpenAI(
-                azure_endpoint=settings.azure_openai_endpoint,
-                api_key=settings.azure_openai_api_key,
-                api_version=settings.azure_openai_api_version,
+                azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+                api_key=settings.AZURE_OPENAI_API_KEY,
+                api_version=settings.AZURE_OPENAI_API_VERSION,
             )
-            self.deployment_name = settings.azure_openai_normalization_deployment
+            self.deployment_name = settings.AZURE_OPENAI_NORMALIZATION_DEPLOYMENT
 
     async def normalize(self, extractions: List[ExtractionResult]) -> NormalizationResult:
         """[계층 2] 대량의 추출 결과물을 통합 정규화합니다."""

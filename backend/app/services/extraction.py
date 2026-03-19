@@ -19,17 +19,18 @@ class ExtractionService:
     def __init__(self):
         # [CHANGED][PHASE0-3] guide 기준 동시 처리량 5 유지
         self.semaphore = asyncio.Semaphore(5)
+        # [CHANGED][PHASE0-3][CONFIG-COMPAT] Config field names aligned to original config.py (AZURE_OPENAI_*).
         self.use_mock = settings.use_mock_extraction or not (
-            settings.azure_openai_endpoint and settings.azure_openai_api_key
+            settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_API_KEY
         )
 
         if not self.use_mock:
             self.client = AsyncAzureOpenAI(
-                azure_endpoint=settings.azure_openai_endpoint,
-                api_key=settings.azure_openai_api_key,
-                api_version=settings.azure_openai_api_version,
+                azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+                api_key=settings.AZURE_OPENAI_API_KEY,
+                api_version=settings.AZURE_OPENAI_API_VERSION,
             )
-            self.deployment_name = settings.azure_openai_extraction_deployment
+            self.deployment_name = settings.AZURE_OPENAI_EXTRACTION_DEPLOYMENT
 
     async def extract_from_chunks(self, chunks: List[DocumentChunk], source_type: str) -> List[ExtractionResult]:
         logger.info("Starting batch extraction", total_chunks=len(chunks), source_type=source_type)
