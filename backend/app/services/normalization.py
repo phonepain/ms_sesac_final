@@ -2,7 +2,8 @@
 import asyncio
 import structlog
 import json
-from typing import List, Set
+from collections import defaultdict
+from typing import List, Dict
 from openai import AsyncAzureOpenAI
 
 from app.config import settings
@@ -16,12 +17,15 @@ logger = structlog.get_logger(__name__)
 
 class NormalizationService:
     def __init__(self):
-        self.client = AsyncAzureOpenAI(
-            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-            api_key=settings.AZURE_OPENAI_API_KEY,
-            api_version=settings.AZURE_OPENAI_API_VERSION
-        )
-        self.deployment_name = settings.AZURE_OPENAI_NORMALIZATION_DEPLOYMENT
+        # [CHANGED][PHASE0-3][CONFIG-COMPAT] Config field names aligned to original config.py (AZURE_OPENAI_*).
+        self.use_mock = not (settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_API_KEY)
+        if not self.use_mock:
+            self.client = AsyncAzureOpenAI(
+                azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+                api_key=settings.AZURE_OPENAI_API_KEY,
+                api_version=settings.AZURE_OPENAI_API_VERSION,
+            )
+            self.deployment_name = settings.AZURE_OPENAI_NORMALIZATION_DEPLOYMENT
 
     async def normalize(self, extractions: List[ExtractionResult]) -> NormalizationResult:
         """[계층 2] 대량의 추출 결과물을 통합 정규화합니다."""
@@ -34,7 +38,7 @@ class NormalizationService:
             all_raw_chars.extend(ext.characters)
             all_raw_facts.extend(ext.facts)
 
-        # 2. 캐릭터와 사실 통합을 병렬로 처리 (시간 단축)
+        # 2. 캐릭터와 사실 통합을 병렬로 처리
         char_task = self._normalize_characters(all_raw_chars)
         fact_task = self._normalize_facts(all_raw_facts)
         
@@ -42,12 +46,34 @@ class NormalizationService:
         
         return NormalizationResult(
             characters=normalized_chars,
-            facts=normalized_facts
+            facts=normalized_facts,
+            source_conflicts=self._detect_source_conflicts(normalized_chars, normalized_facts),
         )
 
     async def _normalize_characters(self, raws: List[RawCharacter]) -> List[NormalizedCharacter]:
         """수만 개의 캐릭터 파편을 지능적으로 통합합니다."""
         if not raws: return []
+
+        if self.use_mock:
+            # 변경 주석: mock 정규화 - 이름 정규화(공백 제거, 소문자) 기준으로 통합
+            grouped: Dict[str, List[RawCharacter]] = defaultdict(list)
+            for r in raws:
+                key = r.name.replace(" ", "").lower()
+                grouped[key].append(r)
+            result: List[NormalizedCharacter] = []
+            for items in grouped.values():
+                canonical = items[0].name
+                aliases = sorted({x.name for x in items if x.name != canonical})
+                result.append(
+                    NormalizedCharacter(
+                        canonical_name=canonical,
+                        all_aliases=aliases,
+                        tier=4,
+                        description=items[0].role_hint,
+                        merged_from=items,
+                    )
+                )
+            return result
 
         # [대용량 최적화] 동일한 이름은 사전 병합하여 LLM에 보낼 토큰을 줄입니다.
         unique_names_map = {}
@@ -91,7 +117,7 @@ class NormalizationService:
         
         # TODO: 임베딩 기반 유사도 체크 로직이 들어갈 자리입니다.
         # 현재는 내용이 100% 일치하는 것만 합치는 로직으로 구현합니다.
-        fact_map = {}
+        fact_map: Dict[str, NormalizedFact] = {}
         for r in raws:
             if r.content not in fact_map:
                 fact_map[r.content] = NormalizedFact(
@@ -103,3 +129,12 @@ class NormalizationService:
                 fact_map[r.content].merged_from.append(r)
         
         return list(fact_map.values())
+
+    def _detect_source_conflicts(
+        self,
+        characters: List[NormalizedCharacter],
+        facts: List[NormalizedFact],
+    ) -> List:
+        # 변경 주석: 최소 충돌 감지 훅 제공 (Phase 2→5 연결용, 현재는 보수적으로 빈 리스트 반환)
+        _ = (characters, facts)
+        return []
