@@ -12,12 +12,119 @@ from datetime import datetime
 from gremlin_python.driver import client, serializer
 from gremlin_python.structure.graph import Graph
 from gremlin_python.driver.driver_remote_connection import DriverRemoteConnection
+from gremlin_python.process.graph_traversal import __
 
-logger = structlog.get_logger()
+from app.models.intermediate import NormalizationResult
+from app.models.edges import RELATIONSHIP_CONFLICT_MATRIX
+from app.models.enums import (
+    ConfirmationType, ConfirmationStatus, ContradictionType,
+    Severity, RelationshipType,
+    CharacterTier, FactCategory, FactImportance
+)
+from app.models.vertices import (
+    Character, KnowledgeFact, UserConfirmation, Source, SourceExcerpt
+)
+from app.models.api import KBStats
 
-# (추후 intermediate.py 뼈대가 잡히면 import)
-# from app.models.intermediate import NormalizationResult
-# from app.models.vertices import Source
+
+# ─────────────────────────────────────────────────────────────
+# CONFIG
+# ─────────────────────────────────────────────────────────────
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_JSON_PATH = os.path.join(BASE_DIR, "data", "graph_input.json")
+
+
+# ─────────────────────────────────────────────────────────────
+# LOGGING
+# ─────────────────────────────────────────────────────────────
+
+logging.basicConfig(level=logging.INFO)
+
+structlog.configure(
+    processors=[
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.add_log_level,
+        structlog.processors.JSONRenderer(),
+    ]
+)
+
+logger = structlog.get_logger().bind(service="graph_service")
+
+
+# ─────────────────────────────────────────────────────────────
+# 유틸: Gremlin valueMap 결과에서 단일 값 추출 (list 래핑 처리)
+# ─────────────────────────────────────────────────────────────
+
+def _prop(v: Dict, key: str) -> Any:
+    val = v.get(key)
+    if isinstance(val, list):
+        return val[0] if val else None
+    return val
+
+
+# ─────────────────────────────────────────────────────────────
+# 공통 위반 레코드 빌더
+# ─────────────────────────────────────────────────────────────
+
+def _make_violation(
+    vtype: ContradictionType,
+    severity: Severity,
+    description: str,
+    confidence: float,
+    character_id: Optional[str] = None,
+    character_name: Optional[str] = None,
+    evidence: Optional[List[Dict]] = None,
+    needs_user_input: bool = False,
+    confirmation_type: Optional[ConfirmationType] = None,
+    dialogue: Optional[str] = None,
+    suggestion: Optional[str] = None,
+) -> Dict[str, Any]:
+    return {
+        "id": str(uuid.uuid4()),
+        "type": vtype,
+        "severity": severity,
+        "description": description,
+        "confidence": confidence,
+        "character_id": character_id,
+        "character_name": character_name,
+        "evidence": evidence or [],
+        "needs_user_input": needs_user_input,
+        "confirmation_type": confirmation_type,
+        "dialogue": dialogue,
+        "suggestion": suggestion,
+        # Hard = confidence≥0.8 이고 사용자 확인 불필요
+        "is_hard": confidence >= 0.8 and not needs_user_input,
+    }
+
+
+# ─────────────────────────────────────────────────────────────
+# Gremlin 클라이언트 팩토리
+# ─────────────────────────────────────────────────────────────
+
+def _vertex_to_dict(v: Any) -> Dict[str, Any]:
+    """Pydantic VertexBase → 스토리지용 flat dict.
+    - UUID/datetime → str 변환
+    - list/dict 필드 → JSON 문자열 (Gremlin 호환)
+    - partition_key property 포함
+    """
+    d = v.model_dump(mode="json")
+    d["id"] = str(v.id)
+    d["partition_key"] = v.partition_key
+    # created_at 이미 model_dump(mode="json")에 의해 str 변환됨
+    for k, val in list(d.items()):
+        if isinstance(val, (list, dict)):
+            d[k] = json.dumps(val, ensure_ascii=False)
+    return d
+
+
+def _safe_enum(enum_cls: Any, value: Any, default: Any) -> Any:
+    """문자열 → enum 변환 실패 시 default 반환"""
+    try:
+        return enum_cls(value)
+    except (ValueError, KeyError):
+        return default
+
 
 def create_gremlin_client(endpoint: str, key: str, database: str, container: str):
     url = endpoint if endpoint.startswith("wss://") else f"wss://{endpoint}:443/"
@@ -245,16 +352,6 @@ class GremlinGraphService:
 
     def add_sourced_from(self, from_id: str, to_id: str, data: dict) -> str:
         return self._add_edge_generic("SOURCED_FROM", from_id, to_id, data)
-    
-    # === 계층 3: Graph 적재 ===
-    def materialize(self, normalized_result: Any, source: Any):
-        """계층 2에서 출력된 정규화 결과를 Cosmos DB에 실제 적재한다."""
-        logger.info("Materializing NormalizedEntity to Cosmos DB Graph")
-        try:
-            # 1. Vertex 추가 수행
-            # 2. Edge 추가 수행
-            # 3. _assign_time_axes() 로직 호출
-            pass
 
     # ── 계층 3: Graph 적재 ────────────────────────────────────
 
@@ -958,11 +1055,6 @@ class InMemoryGraphService:
     # ── Vertex CRUD (9종) ─────────────────────────────────────
 
     def add_character(self, data: dict) -> str:
-        cid = data.get("id", str(uuid.uuid4()))
-        self.vertices[cid] = {"label": "character", **data}
-        return cid
-
-    # ... 다른 헬퍼 메서드들은 구동용 테스트시 추가 ...
         return self._add_vertex("character", data)
 
     def get_character(self, char_id: str) -> Optional[Dict]:
