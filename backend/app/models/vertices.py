@@ -1,6 +1,6 @@
 from typing import Optional, List
 from datetime import datetime
-from pydantic import ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import (
     VertexBase, CharacterTier, FactCategory, FactImportance, EventType,
@@ -122,16 +122,12 @@ class Source(VertexBase):
         return "source"
 
 
-class SourceExcerpt(VertexBase):
-    """UserConfirmation 내부 사용을 위한 Pydantic 구조"""
+class SourceExcerpt(BaseModel):
+    """UserConfirmation 내부 사용을 위한 발췌 구조"""
     source_name: str
     source_location: str
     text: str
     highlight_range: Optional[tuple[int, int]] = None
-
-    @property
-    def partition_key(self) -> str:
-        return "excerpt"
 
 
 class UserConfirmation(VertexBase):

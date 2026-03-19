@@ -1,3 +1,4 @@
+import uuid
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +12,7 @@ from app.models.api import (
 )
 from app.models.vertices import UserConfirmation
 from app.models.enums import ContradictionType, Severity, ConfirmationStatus
+from app.services.ingest import IngestService
 
 logger = structlog.get_logger(__name__)
 
@@ -41,13 +43,24 @@ async def upload_source(
     file: UploadFile = File(...),
     source_type: str = Form(description="worldview, settings, scenario 중 하나")
 ):
+    ### ingest ###
+    content = await file.read()
+    source_id = f"src-{uuid.uuid4().hex[:8]}"
+    
+    ingest_service = IngestService()
+    chunks = await ingest_service.process_file(content, file.filename, source_id)
+    
+    # 이후 로직: chunks를 ExtractionService에 전달하여 엔티티 추출
+    # extraction_service = ExtractionService()
+    # extractions = [await extraction_service.extract_from_chunk(c.content, source_type, c.id) for c in chunks]
+
     """3분류(worldview/settings/scenario) 업로드 (Dummy)"""
     return IngestResponse(
         source_id="dummy-source-123",
         source_name=file.filename or "unknown.txt",
         status="processed",
-        stats={"chunks": 10},
-        extracted_entities=5
+        stats={"chunks": len(chunks)},
+        extracted_entities=0 # 추출된 엔티티 수 계산 로직 추가 필요
     )
 
 @app.get("/api/sources")
@@ -89,7 +102,7 @@ def analyze_manuscript(manuscript: ManuscriptInput):
     dummy_report = ContradictionReport(
         id="report-001",
         type=ContradictionType.TIMELINE,
-        severity=Severity.HIGH,
+        severity=Severity.CRITICAL,
         character_name="형사 A",
         description="죽은 줄 알았던 캐릭터가 5년 전 과거 회상 없이 현재에 등장합니다.",
         confidence=0.85,
@@ -98,7 +111,8 @@ def analyze_manuscript(manuscript: ManuscriptInput):
     
     # 더미 User Confirmation 1개 생성
     dummy_confirmation = UserConfirmation(
-        id="conf-001",
+        id="11111111-1111-1111-1111-111111111111",
+        source_id="dummy-source",
         confirmation_type="timeline_ambiguity",
         status=ConfirmationStatus.PENDING,
         question="캐릭터 A와 B의 관계가 이전 장에서는 '원수'였으나 지금은 '협력자'로 묘사됩니다. 의도된 변화입니까?",
