@@ -1,35 +1,27 @@
 fastapi
 uvicorn
-
-pydantic
-pydantic_settings
 python-dotenv
+python-multipart
+
 pydantic
 pydantic-settings
 structlog
 
-openai
-anthropic
-
 httpx
-
-pypdf2
+PyPDF2
+pymupdf
+tiktoken
 
 openai
-gremlinpython
-
-azure-search-documents
-azure-identity
-
 anthropic
 langgraph
 
+gremlinpython
+azure-search-documents
+azure-identity
+
 pytest
 pytest-asyncio
-
 black
 ruff
 mypy
-python-multipart
-pypdf2
-httpx
