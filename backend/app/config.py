@@ -1,11 +1,36 @@
-# backend/app/config.py
-import os
-from pydantic_settings import BaseSettings
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _parse_bool_like(value: object) -> bool:
+    """bool / 문자열 플래그를 안전하게 bool로 파싱한다.
+
+    NOTE: 환경에 DEBUG=release 같은 값이 들어와도 동작하도록 보완.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in {"1", "true", "t", "yes", "y", "on", "debug", "dev"}:
+            return True
+        if v in {"0", "false", "f", "no", "n", "off", "release", "prod", "production"}:
+            return False
+    raise ValueError(f"Cannot parse boolean value from: {value!r}")
+
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+        case_sensitive=False,
+    )
+
     # App Settings
     app_name: str = "ContiCheck API"
     debug: bool = True
+<<<<<<< Updated upstream
     
     # Flags based on claude code guide
     use_local_graph: bool = os.getenv("USE_LOCAL_GRAPH", "true").lower() == "true"
@@ -36,5 +61,38 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         extra = "ignore" # 정의되지 않은 환경변수는 무시
+=======
+    host: str = "0.0.0.0"
+    port: int = 8000
+>>>>>>> Stashed changes
+
+    # Runtime Flags
+    use_local_graph: bool = True
+    use_mock_extraction: bool = False
+    use_mock_search: bool = False
+
+    # Azure Cosmos DB (Gremlin)
+    cosmos_endpoint: str = "wss://localhost:8901/gremlin"
+    cosmos_key: str = "local_key"
+    cosmos_database: str = "conticheck_db"
+    cosmos_container: str = "graph"
+
+    # Azure AI Search
+    search_endpoint: str = "https://localhost"
+    search_key: str = ""
+
+    # Azure OpenAI (Foundry)
+    azure_openai_endpoint: str = ""
+    azure_openai_api_key: str = ""
+    azure_openai_extraction_deployment: str = "gpt-5-mini"
+    azure_openai_normalization_deployment: str = "gpt-5-mini"
+    azure_openai_detection_deployment: str = "gpt-5.3-chat"
+    azure_openai_api_version: str = "2024-08-01-preview"
+
+    @field_validator("debug", "use_local_graph", "use_mock_extraction", "use_mock_search", mode="before")
+    @classmethod
+    def _coerce_bool_flags(cls, value: object) -> bool:
+        return _parse_bool_like(value)
+
 
 settings = Settings()

@@ -422,7 +422,6 @@ class GremlinGraphService:
             for conflict in normalized.source_conflicts:
                 excerpts = [
                     SourceExcerpt(
-                        source_id=source_id,
                         source_name=d.source_id,
                         source_location="",
                         text=d.text,
@@ -1258,7 +1257,6 @@ class InMemoryGraphService:
         for conflict in normalized.source_conflicts:
             excerpts = [
                 SourceExcerpt(
-                    source_id=source_id,
                     source_name=d.source_id,
                     source_location="",
                     text=d.text,

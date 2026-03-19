@@ -1,3 +1,4 @@
+import uuid
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +12,7 @@ from app.models.api import (
 )
 from app.models.vertices import UserConfirmation
 from app.models.enums import ContradictionType, Severity, ConfirmationStatus
+from app.services.ingest import IngestService
 
 logger = structlog.get_logger(__name__)
 
