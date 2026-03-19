@@ -33,3 +33,7 @@ Thumbs.db
 logs/
 .claude/
 backend/pytest-cache-files-*/
+
+# 자료
+*.pdf
+backend/tests/*
