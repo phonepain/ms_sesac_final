@@ -16,7 +16,10 @@ class Settings(BaseSettings):
     cosmos_endpoint: str = os.getenv("COSMOS_ENDPOINT", "wss://localhost:8901/gremlin")
     cosmos_key: str = os.getenv("COSMOS_KEY", "local_key")
     cosmos_database: str = os.getenv("COSMOS_DATABASE", "conticheck_db")
-    cosmos_container: str = os.getenv("COSMOS_CONTAINER", "graph")
+    #cosmos_container1: str = os.getenv("COSMOS_CONTAINER", "graph")
+    #cosmos_container2: str = os.getenv("COSMOS_CONTAINER", "graph2")
+    cosmos_graph_ws: str = os.getenv("COSMOS_GRAPH_WS", "ws-graph")
+    cosmos_graph_sc: str = os.getenv("COSMOS_GRAPH_SC", "scenario-graph")
     
     # Azure AI Search
     search_endpoint: str = os.getenv("SEARCH_ENDPOINT", "https://localhost")
