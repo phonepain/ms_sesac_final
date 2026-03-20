@@ -2,6 +2,7 @@ import uuid
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 import structlog
 
@@ -13,6 +14,7 @@ from app.models.api import (
 from app.models.vertices import UserConfirmation
 from app.models.enums import ContradictionType, Severity, ConfirmationStatus
 from app.services.ingest import IngestService
+from app.services.storage import StorageService, get_global_storage
 from app.services.agent import ContiCheckAgent
 from app.services.detection import DetectionService
 from app.services.graph import InMemoryGraphService
@@ -78,6 +80,16 @@ def list_sources():
 def delete_source(source_id: str):
     """소스 삭제 + 정리 (Dummy)"""
     return {"status": "success", "message": f"Source {source_id} deleted."}
+
+@app.get("/api/sources/{source_id}/download")
+async def download_source(source_id: str):
+    """원본 파일 다운로드 — StorageService.get_file()"""
+    storage: StorageService = get_global_storage()
+    try:
+        file_bytes = await storage.get_file(source_id)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"파일을 찾을 수 없습니다: {e}")
+    return Response(content=file_bytes, media_type="application/octet-stream")
 
 # ==========================================
 # 2. GraphRAG 구축 API
@@ -181,6 +193,19 @@ def list_versions():
     return [
         VersionInfo(id="v-0001", version="v1.0", date="2026-03-01", fixes_count=0, description="초안"),
     ]
+
+@app.get("/api/versions/{version_id}/content")
+async def get_version_content(version_id: str, source_id: str):
+    """해당 버전의 원고 텍스트 반환 — StorageService.get_version_content()
+
+    Query param: source_id (어느 소스의 버전인지 식별)
+    """
+    storage: StorageService = get_global_storage()
+    try:
+        text = await storage.get_version_content(source_id=source_id, version=version_id)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"버전을 찾을 수 없습니다: {e}")
+    return {"version_id": version_id, "source_id": source_id, "content": text}
 
 @app.get("/api/versions/{version_id}")
 def get_version_detail(version_id: str):
