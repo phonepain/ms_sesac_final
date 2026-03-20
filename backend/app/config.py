@@ -21,11 +21,6 @@ class Settings(BaseSettings):
     #cosmos_container2: str = os.getenv("COSMOS_CONTAINER", "graph2")
     cosmos_graph_ws: str = os.getenv("COSMOS_GRAPH_WS", "ws-graph")
     cosmos_graph_sc: str = os.getenv("COSMOS_GRAPH_SC", "scenario-graph")
-
-    # Azure Blob Storage
-    blob_storage_connection_string: str = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
-    container_uploads: str = os.getenv("AZURE_STORAGE_CONTAINER_UPLOADS", "conticheck-uploads")
-    container_versions: str = os.getenv("AZURE_STORAGE_CONTAINER_VERSIONS", "conticheck-versions")
     
     # Azure AI Search
     search_endpoint: str = os.getenv("SEARCH_ENDPOINT", "https://localhost")
