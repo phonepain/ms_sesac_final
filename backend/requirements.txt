@@ -25,3 +25,5 @@ pytest-asyncio
 black
 ruff
 mypy
+
+azure-storage-blob
