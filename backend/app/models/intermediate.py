@@ -97,6 +97,13 @@ class NormalizedFact(BaseModel):
     is_true: bool = True
     merged_from: List[RawFact] = Field(default_factory=list)
 
+class NormalizedEvent(BaseModel):
+    description: str
+    event_type: str = "scene"
+    location: Optional[str] = None
+    characters_involved: List[str] = Field(default_factory=list)
+    merged_from: List[RawEvent] = Field(default_factory=list)
+
 class ConflictDescription(BaseModel):
     """딕셔너리(Dict) 대신 사용할 명시적 키-값 구조체"""
     source_id: str
@@ -112,6 +119,7 @@ class NormalizationResult(BaseModel):
     """정규화 파이프라인의 최종 결과물 (계층 3 Graph Materialization의 입력값)"""
     characters: List[NormalizedCharacter] = Field(default_factory=list)
     facts: List[NormalizedFact] = Field(default_factory=list)
+    events: List[NormalizedEvent] = Field(default_factory=list)
     # (필요에 따라 events, traits, relationships 등을 추가/확장합니다)
     source_conflicts: List[SourceConflict] = Field(default_factory=list)
 

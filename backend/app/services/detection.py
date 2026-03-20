@@ -85,6 +85,7 @@ class DetectionService:
             id=v.get("id", ""),
             type=v.get("type", ContradictionType.ASYMMETRY),
             severity=v.get("severity", Severity.MAJOR),
+            hard_or_soft="hard" if v.get("is_hard") else "soft",
             character_id=v.get("character_id"),
             character_name=v.get("character_name"),
             dialogue=v.get("dialogue"),
