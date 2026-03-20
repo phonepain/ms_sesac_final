@@ -113,9 +113,10 @@ class Source(VertexBase):
     """자료/소스 문서 (세계관, 설정집 등)"""
     source_type: SourceType
     name: str
-    metadata: str  # JSON string
+    metadata: str = "{}"  # JSON string
     ingested_at: datetime = Field(default_factory=datetime.now)
     status: Optional[str] = "active"
+    file_path: str = ""  # StorageService가 반환한 저장 경로
 
     @property
     def partition_key(self) -> str:
