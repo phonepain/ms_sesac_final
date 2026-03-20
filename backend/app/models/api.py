@@ -1,4 +1,4 @@
-from typing import List, Optional, Any
+from typing import List, Literal, Optional, Any
 from pydantic import BaseModel, Field
 
 from app.models.enums import SourceType, ContradictionType, Severity, ConfirmationStatus
@@ -33,6 +33,7 @@ class DocumentChunk(BaseModel):
 class IngestResponse(BaseModel):
     source_id: str
     source_name: str
+    file_path: str = ""
     status: str
     stats: dict[str, Any]
     extracted_entities: int
@@ -50,6 +51,7 @@ class ContradictionReport(BaseModel):
     id: str
     type: ContradictionType
     severity: Severity
+    hard_or_soft: Literal["hard", "soft"] = "soft"
     character_id: Optional[str] = None
     character_name: Optional[str] = None
     location: Optional[str] = None
@@ -69,26 +71,36 @@ class AnalysisResponse(BaseModel):
     total: int = 0
     by_severity: dict[Severity, int] = Field(default_factory=dict)
     by_type: dict[str, int] = Field(default_factory=dict)
+    hard_count: int = 0
+    soft_count: int = 0
     processing_time_ms: int = 0
 
     @classmethod
     def from_contradictions(cls, contradictions: List[ContradictionReport], confirmations: List[UserConfirmation], processing_time_ms: int = 0) -> 'AnalysisResponse':
         total = len(contradictions) + len(confirmations)
-        
-        by_sev = {}
-        by_type = {}
+
+        by_sev: dict[Severity, int] = {}
+        by_type: dict[str, int] = {}
+        hard_count = 0
+        soft_count = 0
         for c in contradictions:
             by_sev[c.severity] = by_sev.get(c.severity, 0) + 1
             type_val = c.type.value if hasattr(c.type, 'value') else c.type
             by_type[type_val] = by_type.get(type_val, 0) + 1
-            
+            if c.hard_or_soft == "hard":
+                hard_count += 1
+            else:
+                soft_count += 1
+
         return cls(
             contradictions=contradictions,
             confirmations=confirmations,
             total=total,
             by_severity=by_sev,
             by_type=by_type,
-            processing_time_ms=processing_time_ms
+            hard_count=hard_count,
+            soft_count=soft_count,
+            processing_time_ms=processing_time_ms,
         )
 
 # ==========================================
@@ -113,6 +125,7 @@ class VersionInfo(BaseModel):
     date: str
     fixes_count: int
     description: str
+    snapshot_path: str = ""
 
 class ErrorResponse(BaseModel):
     detail: str
