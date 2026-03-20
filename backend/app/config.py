@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     #cosmos_container2: str = os.getenv("COSMOS_CONTAINER", "graph2")
     cosmos_graph_ws: str = os.getenv("COSMOS_GRAPH_WS", "ws-graph")
     cosmos_graph_sc: str = os.getenv("COSMOS_GRAPH_SC", "scenario-graph")
+
+    # Azure Blob Storage
+    blob_storage_connection_string: str = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
+    blob_storage_container_name: str = os.getenv("AZURE_BLOB_CONTAINER_NAME","conticheckstorage")
     
     # Azure AI Search
     search_endpoint: str = os.getenv("SEARCH_ENDPOINT", "https://localhost")
