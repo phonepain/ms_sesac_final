@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Optional
 import structlog
 
 from app.models.api import VersionInfo
+from app.models.vertices import Source
 
 if TYPE_CHECKING:
     from app.models.api import DocumentChunk
@@ -299,9 +300,9 @@ class VersionService:
 
         try:
             snapshot_path = await self._storage.save_version_snapshot(
-                version_id=version_id,
                 source_id=source_id,
-                content_text=new_content,
+                version=version_name,
+                content=new_content,
             )
         except Exception as exc:
             raise VersionError(f"버전 스냅샷 저장 실패: {exc}") from exc
@@ -315,7 +316,7 @@ class VersionService:
 
         # Step 5: Source vertex의 file_path를 최신 스냅샷 경로로 업데이트
         try:
-            await self._graph.patch_vertex(
+            self._graph.patch_vertex(
                 vertex_id=source_id,
                 partition_key="source",
                 fields={"file_path": snapshot_path},
@@ -413,8 +414,8 @@ class VersionService:
 
         try:
             return await self._storage.get_version_content(
-                version_id=version_id,
                 source_id=stored.source_id,
+                version=stored.info.version,
             )
         except Exception as exc:
             raise VersionError(
@@ -488,7 +489,15 @@ class VersionService:
         StorageService를 통해 현재 원고 텍스트를 불러옵니다.
         """
         try:
-            content = await self._storage.get_file_text(source_id)
+            source_vertex = self._graph.get_vertex(source_id, "source")
+            if source_vertex is None:
+                raise VersionError(f"Source vertex를 찾을 수 없습니다: source_id={source_id}")
+            file_path = source_vertex.get("file_path", "")
+            if not file_path:
+                raise VersionError(f"Source vertex에 file_path가 없습니다: source_id={source_id}")
+            content = await self._storage.get_file_text(file_path)
+        except VersionError:
+            raise
         except Exception as exc:
             raise VersionError(f"원고 로드 실패 (source_id={source_id}): {exc}") from exc
 
@@ -518,10 +527,16 @@ class VersionService:
         - 오버랩 때문에 인접 청크도 함께 포함될 수 있음
         """
         try:
-            all_chunks: list["DocumentChunk"] = await self._ingest.rechunk_content(
+            source_vertex = self._graph.get_vertex(source_id, "source")
+            filename = (source_vertex or {}).get("name", f"{source_id}.txt")
+            source_type = (source_vertex or {}).get("source_type", "scenario")
+            ingest_result = await self._ingest.process_file(
+                file_content=new_content.encode("utf-8"),
+                filename=filename,
                 source_id=source_id,
-                content=new_content,
+                source_type=source_type,
             )
+            all_chunks = ingest_result.chunks
         except Exception as exc:
             raise VersionError(f"재청킹 실패 (source_id={source_id}): {exc}") from exc
 
@@ -564,17 +579,21 @@ class VersionService:
         chunk_ids = [chunk.id for chunk in changed_chunks]
         log.info("incremental_rebuild_start", chunk_count=len(changed_chunks))
 
+        # source_type 조회 (계층1 추출에 필요)
+        source_vertex = self._graph.get_vertex(source_id, "source")
+        source_type = (source_vertex or {}).get("source_type", "scenario")
+
         # 계층1: Extraction
         log.info("rebuild_layer1_extraction")
         try:
-            extraction_results = await self._extraction.extract_from_chunks(changed_chunks)
+            extraction_results = await self._extraction.extract_from_chunks(changed_chunks, source_type)
         except Exception as exc:
             raise VersionError(f"계층1 재추출 실패: {exc}") from exc
 
         # 이전 청크 기반 그래프 데이터 제거
         log.info("removing_old_chunk_data")
         try:
-            await self._graph.remove_vertices_by_chunk_ids(chunk_ids)
+            self._graph.remove_vertices_by_chunk_ids(chunk_ids)
         except Exception as exc:
             log.warning("remove_old_vertices_failed", error=str(exc))
 
@@ -588,16 +607,13 @@ class VersionService:
         # 계층3: Graph Materialization
         log.info("rebuild_layer3_graph")
         try:
-            source_raw = await self._graph.get_vertex(
-                vertex_id=source_id,
-                partition_key="source",
-            )
-            if source_raw is None:
+            if source_vertex is None:
                 raise VersionError(f"Source Vertex를 찾을 수 없습니다: source_id={source_id}")
 
-            await self._graph.materialize(
+            source_obj = Source.model_validate(source_vertex)
+            self._graph.materialize(
                 normalized=normalization_result,
-                source=source_raw,
+                source=source_obj,
             )
         except Exception as exc:
             if isinstance(exc, VersionError):
@@ -629,7 +645,7 @@ class VersionService:
         """
         for contradiction_id in contradiction_ids:
             try:
-                await self._graph.patch_vertex(
+                self._graph.patch_vertex(
                     vertex_id=contradiction_id,
                     partition_key="contradiction",
                     fields={"status": "resolved"},
