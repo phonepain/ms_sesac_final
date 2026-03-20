@@ -9,7 +9,7 @@ from app.models.enums import SourceType
 from app.models.vertices import Source
 from app.services.detection import DetectionService
 from app.services.extraction import ExtractionService
-from app.services.graph import InMemoryGraphService
+from app.services.graph import InMemoryGraphService, get_graph_service
 from app.services.normalization import NormalizationService
 
 logger = structlog.get_logger()
@@ -50,13 +50,10 @@ async def _normalize(state: AgentState) -> AgentState:
 
 
 def _snapshot(state: AgentState) -> AgentState:
-    """계층 3 준비: canonical graph → In-Memory 스냅샷 복제 (canonical 보호).
-
-    USE_LOCAL_GRAPH=True 환경에서는 빈 InMemoryGraphService를 스냅샷으로 사용.
-    실제 Gremlin 연결 시: gremlin_svc.snapshot_graph() 호출.
-    """
+    """계층 3 준비: canonical graph → In-Memory 스냅샷 복제 (canonical 보호)."""
     logger.info("langgraph_node", node="snapshot")
-    snapshot = InMemoryGraphService()
+    canonical = get_graph_service()
+    snapshot = canonical.snapshot_graph()
     return {**state, "snapshot": snapshot}
 
 

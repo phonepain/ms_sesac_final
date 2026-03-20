@@ -1,4 +1,5 @@
 import time
+import uuid
 import structlog
 from typing import Dict, Any, Optional, Tuple, Literal, List
 from openai import AsyncAzureOpenAI
@@ -11,8 +12,21 @@ from app.models.api import (
 from app.models.enums import (
     ContradictionType, Severity, ConfirmationType, ConfirmationStatus
 )
-from app.models.vertices import UserConfirmation
+from app.models.vertices import UserConfirmation, SourceExcerpt
 from app.prompts.verify_contradiction import CONTRADICTION_PROMPT
+
+# ConfirmationType → ContradictionType 매핑
+_CONFIRMATION_TO_CONTRADICTION: Dict[ConfirmationType, ContradictionType] = {
+    ConfirmationType.FLASHBACK_CHECK: ContradictionType.TIMELINE,
+    ConfirmationType.TIMELINE_AMBIGUITY: ContradictionType.TIMELINE,
+    ConfirmationType.RELATIONSHIP_AMBIGUITY: ContradictionType.RELATIONSHIP,
+    ConfirmationType.EMOTION_SHIFT: ContradictionType.EMOTION,
+    ConfirmationType.ITEM_DISCREPANCY: ContradictionType.ITEM,
+    ConfirmationType.INTENTIONAL_CHANGE: ContradictionType.TRAIT,
+    ConfirmationType.SOURCE_CONFLICT: ContradictionType.ASYMMETRY,
+    ConfirmationType.FORESHADOWING: ContradictionType.ASYMMETRY,
+    ConfirmationType.UNRELIABLE_NARRATOR: ContradictionType.DECEPTION,
+}
 
 logger = structlog.get_logger()
 
@@ -167,6 +181,63 @@ class DetectionService:
             contradictions=reports,
             confirmations=confirmations,
             processing_time_ms=elapsed,
+        )
+
+    async def create_report_from_confirmation(
+        self,
+        confirmation_id: str,
+        confirmation_type: ConfirmationType,
+        question: str,
+        context_summary: str,
+        source_excerpts: List[SourceExcerpt],
+        related_entity_ids: List[str],
+        severity: Severity,
+    ) -> ContradictionReport:
+        """Phase 5에서 사용자가 confirmed_contradiction 결정 시 ContradictionReport 생성."""
+        contradiction_type = _CONFIRMATION_TO_CONTRADICTION.get(
+            confirmation_type, ContradictionType.ASYMMETRY
+        )
+        evidence = [
+            EvidenceItem(
+                source_name=e.source_name,
+                source_location=e.source_location,
+                text=e.text,
+            )
+            for e in source_excerpts
+        ]
+        report = ContradictionReport(
+            id=f"report-{confirmation_id}",
+            type=contradiction_type,
+            severity=severity,
+            hard_or_soft="soft",
+            description=context_summary,
+            evidence=evidence,
+            confidence=1.0,
+            suggestion=question,
+            needs_user_input=False,
+        )
+        logger.info(
+            "report_from_confirmation",
+            confirmation_id=confirmation_id,
+            contradiction_type=contradiction_type.value,
+        )
+        return report
+
+    async def rerun_for_entities(
+        self,
+        entity_ids: List[str],
+        reason: str = "",
+    ) -> None:
+        """Phase 5 피드백 루프: 특정 엔티티에 대해 재탐지를 요청.
+
+        실제 재탐지는 graph_service 접근이 필요하므로
+        full_scan()을 통해 호출자가 직접 수행해야 합니다.
+        """
+        logger.info(
+            "rerun_for_entities_requested",
+            entity_ids=entity_ids,
+            reason=reason,
+            note="graph_service 없이 호출됨 — 호출자가 full_scan()으로 재탐지 수행 필요",
         )
 
     async def full_scan(self, graph_service) -> AnalysisResponse:
