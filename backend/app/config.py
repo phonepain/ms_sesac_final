@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     use_local_graph: bool = os.getenv("USE_LOCAL_GRAPH", "true").lower() == "true"
     use_mock_extraction: bool = os.getenv("USE_MOCK_EXTRACTION", "false").lower() == "true"
     use_mock_search: bool = os.getenv("USE_MOCK_SEARCH", "false").lower() == "true"
+    use_local_storage: bool = os.getenv("USE_LOCAL_STORAGE", "true").lower() == "true"
     
     # Azure Cosmos DB (Gremlin)
     cosmos_endpoint: str = os.getenv("COSMOS_ENDPOINT", "wss://localhost:8901/gremlin")
@@ -24,6 +25,11 @@ class Settings(BaseSettings):
     # Azure AI Search
     search_endpoint: str = os.getenv("SEARCH_ENDPOINT", "https://localhost")
     search_key: str = os.getenv("SEARCH_KEY", "")
+
+    # Azure Blob Storage
+    AZURE_STORAGE_CONNECTION_STRING: str = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
+    AZURE_STORAGE_CONTAINER_UPLOADS: str = os.getenv("AZURE_STORAGE_CONTAINER_UPLOADS", "conticheck-uploads")
+    AZURE_STORAGE_CONTAINER_VERSIONS: str = os.getenv("AZURE_STORAGE_CONTAINER_VERSIONS", "conticheck-versions")
     
     # === [추가됨] Azure Foundry (LLM) Settings ===
     AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT", "")

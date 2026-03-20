@@ -13,6 +13,9 @@ from app.models.api import (
 from app.models.vertices import UserConfirmation
 from app.models.enums import ContradictionType, Severity, ConfirmationStatus
 from app.services.ingest import IngestService
+from app.services.agent import ContiCheckAgent
+from app.services.detection import DetectionService
+from app.services.graph import InMemoryGraphService
 
 logger = structlog.get_logger(__name__)
 
