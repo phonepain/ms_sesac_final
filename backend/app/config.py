@@ -23,7 +23,8 @@ class Settings(BaseSettings):
 
     # Azure Blob Storage
     blob_storage_connection_string: str = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
-    blob_storage_container_name: str = os.getenv("AZURE_BLOB_CONTAINER_NAME","conticheckstorage")
+    container_uploads: str = os.getenv("AZURE_STORAGE_CONTAINER_UPLOADS", "conticheck-uploads")
+    container_versions: str = os.getenv("AZURE_STORAGE_CONTAINER_VERSIONS", "conticheck-versions")
     
     # Azure AI Search
     search_endpoint: str = os.getenv("SEARCH_ENDPOINT", "https://localhost")
