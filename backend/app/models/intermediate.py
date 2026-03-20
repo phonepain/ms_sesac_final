@@ -131,4 +131,5 @@ class ContradictionVerification(BaseModel):
     severity: Literal["critical", "major", "minor"] = Field(description="심각도")
     reasoning: str = Field(description="왜 모순인지(혹은 아닌지)에 대한 논리적 근거")
     suggestion: Optional[str] = Field(None, description="수정 제안")
+    alternative_interpretation: Optional[str] = Field(None, description="의도적 장치로 볼 수 있는 대안 해석")
     user_question: Optional[str] = Field(None, description="모호할 때 사용자에게 물어볼 질문")
