@@ -67,6 +67,25 @@ class AlreadyResolvedError(ConfirmationError):
 class ConfirmationService:
     """
     계층 5: 사용자 확인 생성·조회·해결 및 그래프 피드백 루프 처리.
+
+    사용 예::
+
+        svc = ConfirmationService(graph, search, detection)
+
+        # 확인 생성
+        conf = await svc.create_confirmation(
+            confirmation_type=ConfirmationType.FLASHBACK_CHECK,
+            question="이 장면은 회상 씬인가요?",
+            context="Chapter 3에서 A가 과거 사건을 떠올리는 묘사가 등장합니다.",
+            source_excerpts=[excerpt1, excerpt2],
+            entity_ids=["event-uuid-1234"],
+        )
+
+        # 해결
+        resolved = await svc.resolve(
+            confirmation_id=conf.id,
+            user_response="네, 의도된 회상입니다. story_order: 1.5",
+            decision="confirmed_intentional",
     """
 
     def __init__(
@@ -93,27 +112,35 @@ class ConfirmationService:
         entity_ids: list[str],
     ) -> UserConfirmation:
         """
-        계층 5: 사용자 확인 생성·조회·해결 및 그래프 피드백 루프 처리.
+        새 UserConfirmation Vertex를 생성하고 그래프에 저장합니다.
 
-    사용 예::
+        Parameters
+        ----------
+        confirmation_type:
+            9가지 확인 유형 중 하나
+            (flashback_check / intentional_change / foreshadowing /
+             source_conflict / emotion_shift / relationship_ambiguity /
+             item_discrepancy / timeline_ambiguity / unreliable_narrator)
+        question:
+            사용자에게 표시할 질문 문자열
+        context:
+            질문의 맥락 요약 (장(chapter), 등장인물 등)
+        source_excerpts:
+            원본 발췌 목록 — **최소 1개 필수**. 없으면 MissingSourceExcerptsError.
+        entity_ids:
+            이 확인과 관련된 Vertex ID 목록 (Event, Trait, Source 등)
 
-        svc = ConfirmationService(graph, search, detection)
+        Returns
+        -------
+        UserConfirmation
+            status='pending'으로 생성된 확인 객체
 
-        # 확인 생성
-        conf = await svc.create_confirmation(
-            confirmation_type=ConfirmationType.FLASHBACK_CHECK,
-            question="이 장면은 회상 씬인가요?",
-            context="Chapter 3에서 A가 과거 사건을 떠올리는 묘사가 등장합니다.",
-            source_excerpts=[excerpt1, excerpt2],
-            entity_ids=["event-uuid-1234"],
-        )
-
-        # 해결
-        resolved = await svc.resolve(
-            confirmation_id=conf.id,
-            user_response="네, 의도된 회상입니다. story_order: 1.5",
-            decision="confirmed_intentional",
-        )
+        Raises
+        ------
+        MissingSourceExcerptsError
+            source_excerpts가 빈 리스트인 경우
+        ConfirmationError
+            그래프 저장 실패 시
         """
         if not source_excerpts:
             raise MissingSourceExcerptsError(
