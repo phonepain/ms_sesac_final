@@ -12,6 +12,7 @@ from datetime import datetime
 from gremlin_python.driver import client, serializer
 from gremlin_python.structure.graph import Graph
 from gremlin_python.driver.driver_remote_connection import DriverRemoteConnection
+from gremlin_python.process.anonymous_traversal import traversal
 from gremlin_python.process.graph_traversal import __
 
 from app.models.intermediate import NormalizationResult
@@ -19,10 +20,10 @@ from app.models.edges import RELATIONSHIP_CONFLICT_MATRIX
 from app.models.enums import (
     ConfirmationType, ConfirmationStatus, ContradictionType,
     Severity, RelationshipType,
-    CharacterTier, FactCategory, FactImportance
+    CharacterTier, FactCategory, FactImportance, EventType
 )
 from app.models.vertices import (
-    Character, KnowledgeFact, UserConfirmation, Source, SourceExcerpt
+    Character, KnowledgeFact, Event, UserConfirmation, Source, SourceExcerpt
 )
 from app.models.api import KBStats
 
@@ -129,14 +130,18 @@ def _safe_enum(enum_cls: Any, value: Any, default: Any) -> Any:
 def create_gremlin_client(endpoint: str, key: str, database: str, container: str):
     url = endpoint if endpoint.startswith("wss://") else f"wss://{endpoint}:443/"
     username = f"/dbs/{database}/colls/{container}"
-    graph = Graph()
     connection = DriverRemoteConnection(
         url, "g",
         username=username,
         password=key,
         message_serializer=serializer.GraphSONSerializersV2d0(),
     )
-    g = graph.traversal().withRemote(connection)
+    # [CHANGED][PHASE2-3] gremlinpython 버전별 traversal 초기화 호환 처리
+    try:
+        g = traversal().withRemote(connection)
+    except Exception:
+        graph = Graph()
+        g = graph.traversal().withRemote(connection)
     return g, connection
 
 
@@ -152,9 +157,30 @@ class GremlinGraphService:
         self.key = key
         self.database = database
         self.container = container
+        url = endpoint if endpoint.startswith("wss://") else f"wss://{endpoint}:443/"
+        username = f"/dbs/{database}/colls/{container}"
+        # [CHANGED][PHASE2-3] Cosmos Gremlin(스크립트 eval) 호환을 위해 Client 경로 추가
+        self.gremlin_client = client.Client(
+            url,
+            "g",
+            username=username,
+            password=key,
+            message_serializer=serializer.GraphSONSerializersV2d0(),
+        )
         self.g, self.connection = create_gremlin_client(endpoint, key, database, container)
         self._discourse_counter: float = 0.0
         logger.info("GremlinGraphService initialized")
+
+    def close(self) -> None:
+        # [CHANGED][PHASE2-3] 테스트/종료 시 Gremlin 연결 자원 정리
+        try:
+            self.connection.close()
+        except Exception:
+            pass
+        try:
+            self.gremlin_client.close()
+        except Exception:
+            pass
 
     # ── 내부 헬퍼 ─────────────────────────────────────────────
 
@@ -164,12 +190,28 @@ class GremlinGraphService:
                 traversal = traversal.property(k, str(v) if isinstance(v, (list, dict)) else v)
         return traversal
 
+    def _submit_script(self, script: str, bindings: Dict[str, Any]) -> List[Any]:
+        # [CHANGED][PHASE2-3] bytecode 미지원 환경(Cosmos)에서 script submit으로 실행
+        result_set = self.gremlin_client.submit(script, bindings=bindings)
+        return result_set.all().result()
+
     def _add_vertex_generic(self, label: str, data: dict, partition_key: str) -> str:
         vid = data.get("id", str(uuid.uuid4()))
         data["id"] = vid
-        t = self.g.addV(label).property("id", vid).property("pk", partition_key)
-        t = self._dict_to_properties(t, data)
-        t.toList()
+        # [CHANGED][PHASE2-3] Cosmos Gremlin은 traversal bytecode보다 script submit 호환성이 높음
+        script = "g.addV(label).property('id', vid).property('pk', pk)"
+        bindings: Dict[str, Any] = {"label": label, "vid": vid, "pk": partition_key}
+        idx = 0
+        for k, v in data.items():
+            if v is None or k in {"id", "pk"}:
+                continue
+            k_name = f"k{idx}"
+            v_name = f"v{idx}"
+            bindings[k_name] = k
+            bindings[v_name] = str(v) if isinstance(v, (list, dict)) else v
+            script += f".property({k_name}, {v_name})"
+            idx += 1
+        self._submit_script(script, bindings)
         logger.debug("Added vertex", label=label, vid=vid)
         return vid
 
@@ -179,19 +221,39 @@ class GremlinGraphService:
         # from_id / to_id를 엣지 속성으로도 저장 → valueMap 조회 시 활용
         data["from_id"] = from_id
         data["to_id"] = to_id
-        t = self.g.V(from_id).addE(label).to(__.V(to_id)).property("id", eid)
-        t = self._dict_to_properties(t, data)
-        t.toList()
+        # [CHANGED][PHASE2-3] Cosmos Gremlin script submit 기반 edge 추가
+        script = "g.V(from_id).addE(label).to(g.V(to_id)).property('id', eid)"
+        bindings: Dict[str, Any] = {
+            "from_id": from_id,
+            "to_id": to_id,
+            "label": label,
+            "eid": eid,
+        }
+        idx = 0
+        for k, v in data.items():
+            if v is None or k in {"id", "from_id", "to_id"}:
+                continue
+            k_name = f"k{idx}"
+            v_name = f"v{idx}"
+            bindings[k_name] = k
+            bindings[v_name] = str(v) if isinstance(v, (list, dict)) else v
+            script += f".property({k_name}, {v_name})"
+            idx += 1
+        self._submit_script(script, bindings)
         logger.debug("Added edge", label=label, from_id=from_id, to_id=to_id, eid=eid)
         return eid
 
     def _get_next_discourse_order(self) -> float:
         try:
-            results = (
-                self.g.V().hasLabel("event")
-                .values("discourse_order").order().by(__.desc()).limit(1).toList()
+            # [CHANGED][PHASE2-3] script submit으로 discourse_order 조회 (bytecode 미지원 대응)
+            results = self._submit_script(
+                "g.V().hasLabel('event').values('discourse_order')",
+                {},
             )
-            base = float(results[0]) if results else self._discourse_counter
+            if results:
+                base = max(float(v) for v in results)
+            else:
+                base = self._discourse_counter
         except Exception:
             base = self._discourse_counter
         self._discourse_counter = round(base + 0.1, 4)
@@ -366,7 +428,7 @@ class GremlinGraphService:
         """
         source_id = str(source.id)
         created: Dict[str, List[str]] = {
-            "source": [], "characters": [], "facts": [], "confirmations": [],
+            "source": [], "characters": [], "facts": [], "events": [], "confirmations": [],
         }
 
         logger.info("Materializing NormalizationResult", source_id=source_id)
@@ -379,6 +441,7 @@ class GremlinGraphService:
             created["source"].append(source_id)
 
             # 1. Character vertices
+            char_id_by_name: Dict[str, str] = {}
             for nc in normalized.characters:
                 char = Character(
                     source_id=source_id,
@@ -395,6 +458,9 @@ class GremlinGraphService:
                     "created_at": char_dict["created_at"],
                 })
                 created["characters"].append(char_dict["id"])
+                char_id_by_name[nc.canonical_name.strip().lower()] = char_dict["id"]
+                for alias in nc.all_aliases:
+                    char_id_by_name[alias.strip().lower()] = char_dict["id"]
 
             # 2. KnowledgeFact vertices (discourse_order 자동 부여)
             for nf in normalized.facts:
@@ -419,6 +485,43 @@ class GremlinGraphService:
                 created["facts"].append(fact_dict["id"])
 
             # 3. SourceConflict → UserConfirmation vertices
+            # [CHANGED][PHASE2-3] Event vertices + required provenance edge 생성
+            for ne in normalized.events:
+                do = self._get_next_discourse_order()
+                event = Event(
+                    source_id=source_id,
+                    discourse_order=do,
+                    story_order=do,
+                    is_linear=True,
+                    event_type=_safe_enum(EventType, ne.event_type, EventType.SCENE),
+                    description=ne.description,
+                    location=ne.location,
+                    environment=None,
+                    source_location="",
+                )
+                event_dict = _vertex_to_dict(event)
+                self.add_event(event_dict)
+                self.add_sourced_from(event_dict["id"], source_id, {
+                    "source_id": source_id,
+                    "source_location": "",
+                    "created_at": event_dict["created_at"],
+                })
+                created["events"].append(event_dict["id"])
+
+                participant_ids = set()
+                for raw_name in ne.characters_involved:
+                    char_id = char_id_by_name.get((raw_name or "").strip().lower())
+                    if not char_id or char_id in participant_ids:
+                        continue
+                    participant_ids.add(char_id)
+                    self.add_participates_in(char_id, event_dict["id"], {
+                        "source_id": source_id,
+                        "source_location": "",
+                        "created_at": event_dict["created_at"],
+                        "role": "mentioned",
+                    })
+
+            # 4. SourceConflict ??UserConfirmation vertices
             for conflict in normalized.source_conflicts:
                 excerpts = [
                     SourceExcerpt(
@@ -1204,7 +1307,7 @@ class InMemoryGraphService:
         """
         source_id = str(source.id)
         created: Dict[str, List[str]] = {
-            "source": [], "characters": [], "facts": [], "confirmations": [],
+            "source": [], "characters": [], "facts": [], "events": [], "confirmations": [],
         }
 
         # 0. Source vertex 적재
@@ -1214,6 +1317,7 @@ class InMemoryGraphService:
         created["source"].append(source_id)
 
         # 1. Character vertices
+        char_id_by_name: Dict[str, str] = {}
         for nc in normalized.characters:
             char = Character(
                 source_id=source_id,
@@ -1230,6 +1334,9 @@ class InMemoryGraphService:
                 "created_at": char_dict["created_at"],
             })
             created["characters"].append(char_dict["id"])
+            char_id_by_name[nc.canonical_name.strip().lower()] = char_dict["id"]
+            for alias in nc.all_aliases:
+                char_id_by_name[alias.strip().lower()] = char_dict["id"]
 
         # 2. KnowledgeFact vertices (discourse_order 자동 부여)
         for nf in normalized.facts:
@@ -1254,6 +1361,43 @@ class InMemoryGraphService:
             created["facts"].append(fact_dict["id"])
 
         # 3. SourceConflict → UserConfirmation vertices
+        # [CHANGED][PHASE2-3] Event vertices + required provenance edge 생성
+        for ne in normalized.events:
+            do = self._get_next_discourse_order()
+            event = Event(
+                source_id=source_id,
+                discourse_order=do,
+                story_order=do,
+                is_linear=True,
+                event_type=_safe_enum(EventType, ne.event_type, EventType.SCENE),
+                description=ne.description,
+                location=ne.location,
+                environment=None,
+                source_location="",
+            )
+            event_dict = _vertex_to_dict(event)
+            self.add_event(event_dict)
+            self.add_sourced_from(event_dict["id"], source_id, {
+                "source_id": source_id,
+                "source_location": "",
+                "created_at": event_dict["created_at"],
+            })
+            created["events"].append(event_dict["id"])
+
+            participant_ids = set()
+            for raw_name in ne.characters_involved:
+                char_id = char_id_by_name.get((raw_name or "").strip().lower())
+                if not char_id or char_id in participant_ids:
+                    continue
+                participant_ids.add(char_id)
+                self.add_participates_in(char_id, event_dict["id"], {
+                    "source_id": source_id,
+                    "source_location": "",
+                    "created_at": event_dict["created_at"],
+                    "role": "mentioned",
+                })
+
+        # 4. SourceConflict ??UserConfirmation vertices
         for conflict in normalized.source_conflicts:
             excerpts = [
                 SourceExcerpt(
