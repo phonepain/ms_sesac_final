@@ -207,6 +207,9 @@ conticheck/
    USE_MOCK_EXTRACTION=true
    USE_MOCK_SEARCH=true
    USE_LOCAL_STORAGE=true
+   AZURE_COSMOS_ENDPOINT=
+   AZURE_SEARCH_ENDPOINT=
+   AZURE_OPENAI_ENDPOINT=
    AZURE_STORAGE_CONNECTION_STRING=
    AZURE_STORAGE_CONTAINER_UPLOADS=conticheck-uploads
    AZURE_STORAGE_CONTAINER_VERSIONS=conticheck-versions
@@ -255,7 +258,8 @@ EdgeBase: id(uuid), source_id, source_location, created_at
 5) Organization: name, org_type, description
 6) Location: name, location_type, parent_location_id, travel_constraints
 7) Item: name, is_unique, description, location_id
-8) Source: source_type, name, metadata, ingested_at, status
+8) Source: source_type, name, metadata, ingested_at, status,
+   file_path(str, StorageService가 반환한 저장 경로)
 9) UserConfirmation: confirmation_type, status, question, context_summary,
    source_excerpts(list[SourceExcerpt]), related_entity_ids,
    user_response, resolved_at
@@ -904,11 +908,11 @@ data/sample/ 에 3종:
 3) 시나리오_그림자의비밀.txt (scenario):
    Chapter 1~4 대본 형식
    의도적 모순:
-   - 정보 비대칭: A가 C 고백 전에 "B가 범인" 발언
-   - 거짓말: B가 A에게 거짓 알리바이 → A가 나중에 진실 인지 후에도 거짓 기반 행동
-   - 감정: A→B 갑자기 hate (이벤트 없음)
-   - 소유물: C가 칼을 B에게 양도 후 A에게 보여줌
-   - 환경: 칠흑 밤에 A가 먼 곳을 맨눈으로 관찰
+   - 정보 비대칭: A가 C 고백 전에 "B가 범인" 발언 → HARD
+   - 거짓말: B가 A에게 거짓 알리바이 → A가 나중에 진실 인지 후에도 거짓 기반 행동 → HARD
+   - 감정: A→B 갑자기 hate (이벤트 없음) → SOFT
+   - 소유물: C가 칼을 B에게 양도 후 A에게 보여줌 → SOFT
+   - 환경: 칠흑 밤에 A가 먼 곳을 맨눈으로 관찰 → SOFT
 ```
 
 ### Step 9-2: E2E 테스트
