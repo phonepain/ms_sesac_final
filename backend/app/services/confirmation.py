@@ -15,6 +15,8 @@ confirmation.py — 계층 5: 사용자 확인 관리 서비스
 
 from __future__ import annotations
 
+import math
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
@@ -31,7 +33,6 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
-# resolve()에서 허용되는 decision 값
 VALID_DECISIONS: frozenset[str] = frozenset(
     {"confirmed_contradiction", "confirmed_intentional", "deferred"}
 )
@@ -85,7 +86,6 @@ class ConfirmationService:
             confirmation_id=conf.id,
             user_response="네, 의도된 회상입니다. story_order: 1.5",
             decision="confirmed_intentional",
-        )
     """
 
     def __init__(
@@ -148,9 +148,13 @@ class ConfirmationService:
                 "원본 발췌 없이 UserConfirmation을 생성할 수 없습니다."
             )
 
+        question = question.strip()
+        context = context.strip()
+        related_entity_ids = _dedupe_preserve_order(entity_ids)
+
         log = self._log.bind(
             confirmation_type=confirmation_type.value,
-            entity_ids=entity_ids,
+            entity_ids=related_entity_ids,
         )
         log.info("confirmation_creating")
 
@@ -161,16 +165,16 @@ class ConfirmationService:
             question=question,
             context_summary=context,
             source_excerpts=source_excerpts,
-            related_entity_ids=entity_ids,
+            related_entity_ids=related_entity_ids,
             source_id="system",
             partition_key="confirmation",
         )
 
-        try:
-            await self._graph.upsert_vertex(confirmation)
-        except Exception as exc:
-            log.error("confirmation_save_failed", error=str(exc))
-            raise ConfirmationError(f"UserConfirmation 저장 실패: {exc}") from exc
+        await self._persist_confirmation(
+            confirmation=confirmation,
+            log=log,
+            error_message="UserConfirmation 저장 실패",
+        )
 
         log.info("confirmation_created", confirmation_id=confirmation.id)
         return confirmation
@@ -200,8 +204,7 @@ class ConfirmationService:
                 filters={"status": "pending"},
             )
             result = [UserConfirmation(**raw) for raw in raw_list]
-            # 생성 시각 오름차순 (오래된 것을 먼저 처리)
-            result.sort(key=lambda c: c.created_at)
+            result.sort(key=lambda item: item.created_at)
             log.info("pending_confirmations_fetched", count=len(result))
             return result
         except Exception as exc:
@@ -262,20 +265,17 @@ class ConfirmationService:
 
         log = self._log.bind(confirmation_id=confirmation_id, decision=decision)
         log.info("confirmation_resolving")
-
-        # ── 대상 확인 로드 ─────────────────────────────────────────
+        # ── 대상 확인 로드 
         confirmation = await self._load_confirmation(confirmation_id)
         if confirmation.status != "pending":
             raise AlreadyResolvedError(
                 f"이미 처리된 확인입니다 "
                 f"(id={confirmation_id}, status={confirmation.status})"
             )
-
-        # ── 공통 메타 업데이트 ──────────────────────────────────────
-        confirmation.user_response = user_response
+        # ── 공통 메타 업데이트 
+        confirmation.user_response = user_response.strip()
         confirmation.resolved_at = datetime.now(tz=timezone.utc)
-
-        # ── decision별 1차 처리 ────────────────────────────────────
+        # ── decision별 1차 처리
         if decision == "confirmed_contradiction":
             confirmation.status = "resolved"
             await self._handle_confirmed_contradiction(confirmation, log)
@@ -284,21 +284,16 @@ class ConfirmationService:
             confirmation.status = "resolved"
             await self._handle_confirmed_intentional(confirmation, log)
 
-        else:  # deferred
+        else:  # deferred:상태만 변경
             confirmation.status = "deferred"
             log.info("confirmation_deferred")
 
-        # ── 변경 저장 ──────────────────────────────────────────────
-        try:
-            await self._graph.upsert_vertex(confirmation)
-        except Exception as exc:
-            log.error("confirmation_update_failed", error=str(exc))
-            raise ConfirmationError(f"확인 상태 저장 실패: {exc}") from exc
+        await self._persist_confirmation(
+            confirmation=confirmation,
+            log=log,
+            error_message="확인 상태 저장 실패",
+        )
 
-        # ── 피드백 루프: confirmed_intentional일 때만 실행 ────────
-        # confirmed_contradiction → DetectionService 리포트 생성으로 종료.
-        #   그래프 피드백 루프까지 이어지면 중복 재탐지가 발생한다.
-        # deferred              → 상태 변경만. 피드백 루프 없음.
         if decision == "confirmed_intentional":
             await self._run_feedback_loop(confirmation, decision, log)
 
@@ -315,29 +310,21 @@ class ConfirmationService:
     ) -> list[SourceExcerpt]:
         """
         SearchService를 통해 entity_ids에 해당하는 원본 발췌를 반환합니다.
-        UserConfirmation 생성 직전에 호출하여 source_excerpts를 채웁니다.
-
-        Parameters
-        ----------
-        entity_ids:
-            원본 발췌를 가져올 Vertex ID 목록
-
-        Returns
-        -------
-        list[SourceExcerpt]
-            각 엔티티에 대응하는 원본 텍스트 + 위치 정보
-
-        Raises
-        ------
-        ConfirmationError
-            SearchService 조회 실패 시
         """
-        log = self._log.bind(entity_ids=entity_ids, action="get_source_excerpts")
+        deduped_entity_ids = _dedupe_preserve_order(entity_ids)
+        log = self._log.bind(entity_ids=deduped_entity_ids, action="get_source_excerpts")
+
         try:
             excerpts: list[SourceExcerpt] = await self._search.get_source_excerpts(
-                entity_ids
+                deduped_entity_ids
             )
-            log.info("source_excerpts_fetched", count=len(excerpts))
+            if not excerpts:
+                log.warning(
+                    "source_excerpts_empty",
+                    detail="원본 발췌가 비어 있습니다. create_confirmation 전에 확인이 필요합니다.",
+                )
+            else:
+                log.info("source_excerpts_fetched", count=len(excerpts))
             return excerpts
         except Exception as exc:
             log.error("get_source_excerpts_failed", error=str(exc))
@@ -355,13 +342,14 @@ class ConfirmationService:
         """
         confirmed_contradiction:
         DetectionService에 ContradictionReport 생성을 요청합니다.
-        DetectionService가 주입되지 않은 경우 경고만 기록하고 통과합니다.
         """
         if self._detection is None:
             log.warning(
                 "detection_service_unavailable",
-                detail="ContradictionReport를 자동 생성할 수 없습니다. "
-                       "ConfirmationService 생성 시 detection_service를 주입해 주세요.",
+                detail=(
+                    "ContradictionReport를 자동 생성할 수 없습니다. "
+                    "ConfirmationService 생성 시 detection_service를 주입해 주세요."
+                ),
             )
             return
 
@@ -375,10 +363,7 @@ class ConfirmationService:
                 related_entity_ids=confirmation.related_entity_ids,
                 severity=Severity.WARNING,
             )
-            log.info(
-                "contradiction_report_created",
-                confirmation_id=confirmation.id,
-            )
+            log.info("contradiction_report_created", confirmation_id=confirmation.id)
         except Exception as exc:
             log.error("report_creation_failed", error=str(exc))
             raise ConfirmationError(f"모순 리포트 생성 요청 실패: {exc}") from exc
@@ -389,14 +374,8 @@ class ConfirmationService:
         log: structlog.BoundLogger,
     ) -> None:
         """
-        confirmed_intentional: 확인 유형별로 그래프 Vertex를 업데이트합니다.
-
-        유형별 처리:
-          INTENTIONAL_CHANGE → Trait.valid_until을 현재 시각으로 설정
-                               ("이 설정은 이 지점까지만 유효했다"는 의미)
-          SOURCE_CONFLICT    → 비정본 Source.status = 'inactive'
-          FLASHBACK_CHECK    → Event.story_order 확정 + is_linear=False
-          기타               → 그래프 변경 없음 (피드백 루프에서 처리)
+        confirmed_intentional:
+        확인 유형별로 그래프 Vertex를 업데이트합니다.
         """
         ctype = confirmation.confirmation_type
         log.info("handling_intentional", confirmation_type=ctype.value)
@@ -441,7 +420,6 @@ class ConfirmationService:
                 )
                 log.info("trait_valid_until_set", trait_id=entity_id, valid_until=now_iso)
             except Exception as exc:
-                # 일부 실패해도 나머지를 계속 처리
                 log.warning(
                     "trait_patch_failed",
                     trait_id=entity_id,
@@ -458,7 +436,19 @@ class ConfirmationService:
         user_response에서 정본 source_id를 파싱하고,
         나머지 related Source 노드를 status='inactive'로 설정합니다.
         """
-        canonical_id = _parse_canonical_source(confirmation.user_response)
+        canonical_id = _parse_canonical_source(
+            confirmation.user_response,
+            candidate_ids=confirmation.related_entity_ids,
+        )
+
+        if not canonical_id:
+            log.warning(
+                "canonical_source_not_parsed",
+                user_response=confirmation.user_response,
+                related_ids=confirmation.related_entity_ids,
+            )
+            return
+
         log.info(
             "deactivating_non_canonical_sources",
             canonical_id=canonical_id,
@@ -467,7 +457,7 @@ class ConfirmationService:
 
         for entity_id in confirmation.related_entity_ids:
             if entity_id == canonical_id:
-                continue  # 정본은 건드리지 않음
+                continue
             try:
                 await self._graph.patch_vertex(
                     vertex_id=entity_id,
@@ -493,7 +483,7 @@ class ConfirmationService:
         Event 노드에 story_order + is_linear=False를 설정합니다.
         """
         story_order = _parse_story_order(confirmation.user_response)
-        fields: dict = {"is_linear": False}
+        fields: dict[str, object] = {"is_linear": False}
         if story_order is not None:
             fields["story_order"] = story_order
 
@@ -561,11 +551,7 @@ class ConfirmationService:
     ) -> None:
         """
         FLASHBACK_CHECK 피드백 루프:
-        그래프 업데이트(_confirm_nonlinear_event)는 이미 완료됨.
-        이어서 계층4 DetectionService를 재트리거합니다.
-
-        재탐지 이유: story_order가 확정됨으로써 이전에 story_order=null 때문에
-        스킵했던 정보 비대칭, 타임라인 모순이 새로 감지될 수 있습니다.
+        story_order 확정 후 DetectionService 재탐지를 요청합니다.
         """
         log.info("feedback_flashback", confirmation_id=confirmation.id)
 
@@ -586,7 +572,6 @@ class ConfirmationService:
                 entity_ids=confirmation.related_entity_ids,
             )
         except Exception as exc:
-            # 재탐지 실패는 전체 resolve를 실패시키지 않음 (경고만)
             log.error("redetection_failed", error=str(exc))
 
     async def _feedback_source_conflict(
@@ -596,10 +581,12 @@ class ConfirmationService:
     ) -> None:
         """
         SOURCE_CONFLICT 피드백 루프:
-        비정본 비활성화는 이미 완료됨.
-        GraphService에 canonical source 기반 재구축을 요청합니다.
+        비정본 비활성화 후 canonical source 기준 재구축을 요청합니다.
         """
-        canonical_id = _parse_canonical_source(confirmation.user_response)
+        canonical_id = _parse_canonical_source(
+            confirmation.user_response,
+            candidate_ids=confirmation.related_entity_ids,
+        )
         log.info("feedback_source_conflict", canonical_id=canonical_id)
 
         if not canonical_id:
@@ -644,8 +631,20 @@ class ConfirmationService:
                 )
 
     # ──────────────────────────────────────────────────────────────
-    # Private: 그래프 조회 헬퍼
+    # Private: 저장 / 조회 헬퍼
     # ──────────────────────────────────────────────────────────────
+
+    async def _persist_confirmation(
+        self,
+        confirmation: UserConfirmation,
+        log: structlog.BoundLogger,
+        error_message: str,
+    ) -> None:
+        try:
+            await self._graph.upsert_vertex(confirmation)
+        except Exception as exc:
+            log.error("confirmation_persist_failed", error=str(exc))
+            raise ConfirmationError(f"{error_message}: {exc}") from exc
 
     async def _load_confirmation(self, confirmation_id: str) -> UserConfirmation:
         """
@@ -664,50 +663,59 @@ class ConfirmationService:
                 partition_key="confirmation",
             )
         except Exception as exc:
-            raise ConfirmationError(
-                f"확인 조회 중 그래프 오류: {exc}"
-            ) from exc
+            raise ConfirmationError(f"확인 조회 중 그래프 오류: {exc}") from exc
 
         if raw is None:
             raise ConfirmationNotFoundError(
                 f"UserConfirmation을 찾을 수 없습니다: id={confirmation_id}"
             )
+
         return UserConfirmation(**raw)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 모듈 레벨 파싱 헬퍼 (순수 함수 — 테스트 용이성을 위해 클래스 밖에 위치)
+# 모듈 레벨 헬퍼 (순수 함수)
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def _parse_canonical_source(user_response: str) -> str:
+def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    """순서를 유지한 채 중복을 제거합니다."""
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if value not in seen:
+            seen.add(value)
+            result.append(value)
+    return result
+
+
+def _parse_canonical_source(
+    user_response: str,
+    candidate_ids: Optional[list[str]] = None,
+) -> str:
     """
     user_response에서 정본 source_id를 추출합니다.
 
-    파싱 규칙 (우선순위 순):
-    1. ``"canonical:<source_id>"`` 형식 → source_id 반환
-    2. 응답이 단일 토큰 → 그 자체를 ID로 간주
-    3. 그 외 → 빈 문자열 반환 (호출자가 경고 처리)
-
-    Examples
-    --------
-    >>> _parse_canonical_source("canonical:src-uuid-5678")
-    'src-uuid-5678'
-    >>> _parse_canonical_source("src-uuid-5678")
-    'src-uuid-5678'
-    >>> _parse_canonical_source("잘 모르겠습니다")
-    ''
+    파싱 규칙:
+    1. "canonical:<source_id>" 형식
+    2. 단일 토큰 응답이 candidate_ids 안에 있는 경우
+    3. 그 외는 빈 문자열
     """
     response = user_response.strip()
     if not response:
         return ""
 
     if response.startswith("canonical:"):
-        return response.split("canonical:", 1)[1].strip()
+        parsed = response.split("canonical:", 1)[1].strip()
+        if not candidate_ids or parsed in candidate_ids:
+            return parsed
+        return ""
 
     tokens = response.split()
     if len(tokens) == 1:
-        return tokens[0]
+        token = tokens[0]
+        if not candidate_ids or token in candidate_ids:
+            return token
 
     return ""
 
@@ -716,21 +724,20 @@ def _parse_story_order(user_response: str) -> float | None:
     """
     user_response에서 story_order 값(float)을 추출합니다.
 
-    파싱 규칙:
-    - ``"story_order:<float>"`` 형식에서 추출
-    - 형식이 없거나 변환 불가 시 None 반환
-
-    Examples
-    --------
-    >>> _parse_story_order("네, 회상입니다. story_order:1.5")
-    1.5
-    >>> _parse_story_order("의도된 플래시백입니다")
-    None
+    허용 형식:
+      - "story_order:1.5"
+      - "story_order: 2"
     """
-    if "story_order:" not in user_response:
+    match = re.search(r"story_order\s*:\s*([-+]?\d+(?:\.\d+)?)", user_response)
+    if not match:
         return None
+
     try:
-        raw = user_response.split("story_order:", 1)[1].strip().split()[0]
-        return float(raw)
-    except (ValueError, IndexError):
+        value = float(match.group(1))
+    except ValueError:
         return None
+
+    if not math.isfinite(value) or value < 0:
+        return None
+
+    return value
