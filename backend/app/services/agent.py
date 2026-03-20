@@ -94,8 +94,15 @@ def _detect(state: AgentState) -> AgentState:
 async def _respond(state: AgentState) -> AgentState:
     """계층 4: violations → AnalysisResponse + 스냅샷 폐기 (canonical 보호 완료)"""
     logger.info("langgraph_node", node="respond")
+    violations = state["violations"]
+
+    # [approve]: 모순이 전혀 없으면 빈 결과 즉시 반환
+    if not violations.get("hard") and not violations.get("soft"):
+        logger.info("langgraph_node", node="approve", reason="no_violations")
+        return {**state, "snapshot": None, "result": AnalysisResponse(contradictions=[], confirmations=[], total=0)}
+
     svc = DetectionService()
-    result = await svc.analyze(state["violations"])
+    result = await svc.analyze(violations)
 
     # 스냅샷 폐기: canonical graph는 한 번도 건드리지 않았음
     return {**state, "snapshot": None, "result": result}
