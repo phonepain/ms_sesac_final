@@ -943,6 +943,40 @@ class GremlinGraphService:
                 logger.warning("remove_source file delete failed", source_id=source_id, error=str(e))
         return removed
 
+    # ── confirmation.py / version.py 연동 메서드 (stub) ──────────
+
+    def query_vertices(self, partition_key: str, filters: dict) -> List[Dict]:
+        """partition_key(label) + filters 조건으로 vertex 목록 반환 (stub)."""
+        logger.warning("query_vertices_stub_called", partition_key=partition_key)
+        return []
+
+    def get_vertex(self, vertex_id: str, partition_key: str) -> Optional[Dict]:
+        """vertex_id로 단일 vertex 반환 (stub)."""
+        logger.warning("get_vertex_stub_called", vertex_id=vertex_id)
+        return None
+
+    def patch_vertex(self, vertex_id: str, partition_key: str, fields: dict) -> None:
+        """vertex에 fields를 머지 (stub)."""
+        logger.warning("patch_vertex_stub_called", vertex_id=vertex_id)
+
+    def upsert_vertex(self, vertex) -> str:
+        """vertex 삽입 또는 업데이트 (stub)."""
+        logger.warning("upsert_vertex_stub_called")
+        return ""
+
+    def rebuild_from_canonical_source(self, canonical_id: str) -> None:
+        """canonical source 기준 그래프 재구축 (stub — Phase 4 완성 후 구현 예정)."""
+        logger.warning("rebuild_from_canonical_source_stub_called", canonical_id=canonical_id)
+
+    def resolve_trait_violation(self, trait_id: str, confirmation_id: str) -> None:
+        """VIOLATES_TRAIT 엣지를 의도된 변화로 마킹 (stub — Phase 4 완성 후 구현 예정)."""
+        logger.warning("resolve_trait_violation_stub_called", trait_id=trait_id)
+
+    def remove_vertices_by_chunk_ids(self, chunk_ids: List[str]) -> int:
+        """chunk_id 기반 vertex 삭제 (stub)."""
+        logger.warning("remove_vertices_by_chunk_ids_stub_called", count=len(chunk_ids))
+        return 0
+
     def close(self):
         self.connection.close()
 
@@ -1707,6 +1741,79 @@ class InMemoryGraphService:
             except Exception as e:
                 self.log.warning("remove_source file delete failed", source_id=source_id, error=str(e))
         return removed
+
+    # ── confirmation.py / version.py 연동 메서드 ─────────────────
+
+    def query_vertices(self, partition_key: str, filters: dict) -> List[Dict]:
+        """partition_key(label) + filters 조건으로 vertex 목록 반환."""
+        result = [
+            v for v in self._vertices_by_label(partition_key)
+            if all(v.get(k) == val for k, val in filters.items())
+        ]
+        self.log.debug("query_vertices", partition_key=partition_key, count=len(result))
+        return result
+
+    def get_vertex(self, vertex_id: str, partition_key: str) -> Optional[Dict]:
+        """vertex_id로 단일 vertex 반환. 없으면 None."""
+        v = self.vertices.get(vertex_id)
+        if v is None or v.get("label") != partition_key:
+            return None
+        return v
+
+    def patch_vertex(self, vertex_id: str, partition_key: str, fields: dict) -> None:
+        """vertex에 fields를 머지. vertex가 없으면 경고만 기록."""
+        v = self.vertices.get(vertex_id)
+        if v is None:
+            self.log.warning("patch_vertex_not_found", vertex_id=vertex_id)
+            return
+        v.update(fields)
+        self.log.debug("patch_vertex", vertex_id=vertex_id, fields=list(fields.keys()))
+
+    def upsert_vertex(self, vertex) -> str:
+        """id 있으면 업데이트, 없으면 신규 추가. vertex id를 반환."""
+        # Pydantic 모델과 dict 양쪽 허용
+        data = vertex.model_dump(mode="json") if hasattr(vertex, "model_dump") else dict(vertex)
+        vid = str(data.get("id") or str(uuid.uuid4()))
+        data["id"] = vid
+        if vid in self.vertices:
+            self.vertices[vid].update(data)
+            self.log.debug("upsert_vertex_updated", vertex_id=vid)
+        else:
+            label = data.get("label") or data.get("partition_key", "unknown")
+            self.vertices[vid] = {"label": label, **data}
+            self.log.debug("upsert_vertex_inserted", vertex_id=vid)
+        return vid
+
+    def rebuild_from_canonical_source(self, canonical_id: str) -> None:
+        """canonical source 기준 그래프 재구축 (Phase 4 완성 후 구현 예정)."""
+        self.log.info("rebuild_from_canonical_source_noop", canonical_id=canonical_id)
+
+    def resolve_trait_violation(self, trait_id: str, confirmation_id: str) -> None:
+        """VIOLATES_TRAIT 엣지를 의도된 변화로 마킹 (Phase 4 완성 후 구현 예정)."""
+        self.log.info("resolve_trait_violation_noop", trait_id=trait_id)
+
+    def remove_vertices_by_chunk_ids(self, chunk_ids: List[str]) -> int:
+        """chunk_id 필드가 chunk_ids에 포함된 vertex를 삭제하고 삭제 수 반환."""
+        chunk_id_set = set(chunk_ids)
+        to_remove = [
+            vid for vid, v in self.vertices.items()
+            if v.get("chunk_id") in chunk_id_set
+        ]
+        for vid in to_remove:
+            del self.vertices[vid]
+        # 삭제된 vertex를 참조하는 edge도 정리
+        remaining = set(self.vertices.keys())
+        before_edges = len(self.edges)
+        self.edges = [
+            e for e in self.edges
+            if e.get("from_id") in remaining and e.get("to_id") in remaining
+        ]
+        self.log.info(
+            "remove_vertices_by_chunk_ids",
+            removed_vertices=len(to_remove),
+            removed_edges=before_edges - len(self.edges),
+        )
+        return len(to_remove)
 
 
 # ─────────────────────────────────────────────────────────────
