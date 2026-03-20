@@ -15,6 +15,7 @@ from gremlin_python.driver.driver_remote_connection import DriverRemoteConnectio
 from gremlin_python.process.graph_traversal import __
 
 from app.models.intermediate import NormalizationResult
+from app.services.storage import StorageService
 from app.models.edges import RELATIONSHIP_CONFLICT_MATRIX
 from app.models.enums import (
     ConfirmationType, ConfirmationStatus, ContradictionType,
@@ -147,13 +148,14 @@ def create_gremlin_client(endpoint: str, key: str, database: str, container: str
 class GremlinGraphService:
     """Azure Cosmos DB (Gremlin API) 기반 그래프 서비스"""
 
-    def __init__(self, endpoint: str, key: str, database: str, container: str):
+    def __init__(self, endpoint: str, key: str, database: str, container: str, storage_service: Optional[StorageService] = None):
         self.endpoint = endpoint
         self.key = key
         self.database = database
         self.container = container
         self.g, self.connection = create_gremlin_client(endpoint, key, database, container)
         self._discourse_counter: float = 0.0
+        self.storage = storage_service
         logger.info("GremlinGraphService initialized")
 
     # ── 내부 헬퍼 ─────────────────────────────────────────────
@@ -933,6 +935,12 @@ class GremlinGraphService:
         except Exception as e:
             logger.error("remove_source failed", source_id=source_id, error=str(e))
             raise
+        if self.storage:
+            try:
+                self.storage.delete_file(source_id)
+                logger.info("remove_source file deleted", source_id=source_id)
+            except Exception as e:
+                logger.warning("remove_source file delete failed", source_id=source_id, error=str(e))
         return removed
 
     def close(self):
@@ -946,11 +954,12 @@ class GremlinGraphService:
 class InMemoryGraphService:
     """GremlinGraphService와 동일 인터페이스의 In-Memory 구현체."""
 
-    def __init__(self, json_path: Optional[str] = None):
+    def __init__(self, json_path: Optional[str] = None, storage_service: Optional[StorageService] = None):
         self.vertices: Dict[str, Dict[str, Any]] = {}
         self.edges: List[Dict[str, Any]] = []
         self._discourse_counter: float = 0.0
         self.log = logger.bind(instance_id=str(uuid.uuid4()))
+        self.storage = storage_service
         self.log.info("graph_initialized")
 
         # json_path가 주어지면 자동 로드
@@ -1690,7 +1699,13 @@ class InMemoryGraphService:
             and e.get("to_id") in remaining
         ]
         removed = {"vertices": orig_v - len(self.vertices), "edges": orig_e - len(self.edges)}
-        logger.info("remove_source complete", source_id=source_id, **removed)
+        self.log.info("remove_source complete", source_id=source_id, **removed)
+        if self.storage:
+            try:
+                self.storage.delete_file(source_id)
+                self.log.info("remove_source file deleted", source_id=source_id)
+            except Exception as e:
+                self.log.warning("remove_source file delete failed", source_id=source_id, error=str(e))
         return removed
 
 
