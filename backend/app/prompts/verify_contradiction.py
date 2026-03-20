@@ -37,6 +37,7 @@ CONTRADICTION_PROMPT = """
 - severity: critical / major / minor 중 하나
 - reasoning: 원문 전후 맥락을 포함한 논리적 근거
 - suggestion: 오류 해결을 위한 구체적 수정 방향 (is_contradiction=true일 때 필수)
+- alternative_interpretation: 의도적 장치로 볼 수 있는 대안 해석 (있으면 작성, 없으면 생략)
 - user_question: confidence < 0.8이면 반드시 작성. 작가에게 물어볼 구체적 질문
 
 결과는 반드시 지정된 JSON 스키마를 따르세요.
