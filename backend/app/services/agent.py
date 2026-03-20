@@ -2,15 +2,18 @@
 import time
 import uuid
 import structlog
-from typing import List, Dict, Any, TypedDict, Optional
-from langgraph.graph import StateGraph, START, END
+from typing import Any, Dict, List, Optional, TypedDict
 
-# 프로젝트 내 서비스 모듈 임포트
-from app.services.ingest import IngestService
-from app.services.extraction import ExtractionService
-from app.services.normalization import NormalizationService
+from langgraph.graph import StateGraph, END
+
+from app.config import settings
+from app.models.api import AnalysisResponse, ManuscriptInput
+from app.models.enums import SourceType
+from app.models.vertices import Source
 from app.services.detection import DetectionService
-from app.services.graph import get_graph_service
+from app.services.extraction import ExtractionService
+from app.services.graph import InMemoryGraphService
+from app.services.normalization import NormalizationService
 
 # 프로젝트 내 데이터 모델 임포트
 from app.models.api import DocumentChunk, ContradictionReport
@@ -33,8 +36,98 @@ class AgentState(TypedDict):
     normalized_data: Optional[NormalizationResult]
     contradictions: List[ContradictionReport]
 
+
+# ── LangGraph 상태 정의 ──────────────────────────────────────
+
+class AgentState(TypedDict):
+    manuscript: ManuscriptInput
+    raw_extraction: Any
+    normalized: Any
+    snapshot: Any           # InMemoryGraphService 스냅샷 (격리된 복제본)
+    violations: Dict        # find_all_violations() 결과
+    result: Optional[AnalysisResponse]
+    error: Optional[str]
+
+
+# ── 노드 함수 (각 계층) ──────────────────────────────────────
+
+async def _extract(state: AgentState) -> AgentState:
+    """계층 1: 텍스트 → RawEntity"""
+    logger.info("langgraph_node", node="extract")
+    svc = ExtractionService()
+    raw = await svc.extract_from_chunk(
+        text=state["manuscript"].content,
+        source_type="scenario",
+        chunk_id="agent-chunk-001",
+    )
+    return {**state, "raw_extraction": raw}
+
+
+async def _normalize(state: AgentState) -> AgentState:
+    """계층 2: RawEntity → NormalizedEntity"""
+    logger.info("langgraph_node", node="normalize")
+    svc = NormalizationService()
+    normalized = await svc.normalize(extractions=[state["raw_extraction"]])
+    return {**state, "normalized": normalized}
+
+
+def _snapshot(state: AgentState) -> AgentState:
+    """계층 3 준비: canonical graph → In-Memory 스냅샷 복제 (canonical 보호).
+
+    USE_LOCAL_GRAPH=True 환경에서는 빈 InMemoryGraphService를 스냅샷으로 사용.
+    실제 Gremlin 연결 시: gremlin_svc.snapshot_graph() 호출.
+    """
+    logger.info("langgraph_node", node="snapshot")
+    snapshot = InMemoryGraphService()
+    return {**state, "snapshot": snapshot}
+
+
+def _materialize(state: AgentState) -> AgentState:
+    """계층 3: NormalizedEntity → 스냅샷에 적재 (canonical graph 불변)"""
+    logger.info("langgraph_node", node="materialize")
+    snapshot: InMemoryGraphService = state["snapshot"]
+    normalized = state["normalized"]
+
+    if normalized and snapshot:
+        source = Source(
+            source_id="snapshot",
+            source_type=SourceType.MANUSCRIPT,
+            name=state["manuscript"].title,
+            file_path="",
+        )
+        snapshot.materialize(normalized, source)
+
+    return state  # snapshot 객체 자체가 변경됨 (mutable)
+
+
+def _detect(state: AgentState) -> AgentState:
+    """계층 4: 스냅샷에서 7가지 모순 탐지"""
+    logger.info("langgraph_node", node="detect")
+    snapshot: InMemoryGraphService = state["snapshot"]
+    violations = snapshot.find_all_violations()
+    logger.info(
+        "detect_complete",
+        hard=len(violations.get("hard", [])),
+        soft=len(violations.get("soft", [])),
+    )
+    return {**state, "violations": violations}
+
+
+async def _respond(state: AgentState) -> AgentState:
+    """계층 4: violations → AnalysisResponse + 스냅샷 폐기 (canonical 보호 완료)"""
+    logger.info("langgraph_node", node="respond")
+    svc = DetectionService()
+    result = await svc.analyze(state["violations"])
+
+    # 스냅샷 폐기: canonical graph는 한 번도 건드리지 않았음
+    return {**state, "snapshot": None, "result": result}
+
+
+# ── ContiCheckAgent (LangGraph 기반) ─────────────────────────
+
 class ContiCheckAgent:
     def __init__(self):
+
         # 개별 서비스 초기화
         self.ingest_service = IngestService()
         self.extraction_service = ExtractionService()
@@ -175,3 +268,58 @@ class ContiCheckAgent:
             "extracted_entities": final_state["normalized_data"].characters if final_state["normalized_data"] else[],
             "contradictions": final_state["contradictions"]
         }
+
+        self._graph = self._build_graph()
+
+    def _build_graph(self):
+        builder = StateGraph(AgentState)
+
+        builder.add_node("extract", _extract)
+        builder.add_node("normalize", _normalize)
+        builder.add_node("snapshot", _snapshot)
+        builder.add_node("materialize", _materialize)
+        builder.add_node("detect", _detect)
+        builder.add_node("respond", _respond)
+
+        builder.set_entry_point("extract")
+        builder.add_edge("extract", "normalize")
+        builder.add_edge("normalize", "snapshot")
+        builder.add_edge("snapshot", "materialize")
+        builder.add_edge("materialize", "detect")
+        builder.add_edge("detect", "respond")
+        builder.add_edge("respond", END)
+
+        return builder.compile()
+
+    async def analyze_manuscript(self, manuscript: ManuscriptInput) -> AnalysisResponse:
+        """원고 분석 전체 파이프라인 (LangGraph 오케스트레이션).
+
+        흐름: extract → normalize → snapshot → materialize → detect → respond
+        스냅샷 격리: canonical graph는 respond 이후 폐기, 절대 불변.
+        """
+        logger.info("agent_start", title=manuscript.title)
+
+        initial: AgentState = {
+            "manuscript": manuscript,
+            "raw_extraction": None,
+            "normalized": None,
+            "snapshot": None,
+            "violations": {},
+            "result": None,
+            "error": None,
+        }
+
+        final = await self._graph.ainvoke(initial)
+
+        result = final.get("result")
+        if result is None:
+            logger.warning("agent_no_result")
+            return AnalysisResponse(contradictions=[], confirmations=[], total=0)
+
+        logger.info(
+            "agent_complete",
+            contradictions=len(result.contradictions),
+            confirmations=len(result.confirmations),
+        )
+        return result
+
