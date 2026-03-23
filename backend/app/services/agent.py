@@ -10,6 +10,7 @@ from app.models.vertices import Source
 from app.services.detection import DetectionService
 from app.services.extraction import ExtractionService
 from app.services.graph import InMemoryGraphService, get_graph_service
+from app.services.ingest import IngestService
 from app.services.normalization import NormalizationService
 
 logger = structlog.get_logger()
@@ -30,22 +31,25 @@ class AgentState(TypedDict):
 # ── 노드 함수 (각 계층) ──────────────────────────────────────
 
 async def _extract(state: AgentState) -> AgentState:
-    """계층 1: 텍스트 → RawEntity"""
+    """계층 1: 텍스트 → RawEntity (청킹 후 배치 처리)"""
     logger.info("langgraph_node", node="extract")
-    svc = ExtractionService()
-    raw = await svc.extract_from_chunk(
+    ingest = IngestService()
+    chunks = ingest.chunk_text(
         text=state["manuscript"].content,
-        source_type="scenario",
-        chunk_id="agent-chunk-001",
+        source_id="agent-manuscript",
+        source_name=state["manuscript"].title,
     )
-    return {**state, "raw_extraction": raw}
+    logger.info("agent_chunks", total=len(chunks))
+    svc = ExtractionService()
+    raws = await svc.extract_from_chunks(chunks, source_type="scenario")
+    return {**state, "raw_extraction": raws}
 
 
 async def _normalize(state: AgentState) -> AgentState:
     """계층 2: RawEntity → NormalizedEntity"""
     logger.info("langgraph_node", node="normalize")
     svc = NormalizationService()
-    normalized = await svc.normalize(extractions=[state["raw_extraction"]])
+    normalized = await svc.normalize(extractions=state["raw_extraction"])
     return {**state, "normalized": normalized}
 
 
