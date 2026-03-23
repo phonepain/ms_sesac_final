@@ -25,6 +25,8 @@ version.py — 계층 5: 버전 관리 서비스 (StorageService 연동)
 
 from __future__ import annotations
 
+import asyncio
+import functools
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -187,6 +189,19 @@ class VersionService:
         self._version_counter: int = 0
 
     # ──────────────────────────────────────────────────────────────
+    # 내부 유틸: sync 그래프 호출을 thread pool에서 실행
+    # ──────────────────────────────────────────────────────────────
+
+    async def _run_graph(self, func, *args, **kwargs):
+        """동기 GraphService 메서드를 ThreadPoolExecutor에서 실행한다.
+        async 컨텍스트에서 Gremlin sync 호출 시 이벤트 루프 충돌을 방지한다.
+        """
+        loop = asyncio.get_event_loop()
+        if kwargs:
+            return await loop.run_in_executor(None, functools.partial(func, *args, **kwargs))
+        return await loop.run_in_executor(None, func, *args)
+
+    # ──────────────────────────────────────────────────────────────
     # 1. 수정 스테이징
     # ──────────────────────────────────────────────────────────────
 
@@ -328,10 +343,11 @@ class VersionService:
 
         # Step 5: Source vertex의 file_path를 최신 스냅샷 경로로 업데이트
         try:
-            self._graph.patch_vertex(
-                vertex_id=source_id,
-                partition_key="source",
-                fields={"file_path": snapshot_path},
+            await self._run_graph(
+                self._graph.patch_vertex,
+                source_id,
+                "source",
+                {"file_path": snapshot_path},
             )
         except Exception as exc:
             raise VersionError(
@@ -364,7 +380,7 @@ class VersionService:
         )
 
         # Step 9: 버전 메타 생성 + 저장
-        source_vertex = self._graph.get_vertex(source_id, "source")
+        source_vertex = await self._run_graph(self._graph.get_vertex, source_id, "source")
         source_name = (source_vertex or {}).get("name", "")
 
         version_info = self._create_version(
@@ -505,7 +521,7 @@ class VersionService:
         StorageService를 통해 현재 원고 텍스트를 불러옵니다.
         """
         try:
-            source_vertex = self._graph.get_vertex(source_id, "source")
+            source_vertex = await self._run_graph(self._graph.get_vertex, source_id, "source")
             if source_vertex is None:
                 raise VersionError(f"Source vertex를 찾을 수 없습니다: source_id={source_id}")
             file_path = source_vertex.get("file_path", "")
@@ -543,7 +559,7 @@ class VersionService:
         - 오버랩 때문에 인접 청크도 함께 포함될 수 있음
         """
         try:
-            source_vertex = self._graph.get_vertex(source_id, "source")
+            source_vertex = await self._run_graph(self._graph.get_vertex, source_id, "source")
             filename = (source_vertex or {}).get("name", f"{source_id}.txt")
             source_type = (source_vertex or {}).get("source_type", "scenario")
             ingest_result = await self._ingest.process_file(
@@ -556,7 +572,14 @@ class VersionService:
         except Exception as exc:
             raise VersionError(f"재청킹 실패 (source_id={source_id}): {exc}") from exc
 
-        fixed_texts = {fix.fixed_text for fix in applied_fixes}
+        # is_intentional 픽스는 텍스트 변경 없음 — 빈 문자열이 모든 청크에 매칭되는 것 방지
+        fixed_texts = {fix.fixed_text for fix in applied_fixes if not fix.is_intentional and fix.fixed_text}
+
+        # 모든 픽스가 is_intentional=True — 텍스트 변경 없으므로 재구축 불필요
+        if not fixed_texts:
+            log.info("all_fixes_intentional_no_rebuild_needed")
+            return []
+
         changed: list["DocumentChunk"] = []
 
         for chunk in all_chunks:
@@ -596,7 +619,7 @@ class VersionService:
         log.info("incremental_rebuild_start", chunk_count=len(changed_chunks))
 
         # source_type 조회 (계층1 추출에 필요)
-        source_vertex = self._graph.get_vertex(source_id, "source")
+        source_vertex = await self._run_graph(self._graph.get_vertex, source_id, "source")
         source_type = (source_vertex or {}).get("source_type", "scenario")
 
         # 계층1: Extraction
@@ -609,7 +632,7 @@ class VersionService:
         # 이전 청크 기반 그래프 데이터 제거
         log.info("removing_old_chunk_data")
         try:
-            self._graph.remove_vertices_by_chunk_ids(chunk_ids)
+            await self._run_graph(self._graph.remove_vertices_by_chunk_ids, chunk_ids)
         except Exception as exc:
             log.warning("remove_old_vertices_failed", error=str(exc))
 
@@ -626,10 +649,21 @@ class VersionService:
             if source_vertex is None:
                 raise VersionError(f"Source Vertex를 찾을 수 없습니다: source_id={source_id}")
 
-            source_obj = Source.model_validate(source_vertex)
-            self._graph.materialize(
-                normalized=normalization_result,
-                source=source_obj,
+            # source_vertex의 id는 'src-xxx' 형식으로 UUID가 아님 — 직접 생성
+            # (materialize() 내부에서 source.id는 source_id로 즉시 덮어씌워짐)
+            from app.models.enums import SourceType as _ST
+            source_obj = Source(
+                source_id=source_id,
+                source_type=_ST(source_vertex.get("source_type", "scenario")),
+                name=str(source_vertex.get("name", source_id)),
+                file_path=str(source_vertex.get("file_path", "")),
+                metadata=str(source_vertex.get("metadata", "{}")),
+            )
+            await self._run_graph(
+                self._graph.materialize,
+                normalization_result,
+                source_obj,
+                skip_source_vertex=True,
             )
         except Exception as exc:
             if isinstance(exc, VersionError):
@@ -661,10 +695,11 @@ class VersionService:
         """
         for contradiction_id in contradiction_ids:
             try:
-                self._graph.patch_vertex(
-                    vertex_id=contradiction_id,
-                    partition_key="contradiction",
-                    fields={"status": "resolved"},
+                await self._run_graph(
+                    self._graph.patch_vertex,
+                    contradiction_id,
+                    "contradiction",
+                    {"status": "resolved"},
                 )
                 log.info("contradiction_resolved", contradiction_id=contradiction_id)
             except Exception as exc:

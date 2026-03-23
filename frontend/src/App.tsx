@@ -247,6 +247,7 @@ export default function App() {
   };
   
   const onUnstageFix = (id: string) => {
+    versionApi.unstageFix(id).catch(e => console.error('unstage failed', e));
     setStaged(p => p.filter(s => s.id !== id));
   };
 
