@@ -1,4 +1,6 @@
 import uuid
+import asyncio
+import functools
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,6 +41,17 @@ def get_version_service() -> VersionService:
             storage_service=get_global_storage(),
         )
     return _version_service
+
+async def _run_graph(func, *args, **kwargs):
+    """GremlinGraphService 동기 호출을 별도 스레드에서 실행.
+    gremlin_python이 내부적으로 loop.run_until_complete()를 사용하므로
+    FastAPI asyncio 루프와 충돌하지 않도록 ThreadPoolExecutor로 분리한다.
+    """
+    loop = asyncio.get_event_loop()
+    if kwargs:
+        return await loop.run_in_executor(None, functools.partial(func, *args, **kwargs))
+    return await loop.run_in_executor(None, func, *args)
+
 
 logger = structlog.get_logger(__name__)
 
@@ -100,11 +113,8 @@ async def upload_source(
         name=filename,
         file_path=ingest_result.file_path,
     )
-    source_dict = _vertex_to_dict(source_vertex)
-    source_dict["id"] = source_id
-    graph.add_source(source_dict)
-
     # 3) Extract → Normalize → Materialize → Search 인덱싱
+    # (Source vertex는 materialize() 내부에서 적재하므로 별도 add_source 불필요)
     extraction_svc = ExtractionService()
     extraction_results = await extraction_svc.extract_from_chunks(
         ingest_result.chunks, source_type
@@ -113,7 +123,7 @@ async def upload_source(
     normalization_svc = NormalizationService()
     normalization_result = await normalization_svc.normalize(extraction_results)
 
-    graph.materialize(normalization_result, source_vertex)
+    await _run_graph(graph.materialize, normalization_result, source_vertex)
 
     search_svc = get_search_service()
     await search_svc.index_chunks(source_id=source_id, chunks=ingest_result.chunks)
@@ -153,10 +163,10 @@ async def delete_source(source_id: str):
     """소스 삭제 — graph에서 vertex/edge 제거 + StorageService.delete_file(file_path)"""
     graph = get_graph_service()
     # 그래프 삭제 전에 file_path 확보
-    source_vertex = graph.get_vertex(source_id, "source")
+    source_vertex = await _run_graph(graph.get_vertex, source_id, "source")
     file_path = (source_vertex or {}).get("file_path", "")
 
-    graph.remove_source(source_id)
+    await _run_graph(graph.remove_source, source_id)
 
     if file_path:
         storage: StorageService = get_global_storage()
@@ -174,7 +184,7 @@ async def reupload_source(
 ):
     """기존 소스 파일 교체 — source_id 유지, 그래프/인덱스 증분 재구축"""
     graph = get_graph_service()
-    source_vertex = graph.get_vertex(source_id, "source")
+    source_vertex = await _run_graph(graph.get_vertex, source_id, "source")
     if not source_vertex:
         raise HTTPException(status_code=404, detail=f"소스를 찾을 수 없습니다: {source_id}")
 
@@ -202,7 +212,8 @@ async def reupload_source(
     )
 
     # Source vertex file_path + name 업데이트
-    graph.patch_vertex(
+    await _run_graph(
+        graph.patch_vertex,
         vertex_id=source_id,
         partition_key="source",
         fields={"file_path": ingest_result.file_path, "name": filename},
@@ -230,7 +241,7 @@ async def reupload_source(
         name=filename,
         file_path=ingest_result.file_path,
     )
-    graph.materialize(normalization_result, source_obj)
+    await _run_graph(graph.materialize, normalization_result, source_obj)
 
     await search_svc.index_chunks(source_id=source_id, chunks=ingest_result.chunks)
 
@@ -254,7 +265,7 @@ async def reupload_source(
 async def download_source(source_id: str):
     """원본 파일 다운로드 — Source vertex의 file_path로 StorageService.get_file() 호출"""
     graph = get_graph_service()
-    source_vertex = graph.get_vertex(source_id, "source")
+    source_vertex = await _run_graph(graph.get_vertex, source_id, "source")
     if not source_vertex:
         raise HTTPException(status_code=404, detail=f"소스를 찾을 수 없습니다: {source_id}")
     file_path = source_vertex.get("file_path", "")
@@ -360,6 +371,16 @@ class StageFixRequest(BaseModel):
     is_intentional: bool = False
     intent_note: str = ""
 
+@app.delete("/api/fixes/stage/{contradiction_id}")
+async def unstage_fix(contradiction_id: str):
+    """스테이징 큐에서 특정 수정사항 제거"""
+    try:
+        svc = get_version_service()
+        svc.cancel_staged_fix(contradiction_id)
+        return {"status": "unstaged", "contradiction_id": contradiction_id}
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 @app.post("/api/fixes/stage")
 async def stage_fix(req: StageFixRequest):
     """수정사항 스테이징. is_intentional=True이면 텍스트 교체 없이 의도 인정으로 처리."""
@@ -389,7 +410,7 @@ async def push_fixes(req: PushFixesRequest):
         # source_id 미전달 시 그래프에서 scenario 소스 자동 탐색
         if not source_id:
             graph = get_graph_service()
-            sources = graph.list_sources()
+            sources = await _run_graph(graph.list_sources)
             scenario_src = next((s for s in sources if s.get("source_type") == "scenario"), None)
             if scenario_src is None and sources:
                 scenario_src = sources[0]

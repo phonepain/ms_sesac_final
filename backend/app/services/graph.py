@@ -203,11 +203,46 @@ class GremlinGraphService:
             return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'"
         return "'" + str(value).replace("\\", "\\\\").replace("'", "\\'") + "'"
 
+    def _is_connection_error(self, e: Exception) -> bool:
+        """Gremlin 연결 끊김 / 닫힘 계열 에러 여부 판단."""
+        msg = str(e).lower()
+        return any(kw in msg for kw in (
+            "already closed",
+            "closing transport",
+            "connection closed",
+            "connection reset",
+            "transport closed",
+        ))
+
+    def _reconnect(self) -> None:
+        """Gremlin 클라이언트를 새로 생성해 연결을 복구한다.
+        새 클라이언트 생성 성공 후에만 기존 클라이언트를 교체한다.
+        """
+        new_client = create_gremlin_client(
+            self.endpoint, self.key, self.database, self.container
+        )
+        try:
+            self.client.close()
+        except Exception:
+            pass
+        self.client = new_client
+        logger.info("gremlin_reconnected", endpoint=self.endpoint)
+
     def _submit(self, query: str) -> List[Any]:
-        """Gremlin 쿼리 문자열을 Cosmos DB에 제출하고 결과 리스트 반환."""
+        """Gremlin 쿼리 문자열을 Cosmos DB에 제출하고 결과 리스트 반환.
+        연결 끊김 에러 발생 시 1회 재연결 후 재시도한다.
+        """
         try:
             return self.client.submit(query).all().result()
         except Exception as e:
+            if self._is_connection_error(e):
+                logger.warning("gremlin_connection_lost_reconnecting", error=str(e))
+                self._reconnect()
+                try:
+                    return self.client.submit(query).all().result()
+                except Exception as e2:
+                    logger.error("gremlin_submit_failed_after_reconnect", query=query[:300], error=str(e2))
+                    raise
             logger.error("gremlin_submit_failed", query=query[:300], error=str(e))
             raise
 
@@ -432,11 +467,11 @@ class GremlinGraphService:
 
     # ── 계층 3: Graph 적재 ────────────────────────────────────
 
-    def materialize(self, normalized: NormalizationResult, source: Source) -> Dict[str, List[str]]:
+    def materialize(self, normalized: NormalizationResult, source: Source, skip_source_vertex: bool = False) -> Dict[str, List[str]]:
         """NormalizationResult → Cosmos DB Graph 적재
 
         Steps:
-          0. Source vertex 적재
+          0. Source vertex 적재 (skip_source_vertex=True이면 건너뜀 — 증분 재구축 시 이미 존재)
           1. NormalizedCharacter → Character vertex + SOURCED_FROM
           2. NormalizedFact     → KnowledgeFact vertex + SOURCED_FROM (discourse_order 자동 부여)
           3. NormalizedEvent    → Event vertex + SOURCED_FROM
@@ -455,13 +490,14 @@ class GremlinGraphService:
 
         logger.info("Materializing NormalizationResult", source_id=source_id)
         try:
-            # 0. Source vertex 적재
-            src_dict = _vertex_to_dict(source)
-            # Source vertex의 id와 source_id를 비즈니스 키(source_id)로 통일
-            # → get_source(source_id) 조회 및 remove_source(source_id) 삭제 일치
-            src_dict["id"] = source_id
-            src_dict["source_id"] = source_id
-            self.add_source(src_dict)
+            # 0. Source vertex 적재 (증분 재구축 시 이미 존재하므로 skip)
+            if not skip_source_vertex:
+                src_dict = _vertex_to_dict(source)
+                # Source vertex의 id와 source_id를 비즈니스 키(source_id)로 통일
+                # → get_source(source_id) 조회 및 remove_source(source_id) 삭제 일치
+                src_dict["id"] = source_id
+                src_dict["source_id"] = source_id
+                self.add_source(src_dict)
             created["source"].append(source_id)
 
             # 1. Character vertices — name→id 맵 구축
@@ -1657,11 +1693,11 @@ class InMemoryGraphService:
 
     # ── 계층 3: 적재 ──────────────────────────────────────────
 
-    def materialize(self, normalized: NormalizationResult, source: Source) -> Dict[str, List[str]]:
+    def materialize(self, normalized: NormalizationResult, source: Source, skip_source_vertex: bool = False) -> Dict[str, List[str]]:
         """NormalizationResult → In-Memory Graph 적재
 
         Steps:
-          0. Source vertex 적재
+          0. Source vertex 적재 (skip_source_vertex=True이면 건너뜀 — 증분 재구축 시 이미 존재)
           1. NormalizedCharacter → Character vertex + SOURCED_FROM
           2. NormalizedFact     → KnowledgeFact vertex + SOURCED_FROM (discourse_order 자동 부여)
           3. NormalizedEvent    → Event vertex + SOURCED_FROM
@@ -1678,13 +1714,14 @@ class InMemoryGraphService:
             "traits": [], "edges": [],
         }
 
-        # 0. Source vertex 적재
-        src_dict = _vertex_to_dict(source)
-        # Source vertex의 id와 source_id를 비즈니스 키(source_id)로 통일
-        # → get_source(source_id) 조회 및 remove_source(source_id) 삭제 일치
-        src_dict["id"] = source_id
-        src_dict["source_id"] = source_id
-        self.add_source(src_dict)
+        # 0. Source vertex 적재 (증분 재구축 시 이미 존재하므로 skip)
+        if not skip_source_vertex:
+            src_dict = _vertex_to_dict(source)
+            # Source vertex의 id와 source_id를 비즈니스 키(source_id)로 통일
+            # → get_source(source_id) 조회 및 remove_source(source_id) 삭제 일치
+            src_dict["id"] = source_id
+            src_dict["source_id"] = source_id
+            self.add_source(src_dict)
         created["source"].append(source_id)
 
         # 1. Character vertices — name→id 맵 구축
