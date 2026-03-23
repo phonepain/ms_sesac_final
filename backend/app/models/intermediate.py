@@ -120,7 +120,11 @@ class NormalizationResult(BaseModel):
     characters: List[NormalizedCharacter] = Field(default_factory=list)
     facts: List[NormalizedFact] = Field(default_factory=list)
     events: List[NormalizedEvent] = Field(default_factory=list)
-    # (필요에 따라 events, traits, relationships 등을 추가/확장합니다)
+    traits: List[RawTrait] = Field(default_factory=list)
+    relationships: List[RawRelationship] = Field(default_factory=list)
+    emotions: List[RawEmotion] = Field(default_factory=list)
+    item_events: List[RawItemEvent] = Field(default_factory=list)
+    knowledge_events: List[RawKnowledgeEvent] = Field(default_factory=list)
     source_conflicts: List[SourceConflict] = Field(default_factory=list)
 
 #phase4  모순을 판단한 결과를 담을 그릇

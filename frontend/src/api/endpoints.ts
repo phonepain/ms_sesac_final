@@ -34,7 +34,22 @@ export const sourceApi = {
   },
   
   list: () => fetchApi<Source[]>('/sources'),
-  
+
+  download: async (id: string): Promise<Blob> => {
+    const res = await fetch(`/api/sources/${id}/download`);
+    if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+    return res.blob();
+  },
+
+  reupload: (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return fetchApi<IngestResponse>(`/sources/${id}`, {
+      method: 'PUT',
+      body: formData,
+    });
+  },
+
   delete: (id: string) => fetchApi<{status: string, message: string}>(`/sources/${id}`, { method: 'DELETE' })
 };
 
@@ -118,10 +133,11 @@ export interface VersionInfo {
   date: string;
   fixes_count: number;
   description: string;
+  src?: string;
 }
 
 export const versionApi = {
-  stageFix: (contradictionId: string, originalText: string, fixedText: string) => 
+  stageFix: (contradictionId: string, originalText: string, fixedText: string) =>
     fetchApi<{status: string, contradiction_id: string}>('/fixes/stage', {
       method: 'POST',
       body: JSON.stringify({
@@ -130,10 +146,30 @@ export const versionApi = {
         fixed_text: fixedText
       })
     }),
-    
-  pushFixes: () => fetchApi<VersionInfo>('/fixes/push', { method: 'POST' }),
-  
-  listVersions: () => fetchApi<VersionInfo[]>('/versions')
+
+  stageIntentional: (contradictionId: string, note: string) =>
+    fetchApi<{status: string, contradiction_id: string}>('/fixes/stage', {
+      method: 'POST',
+      body: JSON.stringify({
+        contradiction_id: contradictionId,
+        is_intentional: true,
+        intent_note: note
+      })
+    }),
+
+  pushFixes: (sourceId?: string, description?: string) =>
+    fetchApi<VersionInfo>('/fixes/push', {
+      method: 'POST',
+      body: JSON.stringify({ source_id: sourceId, description })
+    }),
+
+  listVersions: () => fetchApi<VersionInfo[]>('/versions'),
+
+  getContent: (versionId: string) =>
+    fetchApi<{content: string}>(`/versions/${versionId}/content`),
+
+  getDiff: (versionA: string, versionB: string) =>
+    fetchApi<{diff: string}>(`/versions/${versionA}/diff/${versionB}`)
 };
 
 // ==========================================

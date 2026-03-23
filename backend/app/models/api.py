@@ -16,7 +16,8 @@ class ManuscriptInput(BaseModel):
 # Ingestion / Search Models
 # ==========================================
 
-class SourceLocation(BaseModel):
+class ChunkLocation(BaseModel):
+    """DocumentChunk의 위치 메타데이터 (API 계층 전용). 도메인 모델 enums.SourceLocation과 별도."""
     source_id: str
     source_name: str
     page: Optional[int] = None
@@ -28,7 +29,7 @@ class DocumentChunk(BaseModel):
     source_id: str
     chunk_index: int
     content: str
-    location: SourceLocation
+    location: ChunkLocation
 
 class IngestResponse(BaseModel):
     source_id: str
@@ -126,6 +127,7 @@ class VersionInfo(BaseModel):
     fixes_count: int
     description: str
     snapshot_path: str = ""
+    src: str = ""  # 소스 파일명 (프론트엔드 버전 카드 배지용)
 
 class ErrorResponse(BaseModel):
     detail: str

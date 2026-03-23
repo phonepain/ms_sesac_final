@@ -7,23 +7,21 @@ import re
 import logging
 import structlog
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 
 from gremlin_python.driver import client, serializer
-from gremlin_python.structure.graph import Graph
-from gremlin_python.driver.driver_remote_connection import DriverRemoteConnection
-from gremlin_python.process.graph_traversal import __
 
+from app.config import settings
 from app.models.intermediate import NormalizationResult
 from app.services.storage import StorageService
 from app.models.edges import RELATIONSHIP_CONFLICT_MATRIX
 from app.models.enums import (
     ConfirmationType, ConfirmationStatus, ContradictionType,
     Severity, RelationshipType,
-    CharacterTier, FactCategory, FactImportance
+    CharacterTier, FactCategory, FactImportance, EventType
 )
 from app.models.vertices import (
-    Character, KnowledgeFact, UserConfirmation, Source, SourceExcerpt
+    Character, KnowledgeFact, Event, UserConfirmation, Source, SourceExcerpt
 )
 from app.models.api import KBStats
 
@@ -127,18 +125,40 @@ def _safe_enum(enum_cls: Any, value: Any, default: Any) -> Any:
         return default
 
 
-def create_gremlin_client(endpoint: str, key: str, database: str, container: str):
+def _deserialize_vertex_dict(data: Dict[str, Any]) -> Dict[str, Any]:
+    """_vertex_to_dict()가 JSON 문자열로 직렬화한 list/dict 필드를 역직렬화.
+
+    InMemoryGraphService는 Python dict를 그대로 보관하므로,
+    저장 시 JSON 문자열을 실제 Python 객체로 복원해야
+    Pydantic 모델 역직렬화(UserConfirmation(**raw) 등)가 정상 동작한다.
+    """
+    result: Dict[str, Any] = {}
+    for k, v in data.items():
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, (list, dict)):
+                    result[k] = parsed
+                    continue
+            except (json.JSONDecodeError, ValueError):
+                pass
+        result[k] = v
+    return result
+
+
+def create_gremlin_client(endpoint: str, key: str, database: str, container: str) -> client.Client:
+    """Azure Cosmos DB Gremlin용 string-query 클라이언트 생성.
+
+    Cosmos DB Gremlin은 bytecode 미지원 → client.Client + submit(string) 사용.
+    """
     url = endpoint if endpoint.startswith("wss://") else f"wss://{endpoint}:443/"
     username = f"/dbs/{database}/colls/{container}"
-    graph = Graph()
-    connection = DriverRemoteConnection(
+    return client.Client(
         url, "g",
         username=username,
         password=key,
         message_serializer=serializer.GraphSONSerializersV2d0(),
     )
-    g = graph.traversal().withRemote(connection)
-    return g, connection
 
 
 # ─────────────────────────────────────────────────────────────
@@ -146,52 +166,103 @@ def create_gremlin_client(endpoint: str, key: str, database: str, container: str
 # ─────────────────────────────────────────────────────────────
 
 class GremlinGraphService:
-    """Azure Cosmos DB (Gremlin API) 기반 그래프 서비스"""
+    """Azure Cosmos DB (Gremlin API) 기반 그래프 서비스.
+
+    Cosmos DB Gremlin은 bytecode 미지원이므로 string-query + client.Client 사용.
+    모든 Gremlin 쿼리는 _submit() / _submit_first() 헬퍼를 통해 실행된다.
+    """
 
     def __init__(self, endpoint: str, key: str, database: str, container: str, storage_service: Optional[StorageService] = None):
         self.endpoint = endpoint
         self.key = key
         self.database = database
         self.container = container
-        self.g, self.connection = create_gremlin_client(endpoint, key, database, container)
+        self.client = create_gremlin_client(endpoint, key, database, container)
         self._discourse_counter: float = 0.0
         self.storage = storage_service
         logger.info("GremlinGraphService initialized")
 
     # ── 내부 헬퍼 ─────────────────────────────────────────────
 
-    def _dict_to_properties(self, traversal, data: dict):
+    @staticmethod
+    def _qval(value: Any) -> str:
+        """Gremlin 쿼리 문자열용 값 이스케이프.
+
+        None → null, bool → true/false, number → 숫자 그대로,
+        list/dict → JSON 문자열로 직렬화 후 single-quote 래핑,
+        나머지 → single-quote 래핑 + 내부 작은따옴표 이스케이프.
+        """
+        if value is None:
+            return "null"
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, (int, float)):
+            return str(value)
+        if isinstance(value, (list, dict)):
+            s = json.dumps(value, ensure_ascii=False)
+            return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'"
+        return "'" + str(value).replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+    def _submit(self, query: str) -> List[Any]:
+        """Gremlin 쿼리 문자열을 Cosmos DB에 제출하고 결과 리스트 반환."""
+        try:
+            return self.client.submit(query).all().result()
+        except Exception as e:
+            logger.error("gremlin_submit_failed", query=query[:300], error=str(e))
+            raise
+
+    def _submit_first(self, query: str) -> Optional[Any]:
+        """_submit()의 첫 번째 결과만 반환. 없으면 None."""
+        results = self._submit(query)
+        return results[0] if results else None
+
+    def _build_props(self, data: dict, exclude: Optional[set] = None) -> str:
+        """dict → .property('k', v) 체인 문자열 빌더."""
+        exclude = exclude or set()
+        parts = []
         for k, v in data.items():
-            if v is not None:
-                traversal = traversal.property(k, str(v) if isinstance(v, (list, dict)) else v)
-        return traversal
+            if k in exclude or v is None:
+                continue
+            parts.append(f".property({self._qval(k)}, {self._qval(v)})")
+        return "".join(parts)
 
     def _add_vertex_generic(self, label: str, data: dict, partition_key: str) -> str:
         vid = data.get("id", str(uuid.uuid4()))
         data["id"] = vid
-        t = self.g.addV(label).property("id", vid).property("pk", partition_key)
-        t = self._dict_to_properties(t, data)
-        t.toList()
+        # partition_key는 명시적으로 먼저 설정하므로 _build_props에서 제외
+        props = self._build_props(data, exclude={"id", "partition_key"})
+        query = (
+            f"g.addV({self._qval(label)})"
+            f".property('id', {self._qval(vid)})"
+            f".property('partition_key', {self._qval(partition_key)})"
+            f"{props}"
+        )
+        self._submit(query)
         logger.debug("Added vertex", label=label, vid=vid)
         return vid
 
     def _add_edge_generic(self, label: str, from_id: str, to_id: str, data: dict) -> str:
+        data = dict(data)  # 호출자의 dict 원본 변조 방지
         eid = data.get("id", str(uuid.uuid4()))
         data["id"] = eid
         # from_id / to_id를 엣지 속성으로도 저장 → valueMap 조회 시 활용
         data["from_id"] = from_id
         data["to_id"] = to_id
-        t = self.g.V(from_id).addE(label).to(__.V(to_id)).property("id", eid)
-        t = self._dict_to_properties(t, data)
-        t.toList()
+        props = self._build_props(data, exclude={"id"})
+        query = (
+            f"g.V({self._qval(from_id)}).addE({self._qval(label)})"
+            f".to(g.V({self._qval(to_id)}))"
+            f".property('id', {self._qval(eid)})"
+            f"{props}"
+        )
+        self._submit(query)
         logger.debug("Added edge", label=label, from_id=from_id, to_id=to_id, eid=eid)
         return eid
 
     def _get_next_discourse_order(self) -> float:
         try:
-            results = (
-                self.g.V().hasLabel("event")
-                .values("discourse_order").order().by(__.desc()).limit(1).toList()
+            results = self._submit(
+                "g.V().hasLabel('event').values('discourse_order').order().by(decr).limit(1)"
             )
             base = float(results[0]) if results else self._discourse_counter
         except Exception:
@@ -201,7 +272,8 @@ class GremlinGraphService:
 
     def _fetch_all(self, label: str) -> List[Dict]:
         try:
-            return self.g.V().hasLabel(label).valueMap(True).toList()
+            raw = self._submit(f"g.V().hasLabel({self._qval(label)}).valueMap(true)")
+            return [self._normalize_valueMap(r) for r in raw]
         except Exception as e:
             logger.warning("Fetch failed", label=label, error=str(e))
             return []
@@ -209,7 +281,8 @@ class GremlinGraphService:
     def _fetch_edges_by_label(self, label: str) -> List[Dict]:
         """엣지 valueMap 조회. from_id/to_id는 속성으로 저장되어 있음."""
         try:
-            return self.g.E().hasLabel(label).valueMap(True).toList()
+            raw = self._submit(f"g.E().hasLabel({self._qval(label)}).valueMap(true)")
+            return [self._normalize_valueMap(r) for r in raw]
         except Exception as e:
             logger.warning("Edge fetch failed", label=label, error=str(e))
             return []
@@ -220,99 +293,101 @@ class GremlinGraphService:
         return self._add_vertex_generic("character", data, "character")
 
     def get_character(self, char_id: str) -> Optional[Dict]:
-        r = self.g.V(char_id).hasLabel("character").valueMap(True).toList()
-        return r[0] if r else None
+        r = self._submit_first(f"g.V({self._qval(char_id)}).hasLabel('character').valueMap(true)")
+        return self._normalize_valueMap(r) if r else None
 
     def find_character_by_name(self, name: str) -> Optional[Dict]:
-        r = self.g.V().hasLabel("character").has("name", name).valueMap(True).limit(1).toList()
-        return r[0] if r else None
+        r = self._submit_first(
+            f"g.V().hasLabel('character').has('name', {self._qval(name)}).valueMap(true)"
+        )
+        return self._normalize_valueMap(r) if r else None
 
     def list_characters(self) -> List[Dict]:
-        return self.g.V().hasLabel("character").valueMap(True).toList()
+        return self._fetch_all("character")
 
     def add_fact(self, data: dict) -> str:
         return self._add_vertex_generic("fact", data, "fact")
 
     def get_fact(self, fact_id: str) -> Optional[Dict]:
-        r = self.g.V(fact_id).hasLabel("fact").valueMap(True).toList()
-        return r[0] if r else None
+        r = self._submit_first(f"g.V({self._qval(fact_id)}).hasLabel('fact').valueMap(true)")
+        return self._normalize_valueMap(r) if r else None
 
     def list_facts(self) -> List[Dict]:
-        return self.g.V().hasLabel("fact").valueMap(True).toList()
+        return self._fetch_all("fact")
 
     def add_event(self, data: dict) -> str:
         return self._add_vertex_generic("event", data, "event")
 
     def get_event(self, event_id: str) -> Optional[Dict]:
-        r = self.g.V(event_id).hasLabel("event").valueMap(True).toList()
-        return r[0] if r else None
+        r = self._submit_first(f"g.V({self._qval(event_id)}).hasLabel('event').valueMap(true)")
+        return self._normalize_valueMap(r) if r else None
 
     def list_events(self) -> List[Dict]:
-        return self.g.V().hasLabel("event").valueMap(True).toList()
+        return self._fetch_all("event")
 
     def add_trait(self, data: dict) -> str:
         return self._add_vertex_generic("trait", data, "trait")
 
     def get_trait(self, trait_id: str) -> Optional[Dict]:
-        r = self.g.V(trait_id).hasLabel("trait").valueMap(True).toList()
-        return r[0] if r else None
+        r = self._submit_first(f"g.V({self._qval(trait_id)}).hasLabel('trait').valueMap(true)")
+        return self._normalize_valueMap(r) if r else None
 
     def list_traits(self) -> List[Dict]:
-        return self.g.V().hasLabel("trait").valueMap(True).toList()
+        return self._fetch_all("trait")
 
     def add_organization(self, data: dict) -> str:
         return self._add_vertex_generic("organization", data, "organization")
 
     def get_organization(self, org_id: str) -> Optional[Dict]:
-        r = self.g.V(org_id).hasLabel("organization").valueMap(True).toList()
-        return r[0] if r else None
+        r = self._submit_first(f"g.V({self._qval(org_id)}).hasLabel('organization').valueMap(true)")
+        return self._normalize_valueMap(r) if r else None
 
     def list_organizations(self) -> List[Dict]:
-        return self.g.V().hasLabel("organization").valueMap(True).toList()
+        return self._fetch_all("organization")
 
     def add_location(self, data: dict) -> str:
         return self._add_vertex_generic("location", data, "location")
 
     def get_location(self, loc_id: str) -> Optional[Dict]:
-        r = self.g.V(loc_id).hasLabel("location").valueMap(True).toList()
-        return r[0] if r else None
+        r = self._submit_first(f"g.V({self._qval(loc_id)}).hasLabel('location').valueMap(true)")
+        return self._normalize_valueMap(r) if r else None
 
     def list_locations(self) -> List[Dict]:
-        return self.g.V().hasLabel("location").valueMap(True).toList()
+        return self._fetch_all("location")
 
     def add_item(self, data: dict) -> str:
         return self._add_vertex_generic("item", data, "item")
 
     def get_item(self, item_id: str) -> Optional[Dict]:
-        r = self.g.V(item_id).hasLabel("item").valueMap(True).toList()
-        return r[0] if r else None
+        r = self._submit_first(f"g.V({self._qval(item_id)}).hasLabel('item').valueMap(true)")
+        return self._normalize_valueMap(r) if r else None
 
     def list_items(self) -> List[Dict]:
-        return self.g.V().hasLabel("item").valueMap(True).toList()
+        return self._fetch_all("item")
 
     def add_source(self, data: dict) -> str:
         return self._add_vertex_generic("source", data, "source")
 
     def get_source(self, source_id: str) -> Optional[Dict]:
-        r = self.g.V(source_id).hasLabel("source").valueMap(True).toList()
-        return r[0] if r else None
+        r = self._submit_first(f"g.V({self._qval(source_id)}).hasLabel('source').valueMap(true)")
+        return self._normalize_valueMap(r) if r else None
 
     def list_sources(self) -> List[Dict]:
-        return self.g.V().hasLabel("source").valueMap(True).toList()
+        return self._fetch_all("source")
 
     def add_user_confirmation(self, data: dict) -> str:
         return self._add_vertex_generic("confirmation", data, "confirmation")
 
     def get_user_confirmation(self, conf_id: str) -> Optional[Dict]:
-        r = self.g.V(conf_id).hasLabel("confirmation").valueMap(True).toList()
-        return r[0] if r else None
+        r = self._submit_first(f"g.V({self._qval(conf_id)}).hasLabel('confirmation').valueMap(true)")
+        return self._normalize_valueMap(r) if r else None
 
     def list_pending_confirmations(self) -> List[Dict]:
-        return (
-            self.g.V().hasLabel("confirmation")
-            .has("status", ConfirmationStatus.PENDING.value)
-            .valueMap(True).toList()
+        raw = self._submit(
+            f"g.V().hasLabel('confirmation')"
+            f".has('status', {self._qval(ConfirmationStatus.PENDING.value)}).valueMap(true)"
         )
+        return [self._normalize_valueMap(r) for r in raw]
 
     # ── Edge 추가 (13종) ──────────────────────────────────────
 
@@ -364,11 +439,18 @@ class GremlinGraphService:
           0. Source vertex 적재
           1. NormalizedCharacter → Character vertex + SOURCED_FROM
           2. NormalizedFact     → KnowledgeFact vertex + SOURCED_FROM (discourse_order 자동 부여)
-          3. SourceConflict     → UserConfirmation vertex + SOURCED_FROM
+          3. NormalizedEvent    → Event vertex + SOURCED_FROM
+          4. SourceConflict     → UserConfirmation vertex + SOURCED_FROM
+          5. Traits             → Trait vertex + HAS_TRAIT edge
+          6. Emotions           → FEELS edge (Character → Character)
+          7. KnowledgeEvents    → LEARNS / MENTIONS edge (Character → KnowledgeFact)
+          8. ItemEvents         → Item vertex + POSSESSES / LOSES edge
+          9. Relationships      → RELATED_TO edge (Character → Character)
         """
         source_id = str(source.id)
         created: Dict[str, List[str]] = {
-            "source": [], "characters": [], "facts": [], "confirmations": [],
+            "source": [], "characters": [], "facts": [], "events": [], "confirmations": [],
+            "traits": [], "edges": [],
         }
 
         logger.info("Materializing NormalizationResult", source_id=source_id)
@@ -380,7 +462,8 @@ class GremlinGraphService:
             self.add_source(src_dict)
             created["source"].append(source_id)
 
-            # 1. Character vertices
+            # 1. Character vertices — name→id 맵 구축
+            char_name_to_id: Dict[str, str] = {}
             for nc in normalized.characters:
                 char = Character(
                     source_id=source_id,
@@ -397,8 +480,21 @@ class GremlinGraphService:
                     "created_at": char_dict["created_at"],
                 })
                 created["characters"].append(char_dict["id"])
+                char_name_to_id[nc.canonical_name] = char_dict["id"]
+                for alias in nc.all_aliases:
+                    char_name_to_id[alias] = char_dict["id"]
 
-            # 2. KnowledgeFact vertices (discourse_order 자동 부여)
+            def _resolve_char(name: str) -> Optional[str]:
+                if name in char_name_to_id:
+                    return char_name_to_id[name]
+                existing = self.find_character_by_name(name)
+                if existing:
+                    char_name_to_id[name] = existing["id"]
+                    return existing["id"]
+                return None
+
+            # 2. KnowledgeFact vertices (discourse_order 자동 부여) — content→id 맵 구축
+            fact_content_to_id: Dict[str, str] = {}
             for nf in normalized.facts:
                 do = self._get_next_discourse_order()
                 fact = KnowledgeFact(
@@ -419,8 +515,34 @@ class GremlinGraphService:
                     "created_at": fact_dict["created_at"],
                 })
                 created["facts"].append(fact_dict["id"])
+                fact_content_to_id[nf.content] = fact_dict["id"]
 
-            # 3. SourceConflict → UserConfirmation vertices
+            # 3. Event vertices (discourse_order/story_order 자동 부여)
+            raw_event_dicts = [
+                {"description": ne.description, "event_type": ne.event_type, "location": ne.location}
+                for ne in normalized.events
+            ]
+            for ev_data in self._assign_time_axes(raw_event_dicts):
+                event = Event(
+                    source_id=source_id,
+                    discourse_order=ev_data["discourse_order"],
+                    story_order=ev_data.get("story_order"),
+                    is_linear=ev_data.get("is_linear", True),
+                    event_type=_safe_enum(EventType, ev_data.get("event_type", "scene"), EventType.SCENE),
+                    description=ev_data["description"],
+                    location=ev_data.get("location"),
+                    source_location="",
+                )
+                event_dict = _vertex_to_dict(event)
+                self.add_event(event_dict)
+                self.add_sourced_from(event_dict["id"], source_id, {
+                    "source_id": source_id,
+                    "source_location": "",
+                    "created_at": event_dict["created_at"],
+                })
+                created["events"].append(event_dict["id"])
+
+            # 4. SourceConflict → UserConfirmation vertices
             for conflict in normalized.source_conflicts:
                 excerpts = [
                     SourceExcerpt(
@@ -450,6 +572,152 @@ class GremlinGraphService:
                     "created_at": conf_dict["created_at"],
                 })
                 created["confirmations"].append(conf_dict["id"])
+
+            # 5. Traits → Trait vertex + HAS_TRAIT edge
+            for rt in normalized.traits:
+                char_id = _resolve_char(rt.character_name)
+                if not char_id:
+                    continue
+                trait_data = {
+                    "id": str(uuid.uuid4()),
+                    "source_id": source_id,
+                    "category": rt.category_hint or "personality",
+                    "key": rt.key,
+                    "value": rt.value,
+                    "description": rt.value,
+                    "is_immutable": False,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "label": "trait",
+                }
+                self.add_trait(trait_data)
+                edge_id = self.add_has_trait(char_id, trait_data["id"], {
+                    "source_id": source_id,
+                    "source_location": "",
+                    "created_at": trait_data["created_at"],
+                })
+                created["traits"].append(trait_data["id"])
+                created["edges"].append(edge_id)
+
+            # 6. Emotions → FEELS edge (Character → Character)
+            for re_ in normalized.emotions:
+                from_id = _resolve_char(re_.from_char)
+                to_id = _resolve_char(re_.to_char)
+                if not from_id or not to_id:
+                    continue
+                do = self._get_next_discourse_order()
+                edge_id = self.add_feels(from_id, to_id, {
+                    "source_id": source_id,
+                    "source_location": "",
+                    "emotion": re_.emotion,
+                    "intensity": 0.5,
+                    "discourse_order": do,
+                    "story_order": do,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+                created["edges"].append(edge_id)
+
+            # 7. KnowledgeEvents → LEARNS / MENTIONS edge (Character → KnowledgeFact)
+            for ke in normalized.knowledge_events:
+                char_id = _resolve_char(ke.character_name)
+                if not char_id:
+                    continue
+                fact_id = fact_content_to_id.get(ke.fact_content)
+                if not fact_id:
+                    do = self._get_next_discourse_order()
+                    fact = KnowledgeFact(
+                        source_id=source_id,
+                        content=ke.fact_content,
+                        category=_safe_enum(FactCategory, None, FactCategory.EVENT_FACT),
+                        importance=_safe_enum(FactImportance, None, FactImportance.MINOR),
+                        is_secret=False,
+                        is_true=True,
+                        established_order=do,
+                        source_location="",
+                    )
+                    fact_dict = _vertex_to_dict(fact)
+                    self.add_fact(fact_dict)
+                    fact_id = fact_dict["id"]
+                    fact_content_to_id[ke.fact_content] = fact_id
+                    created["facts"].append(fact_id)
+                do = self._get_next_discourse_order()
+                edge_data = {
+                    "source_id": source_id,
+                    "source_location": "",
+                    "discourse_order": do,
+                    "story_order": do,
+                    "believed_true": True,
+                    "method": ke.method or "unknown",
+                    "dialogue_text": ke.dialogue_text or "",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+                if ke.event_type == "learns":
+                    edge_id = self.add_learns(char_id, fact_id, edge_data)
+                else:
+                    edge_id = self.add_mentions(char_id, fact_id, edge_data)
+                created["edges"].append(edge_id)
+
+            # 8. ItemEvents → Item vertex + POSSESSES / LOSES edge
+            item_name_to_id: Dict[str, str] = {}
+            for ie in normalized.item_events:
+                char_id = _resolve_char(ie.character_name)
+                if not char_id:
+                    continue
+                item_id = item_name_to_id.get(ie.item_name)
+                if not item_id:
+                    try:
+                        raw = self._submit(
+                            f"g.V().hasLabel('item').has('name', {self._qval(ie.item_name)}).valueMap(true).limit(1)"
+                        )
+                        item_id = self._normalize_valueMap(raw[0]).get("id") if raw else None
+                    except Exception:
+                        item_id = None
+                    if not item_id:
+                        item_data = {
+                            "id": str(uuid.uuid4()),
+                            "source_id": source_id,
+                            "name": ie.item_name,
+                            "is_unique": False,
+                            "description": ie.item_name,
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                            "label": "item",
+                        }
+                        self.add_item(item_data)
+                        item_id = item_data["id"]
+                    item_name_to_id[ie.item_name] = item_id
+                do = self._get_next_discourse_order()
+                edge_data = {
+                    "source_id": source_id,
+                    "source_location": "",
+                    "discourse_order": do,
+                    "story_order": do,
+                    "method": "transfer",
+                    "possession_type": "owns",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+                if ie.action == "possesses":
+                    edge_id = self.add_possesses(char_id, item_id, edge_data)
+                elif ie.action == "loses":
+                    edge_id = self.add_loses(char_id, item_id, edge_data)
+                else:
+                    edge_id = self.add_possesses(char_id, item_id, edge_data)
+                created["edges"].append(edge_id)
+
+            # 9. Relationships → RELATED_TO edge (Character → Character)
+            for rr in normalized.relationships:
+                from_id = _resolve_char(rr.char_a)
+                to_id = _resolve_char(rr.char_b)
+                if not from_id or not to_id:
+                    continue
+                do = self._get_next_discourse_order()
+                edge_id = self.add_related_to(from_id, to_id, {
+                    "source_id": source_id,
+                    "source_location": "",
+                    "relationship_type": rr.type_hint or "colleague",
+                    "detail": rr.detail or "",
+                    "established_order": do,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+                created["edges"].append(edge_id)
 
             logger.info("Materialization complete", **{k: len(v) for k, v in created.items()})
             return created
@@ -840,43 +1108,51 @@ class GremlinGraphService:
     def snapshot_graph(self, relevant_ids: Optional[List[str]] = None) -> "InMemoryGraphService":
         """canonical graph의 서브그래프를 InMemory로 복제. 원본 불변 보장."""
         mem = InMemoryGraphService()
+        EDGE_LABELS = [
+            "LEARNS", "MENTIONS", "PARTICIPATES_IN", "HAS_STATUS",
+            "AT_LOCATION", "RELATED_TO", "BELONGS_TO", "FEELS",
+            "HAS_TRAIT", "VIOLATES_TRAIT", "POSSESSES", "LOSES", "SOURCED_FROM",
+        ]
         try:
-            EDGE_LABELS = [
-                "LEARNS", "MENTIONS", "PARTICIPATES_IN", "HAS_STATUS",
-                "AT_LOCATION", "RELATED_TO", "BELONGS_TO", "FEELS",
-                "HAS_TRAIT", "VIOLATES_TRAIT", "POSSESSES", "LOSES", "SOURCED_FROM",
-            ]
             if relevant_ids:
                 for vid in relevant_ids:
                     try:
-                        res = self.g.V(vid).valueMap(True).toList()
-                        if res:
-                            v = res[0]
-                            v_id = _prop(v, "id") or vid
-                            mem.vertices[v_id] = {"label": _prop(v, "label") or "unknown", **{k: _prop(v, k) for k in v}}
+                        r = self._submit_first(f"g.V({self._qval(vid)}).valueMap(true)")
+                        if r:
+                            norm = self._normalize_valueMap(r)
+                            v_id = norm.get("id") or vid
+                            label = norm.get("label") or norm.get("partition_key") or "unknown"
+                            mem.vertices[v_id] = {"label": label, **norm}
                     except Exception:
                         pass
-                id_set = set(relevant_ids)
                 for lbl in EDGE_LABELS:
-                    try:
-                        edges = self.g.V(relevant_ids).bothE(lbl).valueMap(True).toList()
-                        for e in edges:
-                            eid = _prop(e, "id") or str(uuid.uuid4())
-                            mem.edges.append({"id": eid, "label": lbl, **{k: _prop(e, k) for k in e}})
-                    except Exception:
-                        pass
+                    for vid in relevant_ids:
+                        try:
+                            raw = self._submit(
+                                f"g.V({self._qval(vid)}).bothE({self._qval(lbl)}).valueMap(true)"
+                            )
+                            for e in raw:
+                                norm = self._normalize_valueMap(e)
+                                eid = norm.get("id") or str(uuid.uuid4())
+                                mem.edges.append({"id": eid, "label": lbl, **norm})
+                        except Exception:
+                            pass
             else:
-                for v in self.g.V().valueMap(True).toList():
-                    v_id = _prop(v, "id") or str(uuid.uuid4())
-                    mem.vertices[v_id] = {"label": _prop(v, "label") or "unknown", **{k: _prop(v, k) for k in v}}
+                raw_vs = self._submit("g.V().valueMap(true)")
+                for v in raw_vs:
+                    norm = self._normalize_valueMap(v)
+                    v_id = norm.get("id") or str(uuid.uuid4())
+                    label = norm.get("label") or norm.get("partition_key") or "unknown"
+                    mem.vertices[v_id] = {"label": label, **norm}
                 for lbl in EDGE_LABELS:
                     for e in self._fetch_edges_by_label(lbl):
-                        eid = _prop(e, "id") or str(uuid.uuid4())
-                        mem.edges.append({"id": eid, "label": lbl, **{k: _prop(e, k) for k in e}})
+                        eid = e.get("id") or str(uuid.uuid4())
+                        mem.edges.append({"id": eid, "label": lbl, **e})
 
             logger.info("snapshot_graph complete", vertices=len(mem.vertices), edges=len(mem.edges))
         except Exception as e:
             logger.error("snapshot_graph failed", error=str(e))
+        mem._discourse_counter = self._discourse_counter
         return mem
 
     # ── 유틸리티 ──────────────────────────────────────────────
@@ -884,25 +1160,31 @@ class GremlinGraphService:
     def get_character_knowledge_at(self, character_id: str, story_order: float) -> List[Dict]:
         """특정 story_order 시점까지 캐릭터가 학습한 사실 목록"""
         try:
-            learns = self.g.V(character_id).outE("LEARNS").valueMap(True).toList()
-            return [
-                e for e in learns
-                if _prop(e, "story_order") is not None
-                and float(_prop(e, "story_order")) <= story_order
-            ]
+            raw = self._submit(
+                f"g.V({self._qval(character_id)}).outE('LEARNS').valueMap(true)"
+            )
+            result = []
+            for r in raw:
+                e = self._normalize_valueMap(r)
+                so = e.get("story_order")
+                if so is not None and float(so) <= story_order:
+                    result.append(e)
+            return result
         except Exception:
             return []
 
     def get_stats(self) -> KBStats:
         def count_v(label: str) -> int:
             try:
-                return self.g.V().hasLabel(label).count().next()
+                r = self._submit_first(f"g.V().hasLabel({self._qval(label)}).count()")
+                return int(r) if r is not None else 0
             except Exception:
                 return 0
 
         def count_e(label: str) -> int:
             try:
-                return self.g.E().hasLabel(label).count().next()
+                r = self._submit_first(f"g.E().hasLabel({self._qval(label)}).count()")
+                return int(r) if r is not None else 0
             except Exception:
                 return 0
 
@@ -920,65 +1202,178 @@ class GremlinGraphService:
         )
 
     def remove_source(self, source_id: str) -> Dict[str, int]:
-        """소스 및 연관 vertex/edge 전체 삭제"""
+        """소스 및 연관 vertex/edge 전체 삭제. 파일 삭제는 호출자(main.py)가 담당."""
         removed = {"vertices": 0, "edges": 0}
         try:
-            e_cnt = self.g.E().has("source_id", source_id).count().next()
-            self.g.E().has("source_id", source_id).drop().iterate()
-            removed["edges"] = e_cnt
+            e_cnt = self._submit_first(f"g.E().has('source_id', {self._qval(source_id)}).count()")
+            self._submit(f"g.E().has('source_id', {self._qval(source_id)}).drop()")
+            removed["edges"] = int(e_cnt) if e_cnt else 0
 
-            v_cnt = self.g.V().has("source_id", source_id).count().next()
-            self.g.V().has("source_id", source_id).drop().iterate()
-            removed["vertices"] = v_cnt
+            v_cnt = self._submit_first(f"g.V().has('source_id', {self._qval(source_id)}).count()")
+            self._submit(f"g.V().has('source_id', {self._qval(source_id)}).drop()")
+            removed["vertices"] = int(v_cnt) if v_cnt else 0
 
             logger.info("remove_source complete", source_id=source_id, **removed)
         except Exception as e:
             logger.error("remove_source failed", source_id=source_id, error=str(e))
             raise
-        if self.storage:
-            try:
-                self.storage.delete_file(source_id)
-                logger.info("remove_source file deleted", source_id=source_id)
-            except Exception as e:
-                logger.warning("remove_source file delete failed", source_id=source_id, error=str(e))
         return removed
 
-    # ── confirmation.py / version.py 연동 메서드 (stub) ──────────
+    # ── confirmation.py / version.py 연동 메서드 ──────────────────
+
+    def _normalize_valueMap(self, v: dict) -> dict:
+        """Gremlin valueMap(True) 결과를 Pydantic 모델 생성에 쓸 수 있는 flat dict로 변환.
+
+        - list 래핑 해제 (Gremlin은 모든 속성을 list로 반환)
+        - T.label / T.id 같은 비문자열 키 → 문자열 변환
+        - JSON 문자열로 직렬화된 list/dict 필드 역직렬화
+        """
+        result: Dict[str, Any] = {}
+        for k, val in v.items():
+            key = k if isinstance(k, str) else str(k).split(".")[-1]
+            scalar = val[0] if isinstance(val, list) and val else val
+            if isinstance(scalar, str):
+                try:
+                    parsed = json.loads(scalar)
+                    if isinstance(parsed, (list, dict)):
+                        scalar = parsed
+                except (json.JSONDecodeError, ValueError):
+                    pass
+            result[key] = scalar
+        return result
 
     def query_vertices(self, partition_key: str, filters: dict) -> List[Dict]:
-        """partition_key(label) + filters 조건으로 vertex 목록 반환 (stub)."""
-        logger.warning("query_vertices_stub_called", partition_key=partition_key)
-        return []
+        """partition_key(label) + filters 조건으로 vertex 목록 반환."""
+        try:
+            query = f"g.V().hasLabel({self._qval(partition_key)})"
+            for k, v in filters.items():
+                query += f".has({self._qval(k)}, {self._qval(v)})"
+            query += ".valueMap(true)"
+            raw_list = self._submit(query)
+            return [self._normalize_valueMap(r) for r in raw_list]
+        except Exception as e:
+            logger.error("query_vertices_failed", partition_key=partition_key, error=str(e))
+            return []
 
     def get_vertex(self, vertex_id: str, partition_key: str) -> Optional[Dict]:
-        """vertex_id로 단일 vertex 반환 (stub)."""
-        logger.warning("get_vertex_stub_called", vertex_id=vertex_id)
-        return None
+        """vertex_id + label로 단일 vertex 반환. 없으면 None."""
+        try:
+            r = self._submit_first(
+                f"g.V({self._qval(vertex_id)}).hasLabel({self._qval(partition_key)}).valueMap(true)"
+            )
+            return self._normalize_valueMap(r) if r else None
+        except Exception as e:
+            logger.error("get_vertex_failed", vertex_id=vertex_id, error=str(e))
+            return None
 
     def patch_vertex(self, vertex_id: str, partition_key: str, fields: dict) -> None:
-        """vertex에 fields를 머지 (stub)."""
-        logger.warning("patch_vertex_stub_called", vertex_id=vertex_id)
+        """vertex에 fields를 머지 (속성 개별 업데이트)."""
+        try:
+            query = f"g.V({self._qval(vertex_id)}).hasLabel({self._qval(partition_key)})"
+            query += self._build_props(fields)
+            self._submit(query)
+            logger.info("patch_vertex_ok", vertex_id=vertex_id, fields=list(fields.keys()))
+        except Exception as e:
+            logger.error("patch_vertex_failed", vertex_id=vertex_id, error=str(e))
+            raise
 
     def upsert_vertex(self, vertex) -> str:
-        """vertex 삽입 또는 업데이트 (stub)."""
-        logger.warning("upsert_vertex_stub_called")
-        return ""
+        """vertex 삽입 또는 업데이트.
+
+        - Pydantic 모델: _vertex_to_dict()로 변환
+        - partition_key 속성을 label로 사용
+        - id가 이미 존재하면 속성 전체 업데이트, 없으면 addV
+        """
+        if hasattr(vertex, "model_dump"):
+            data = _vertex_to_dict(vertex)
+        else:
+            data = dict(vertex)
+
+        vid = str(data.get("id") or str(uuid.uuid4()))
+        data["id"] = vid
+        label = str(data.get("partition_key") or data.get("label", "unknown"))
+
+        try:
+            exists = self._submit_first(
+                f"g.V({self._qval(vid)}).hasLabel({self._qval(label)}).count()"
+            )
+            if exists and int(exists) > 0:
+                query = f"g.V({self._qval(vid)}).hasLabel({self._qval(label)})"
+                query += self._build_props(data, exclude={"id", "partition_key"})
+                self._submit(query)
+                logger.info("upsert_vertex_updated", vertex_id=vid, label=label)
+            else:
+                self._add_vertex_generic(label, data, label)
+                logger.info("upsert_vertex_added", vertex_id=vid, label=label)
+            return vid
+        except Exception as e:
+            logger.error("upsert_vertex_failed", vertex_id=vid, error=str(e))
+            raise
 
     def rebuild_from_canonical_source(self, canonical_id: str) -> None:
-        """canonical source 기준 그래프 재구축 (stub — Phase 4 완성 후 구현 예정)."""
-        logger.warning("rebuild_from_canonical_source_stub_called", canonical_id=canonical_id)
+        """canonical source 기준 그래프 재구축.
+
+        SOURCE_CONFLICT 해결 후 비정본(inactive) 소스에 속한 vertex/edge를
+        그래프에서 제거하고 canonical source의 데이터만 남긴다.
+        """
+        try:
+            inactive = self._submit("g.V().hasLabel('source').has('status', 'inactive').valueMap(true)")
+            removed_v = removed_e = 0
+            for src in inactive:
+                src_norm = self._normalize_valueMap(src)
+                src_id = src_norm.get("id")
+                if not src_id or src_id == canonical_id:
+                    continue
+                e_cnt = self._submit_first(f"g.E().has('source_id', {self._qval(src_id)}).count()") or 0
+                self._submit(f"g.E().has('source_id', {self._qval(src_id)}).drop()")
+                v_cnt = self._submit_first(f"g.V().has('source_id', {self._qval(src_id)}).count()") or 0
+                self._submit(f"g.V().has('source_id', {self._qval(src_id)}).drop()")
+                removed_v += int(v_cnt)
+                removed_e += int(e_cnt)
+            logger.info(
+                "rebuild_from_canonical_source_complete",
+                canonical_id=canonical_id,
+                removed_vertices=removed_v,
+                removed_edges=removed_e,
+            )
+        except Exception as e:
+            logger.error("rebuild_from_canonical_source_failed", canonical_id=canonical_id, error=str(e))
+            raise
 
     def resolve_trait_violation(self, trait_id: str, confirmation_id: str) -> None:
-        """VIOLATES_TRAIT 엣지를 의도된 변화로 마킹 (stub — Phase 4 완성 후 구현 예정)."""
-        logger.warning("resolve_trait_violation_stub_called", trait_id=trait_id)
+        """VIOLATES_TRAIT 엣지에 confirmed_intentional=true 마킹."""
+        try:
+            query = (
+                f"g.V({self._qval(trait_id)}).hasLabel('trait')"
+                f".inE('VIOLATES_TRAIT')"
+                f".property('confirmed_intentional', true)"
+                f".property('confirmation_id', {self._qval(confirmation_id)})"
+            )
+            self._submit(query)
+            logger.info("resolve_trait_violation_ok", trait_id=trait_id, confirmation_id=confirmation_id)
+        except Exception as e:
+            logger.error("resolve_trait_violation_failed", trait_id=trait_id, error=str(e))
+            raise
 
     def remove_vertices_by_chunk_ids(self, chunk_ids: List[str]) -> int:
-        """chunk_id 기반 vertex 삭제 (stub)."""
-        logger.warning("remove_vertices_by_chunk_ids_stub_called", count=len(chunk_ids))
-        return 0
+        """chunk_id 속성이 chunk_ids에 포함된 vertex 및 연관 edge 삭제."""
+        if not chunk_ids:
+            return 0
+        removed = 0
+        try:
+            for cid in chunk_ids:
+                cnt = self._submit_first(f"g.V().has('chunk_id', {self._qval(cid)}).count()") or 0
+                self._submit(f"g.E().has('chunk_id', {self._qval(cid)}).drop()")
+                self._submit(f"g.V().has('chunk_id', {self._qval(cid)}).drop()")
+                removed += int(cnt)
+            logger.info("remove_vertices_by_chunk_ids_ok", removed=removed)
+        except Exception as e:
+            logger.error("remove_vertices_by_chunk_ids_failed", error=str(e))
+            raise
+        return removed
 
     def close(self):
-        self.connection.close()
+        self.client.close()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1004,7 +1399,7 @@ class InMemoryGraphService:
 
     def _add_vertex(self, label: str, data: dict) -> str:
         vid = data.get("id", str(uuid.uuid4()))
-        self.vertices[vid] = {"label": label, "id": vid, **data}
+        self.vertices[vid] = {"label": label, "id": vid, **_deserialize_vertex_dict(data)}
         return vid
 
     def _add_edge(self, label: str, from_id: str, to_id: str, data: dict) -> str:
@@ -1021,6 +1416,27 @@ class InMemoryGraphService:
     def _get_next_discourse_order(self) -> float:
         self._discourse_counter = round(self._discourse_counter + 0.1, 4)
         return self._discourse_counter
+
+    def _assign_time_axes(self, events: List[Dict]) -> List[Dict]:
+        """discourse_order 단조 증가 보장 + 비선형 힌트 기반 story_order 추정.
+        GremlinGraphService와 동일 로직 — InMemoryGraphService.materialize()에서 사용."""
+        TIME_JUMP_HINTS = [
+            "전", "후", "년 전", "일 전", "며칠 후", "그날 밤",
+            "그때", "과거에", "회상", "flashback", "그 무렵",
+        ]
+        result = []
+        for ev in events:
+            do = self._get_next_discourse_order()
+            ev["discourse_order"] = do
+            desc = str(ev.get("description", ""))
+            if any(hint in desc for hint in TIME_JUMP_HINTS):
+                ev["is_linear"] = False
+                ev["story_order"] = None
+            else:
+                ev["is_linear"] = True
+                ev["story_order"] = do
+            result.append(ev)
+        return result
 
     def _assign_time_axes_text(self, text: str) -> Tuple[float, float, bool]:
         """텍스트 힌트 기반 discourse/story_order 추정 (JSON 인제스트용).
@@ -1243,11 +1659,18 @@ class InMemoryGraphService:
           0. Source vertex 적재
           1. NormalizedCharacter → Character vertex + SOURCED_FROM
           2. NormalizedFact     → KnowledgeFact vertex + SOURCED_FROM (discourse_order 자동 부여)
-          3. SourceConflict     → UserConfirmation vertex + SOURCED_FROM
+          3. NormalizedEvent    → Event vertex + SOURCED_FROM
+          4. SourceConflict     → UserConfirmation vertex + SOURCED_FROM
+          5. Traits             → Trait vertex + HAS_TRAIT edge
+          6. Emotions           → FEELS edge (Character → Character)
+          7. KnowledgeEvents    → LEARNS / MENTIONS edge (Character → KnowledgeFact)
+          8. ItemEvents         → Item vertex + POSSESSES / LOSES edge
+          9. Relationships      → RELATED_TO edge (Character → Character)
         """
         source_id = str(source.id)
         created: Dict[str, List[str]] = {
-            "source": [], "characters": [], "facts": [], "confirmations": [],
+            "source": [], "characters": [], "facts": [], "events": [], "confirmations": [],
+            "traits": [], "edges": [],
         }
 
         # 0. Source vertex 적재
@@ -1256,7 +1679,8 @@ class InMemoryGraphService:
         self.add_source(src_dict)
         created["source"].append(source_id)
 
-        # 1. Character vertices
+        # 1. Character vertices — name→id 맵 구축
+        char_name_to_id: Dict[str, str] = {}
         for nc in normalized.characters:
             char = Character(
                 source_id=source_id,
@@ -1273,8 +1697,22 @@ class InMemoryGraphService:
                 "created_at": char_dict["created_at"],
             })
             created["characters"].append(char_dict["id"])
+            char_name_to_id[nc.canonical_name] = char_dict["id"]
+            for alias in nc.all_aliases:
+                char_name_to_id[alias] = char_dict["id"]
 
-        # 2. KnowledgeFact vertices (discourse_order 자동 부여)
+        def _resolve_char(name: str) -> Optional[str]:
+            """이름으로 character id를 찾음 (기존 vertex 포함)"""
+            if name in char_name_to_id:
+                return char_name_to_id[name]
+            existing = self.find_character_by_name(name)
+            if existing:
+                char_name_to_id[name] = existing["id"]
+                return existing["id"]
+            return None
+
+        # 2. KnowledgeFact vertices (discourse_order 자동 부여) — content→id 맵 구축
+        fact_content_to_id: Dict[str, str] = {}
         for nf in normalized.facts:
             do = self._get_next_discourse_order()
             fact = KnowledgeFact(
@@ -1295,8 +1733,34 @@ class InMemoryGraphService:
                 "created_at": fact_dict["created_at"],
             })
             created["facts"].append(fact_dict["id"])
+            fact_content_to_id[nf.content] = fact_dict["id"]
 
-        # 3. SourceConflict → UserConfirmation vertices
+        # 3. Event vertices (discourse_order/story_order 자동 부여)
+        raw_event_dicts = [
+            {"description": ne.description, "event_type": ne.event_type, "location": ne.location}
+            for ne in normalized.events
+        ]
+        for ev_data in self._assign_time_axes(raw_event_dicts):
+            event = Event(
+                source_id=source_id,
+                discourse_order=ev_data["discourse_order"],
+                story_order=ev_data.get("story_order"),
+                is_linear=ev_data.get("is_linear", True),
+                event_type=_safe_enum(EventType, ev_data.get("event_type", "scene"), EventType.SCENE),
+                description=ev_data["description"],
+                location=ev_data.get("location"),
+                source_location="",
+            )
+            event_dict = _vertex_to_dict(event)
+            self.add_event(event_dict)
+            self.add_sourced_from(event_dict["id"], source_id, {
+                "source_id": source_id,
+                "source_location": "",
+                "created_at": event_dict["created_at"],
+            })
+            created["events"].append(event_dict["id"])
+
+        # 4. SourceConflict → UserConfirmation vertices
         for conflict in normalized.source_conflicts:
             excerpts = [
                 SourceExcerpt(
@@ -1325,6 +1789,156 @@ class InMemoryGraphService:
                 "created_at": conf_dict["created_at"],
             })
             created["confirmations"].append(conf_dict["id"])
+
+        # 5. Traits → Trait vertex + HAS_TRAIT edge
+        for rt in normalized.traits:
+            char_id = _resolve_char(rt.character_name)
+            if not char_id:
+                continue
+            trait_data = {
+                "id": str(uuid.uuid4()),
+                "source_id": source_id,
+                "category": rt.category_hint or "personality",
+                "key": rt.key,
+                "value": rt.value,
+                "description": rt.value,
+                "is_immutable": False,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "label": "trait",
+            }
+            self.add_trait(trait_data)
+            edge_id = self.add_has_trait(char_id, trait_data["id"], {
+                "source_id": source_id,
+                "source_location": "",
+                "created_at": trait_data["created_at"],
+            })
+            created["traits"].append(trait_data["id"])
+            created["edges"].append(edge_id)
+
+        # 6. Emotions → FEELS edge (Character → Character)
+        for re_ in normalized.emotions:
+            from_id = _resolve_char(re_.from_char)
+            to_id = _resolve_char(re_.to_char)
+            if not from_id or not to_id:
+                continue
+            do = self._get_next_discourse_order()
+            edge_id = self.add_feels(from_id, to_id, {
+                "source_id": source_id,
+                "source_location": "",
+                "emotion": re_.emotion,
+                "intensity": 0.5,
+                "discourse_order": do,
+                "story_order": do,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+            created["edges"].append(edge_id)
+
+        # 7. KnowledgeEvents → LEARNS / MENTIONS edge (Character → KnowledgeFact)
+        for ke in normalized.knowledge_events:
+            char_id = _resolve_char(ke.character_name)
+            if not char_id:
+                continue
+            # 기존 fact 내용과 매칭
+            fact_id = fact_content_to_id.get(ke.fact_content)
+            if not fact_id:
+                # 새 fact vertex 생성
+                do = self._get_next_discourse_order()
+                fact = KnowledgeFact(
+                    source_id=source_id,
+                    content=ke.fact_content,
+                    category=_safe_enum(FactCategory, None, FactCategory.EVENT_FACT),
+                    importance=_safe_enum(FactImportance, None, FactImportance.MINOR),
+                    is_secret=False,
+                    is_true=True,
+                    established_order=do,
+                    source_location="",
+                )
+                fact_dict = _vertex_to_dict(fact)
+                self.add_fact(fact_dict)
+                fact_id = fact_dict["id"]
+                fact_content_to_id[ke.fact_content] = fact_id
+                created["facts"].append(fact_id)
+
+            do = self._get_next_discourse_order()
+            edge_data = {
+                "source_id": source_id,
+                "source_location": "",
+                "discourse_order": do,
+                "story_order": do,
+                "believed_true": True,
+                "method": ke.method or "unknown",
+                "dialogue_text": ke.dialogue_text or "",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            if ke.event_type == "learns":
+                edge_id = self.add_learns(char_id, fact_id, edge_data)
+            else:
+                edge_id = self.add_mentions(char_id, fact_id, edge_data)
+            created["edges"].append(edge_id)
+
+        # 8. ItemEvents → Item vertex + POSSESSES / LOSES edge
+        item_name_to_id: Dict[str, str] = {}
+        for ie in normalized.item_events:
+            char_id = _resolve_char(ie.character_name)
+            if not char_id:
+                continue
+            # item vertex 조회 또는 생성
+            item_id = item_name_to_id.get(ie.item_name)
+            if not item_id:
+                existing_items = [
+                    v for v in self._vertices_by_label("item")
+                    if v.get("name") == ie.item_name
+                ]
+                if existing_items:
+                    item_id = existing_items[0]["id"]
+                else:
+                    item_data = {
+                        "id": str(uuid.uuid4()),
+                        "source_id": source_id,
+                        "name": ie.item_name,
+                        "is_unique": False,
+                        "description": ie.item_name,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "label": "item",
+                    }
+                    self.add_item(item_data)
+                    item_id = item_data["id"]
+                item_name_to_id[ie.item_name] = item_id
+
+            do = self._get_next_discourse_order()
+            edge_data = {
+                "source_id": source_id,
+                "source_location": "",
+                "discourse_order": do,
+                "story_order": do,
+                "method": "transfer",
+                "possession_type": "owns",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            if ie.action == "possesses":
+                edge_id = self.add_possesses(char_id, item_id, edge_data)
+            elif ie.action == "loses":
+                edge_id = self.add_loses(char_id, item_id, edge_data)
+            else:
+                edge_id = self.add_possesses(char_id, item_id, edge_data)
+            created["edges"].append(edge_id)
+
+        # 9. Relationships → RELATED_TO edge (Character → Character)
+        for rr in normalized.relationships:
+            from_id = _resolve_char(rr.char_a)
+            to_id = _resolve_char(rr.char_b)
+            if not from_id or not to_id:
+                continue
+            do = self._get_next_discourse_order()
+            edge_id = self.add_related_to(from_id, to_id, {
+                "source_id": source_id,
+                "source_location": "",
+                "relationship_type": rr.type_hint or "colleague",
+                "detail": rr.detail or "",
+                "established_order": do,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+            created["edges"].append(edge_id)
 
         self.log.info("materialize_complete", **{k: len(v) for k, v in created.items()})
         return created
@@ -1723,6 +2337,7 @@ class InMemoryGraphService:
         )
 
     def remove_source(self, source_id: str) -> Dict[str, int]:
+        """소스 및 연관 vertex/edge 전체 삭제. 파일 삭제는 호출자(main.py)가 담당."""
         orig_v, orig_e = len(self.vertices), len(self.edges)
         self.vertices = {k: v for k, v in self.vertices.items() if v.get("source_id") != source_id}
         remaining = set(self.vertices.keys())
@@ -1734,12 +2349,6 @@ class InMemoryGraphService:
         ]
         removed = {"vertices": orig_v - len(self.vertices), "edges": orig_e - len(self.edges)}
         self.log.info("remove_source complete", source_id=source_id, **removed)
-        if self.storage:
-            try:
-                self.storage.delete_file(source_id)
-                self.log.info("remove_source file deleted", source_id=source_id)
-            except Exception as e:
-                self.log.warning("remove_source file delete failed", source_id=source_id, error=str(e))
         return removed
 
     # ── confirmation.py / version.py 연동 메서드 ─────────────────
@@ -1771,26 +2380,67 @@ class InMemoryGraphService:
 
     def upsert_vertex(self, vertex) -> str:
         """id 있으면 업데이트, 없으면 신규 추가. vertex id를 반환."""
-        # Pydantic 모델과 dict 양쪽 허용
-        data = vertex.model_dump(mode="json") if hasattr(vertex, "model_dump") else dict(vertex)
+        # Pydantic 모델은 _vertex_to_dict()로 변환해 @property partition_key 포함
+        if hasattr(vertex, "model_dump"):
+            data = _vertex_to_dict(vertex)
+        else:
+            data = dict(vertex)
         vid = str(data.get("id") or str(uuid.uuid4()))
         data["id"] = vid
+        # InMemory는 JSON 문자열 불필요 — 실제 Python 객체로 역직렬화해 보관
+        data = _deserialize_vertex_dict(data)
         if vid in self.vertices:
             self.vertices[vid].update(data)
             self.log.debug("upsert_vertex_updated", vertex_id=vid)
         else:
-            label = data.get("label") or data.get("partition_key", "unknown")
+            label = data.get("partition_key") or data.get("label", "unknown")
             self.vertices[vid] = {"label": label, **data}
             self.log.debug("upsert_vertex_inserted", vertex_id=vid)
         return vid
 
     def rebuild_from_canonical_source(self, canonical_id: str) -> None:
-        """canonical source 기준 그래프 재구축 (Phase 4 완성 후 구현 예정)."""
-        self.log.info("rebuild_from_canonical_source_noop", canonical_id=canonical_id)
+        """canonical source 기준 그래프 재구축.
+
+        status='inactive'인 소스에 속한 vertex/edge를 제거해
+        canonical source 데이터만 남긴다.
+        """
+        inactive_source_ids = {
+            v["id"] for v in self._vertices_by_label("source")
+            if v.get("status") == "inactive" and v.get("id") != canonical_id
+        }
+        if not inactive_source_ids:
+            self.log.info("rebuild_from_canonical_source_nothing_to_remove", canonical_id=canonical_id)
+            return
+        to_remove = [
+            vid for vid, v in self.vertices.items()
+            if v.get("source_id") in inactive_source_ids
+        ]
+        for vid in to_remove:
+            del self.vertices[vid]
+        remaining = set(self.vertices.keys())
+        before = len(self.edges)
+        self.edges = [
+            e for e in self.edges
+            if e.get("source_id") not in inactive_source_ids
+            and e.get("from_id") in remaining
+            and e.get("to_id") in remaining
+        ]
+        self.log.info(
+            "rebuild_from_canonical_source_complete",
+            canonical_id=canonical_id,
+            removed_vertices=len(to_remove),
+            removed_edges=before - len(self.edges),
+        )
 
     def resolve_trait_violation(self, trait_id: str, confirmation_id: str) -> None:
-        """VIOLATES_TRAIT 엣지를 의도된 변화로 마킹 (Phase 4 완성 후 구현 예정)."""
-        self.log.info("resolve_trait_violation_noop", trait_id=trait_id)
+        """VIOLATES_TRAIT 엣지에 confirmed_intentional=True 마킹."""
+        updated = 0
+        for edge in self.edges:
+            if edge.get("label") == "VIOLATES_TRAIT" and edge.get("to_id") == trait_id:
+                edge["confirmed_intentional"] = True
+                edge["confirmation_id"] = confirmation_id
+                updated += 1
+        self.log.info("resolve_trait_violation_ok", trait_id=trait_id, updated_edges=updated)
 
     def remove_vertices_by_chunk_ids(self, chunk_ids: List[str]) -> int:
         """chunk_id 필드가 chunk_ids에 포함된 vertex를 삭제하고 삭제 수 반환."""
@@ -1817,13 +2467,58 @@ class InMemoryGraphService:
 
 
 # ─────────────────────────────────────────────────────────────
-# 팩토리 함수
+# 팩토리 함수 (싱글턴)
 # ─────────────────────────────────────────────────────────────
 
-def get_graph_service(json_path: Optional[str] = None) -> InMemoryGraphService:
-    """InMemoryGraphService 인스턴스를 반환하는 팩토리.
+_graph_service_instance: Optional[Any] = None
 
-    json_path 미지정 시 DEFAULT_JSON_PATH를 사용한다.
-    파일이 존재하지 않으면 빈 그래프로 초기화된다.
+
+def get_graph_service(json_path: Optional[str] = None):
+    """그래프 서비스 싱글턴을 반환하는 팩토리.
+
+    USE_LOCAL_GRAPH=true  → InMemoryGraphService (로컬 개발/데모)
+    USE_LOCAL_GRAPH=false → GremlinGraphService  (Azure Cosmos DB)
+
+    동일 프로세스 내에서는 같은 인스턴스를 반환하여 상태를 유지한다.
     """
-    return InMemoryGraphService(json_path=json_path or DEFAULT_JSON_PATH)
+    global _graph_service_instance
+    if _graph_service_instance is not None:
+        return _graph_service_instance
+
+    if settings.use_local_graph:
+        _graph_service_instance = InMemoryGraphService(
+            json_path=json_path or DEFAULT_JSON_PATH
+        )
+        logger.info("graph_service_created", backend="InMemory")
+    else:
+        try:
+            _graph_service_instance = GremlinGraphService(
+                endpoint=settings.cosmos_endpoint,
+                key=settings.cosmos_key,
+                database=settings.cosmos_database,
+                container=settings.cosmos_graph_ws,
+            )
+            logger.info(
+                "graph_service_created",
+                backend="Gremlin",
+                endpoint=settings.cosmos_endpoint,
+                database=settings.cosmos_database,
+                container=settings.cosmos_graph_ws,
+            )
+        except Exception as e:
+            logger.error(
+                "gremlin_connection_failed",
+                error=str(e),
+                fallback="InMemory",
+            )
+            _graph_service_instance = InMemoryGraphService(
+                json_path=json_path or DEFAULT_JSON_PATH
+            )
+
+    return _graph_service_instance
+
+
+def reset_graph_service() -> None:
+    """테스트 등에서 싱글턴을 초기화할 때 사용."""
+    global _graph_service_instance
+    _graph_service_instance = None

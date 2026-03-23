@@ -32,7 +32,7 @@ except ModuleNotFoundError:
 
 from PyPDF2 import PdfReader
 
-from app.models.api import DocumentChunk, SourceLocation
+from app.models.api import DocumentChunk, ChunkLocation
 
 # ── [신규] StorageService 임포트 ─────────────────────────────
 from app.services.storage import StorageService, get_global_storage
@@ -146,7 +146,7 @@ class IngestService:
                 current_chapter = new_chapter
 
             try:
-                location = SourceLocation(
+                location = ChunkLocation(
                     source_id=source_id,
                     source_name=source_name,
                     page=start_page,

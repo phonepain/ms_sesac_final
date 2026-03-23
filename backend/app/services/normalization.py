@@ -18,8 +18,13 @@ from app.models.intermediate import (
     NormalizedEvent,
     NormalizedFact,
     RawCharacter,
+    RawEmotion,
     RawEvent,
     RawFact,
+    RawItemEvent,
+    RawKnowledgeEvent,
+    RawRelationship,
+    RawTrait,
     SourceConflict,
 )
 from app.prompts.normalize_entities import NORMALIZE_PROMPT
@@ -76,10 +81,20 @@ class _NormalizationCore:
         all_raw_chars: List[RawCharacter] = []
         all_raw_facts: List[RawFact] = []
         all_raw_events: List[RawEvent] = []
+        all_traits: List[RawTrait] = []
+        all_relationships: List[RawRelationship] = []
+        all_emotions: List[RawEmotion] = []
+        all_item_events: List[RawItemEvent] = []
+        all_knowledge_events: List[RawKnowledgeEvent] = []
         for ext in extractions:
             all_raw_chars.extend(ext.characters)
             all_raw_facts.extend(ext.facts)
             all_raw_events.extend(ext.events)
+            all_traits.extend(ext.traits)
+            all_relationships.extend(ext.relationships)
+            all_emotions.extend(ext.emotions)
+            all_item_events.extend(ext.item_events)
+            all_knowledge_events.extend(ext.knowledge_events)
 
         # 2. Normalize characters/facts/events in parallel.
         char_task = self._normalize_characters(all_raw_chars)
@@ -95,6 +110,11 @@ class _NormalizationCore:
             characters=normalized_chars,
             facts=normalized_facts,
             events=normalized_events,
+            traits=all_traits,
+            relationships=all_relationships,
+            emotions=all_emotions,
+            item_events=all_item_events,
+            knowledge_events=all_knowledge_events,
             source_conflicts=[],
         )
         normalized.source_conflicts = self._detect_source_conflicts(normalized)
@@ -364,6 +384,10 @@ class NormalizationService(_NormalizationCore):
             api_version=settings.AZURE_OPENAI_API_VERSION,
         )
         self.deployment_name = settings.AZURE_OPENAI_NORMALIZATION_DEPLOYMENT
+
+    @property
+    def use_mock(self) -> bool:
+        return self._mock_service is not None
 
     async def normalize(self, extractions: List[ExtractionResult]) -> NormalizationResult:
         if self._mock_service is not None:

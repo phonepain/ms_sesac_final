@@ -104,7 +104,7 @@ GraphRAG 2트랙:
 + Storage: 횡단 서비스 (원본 파일 + 버전 스냅샷, 계층1/5에서 사용)
 
 ## 핵심 워크플로우
-1) 3분류 업로드 (세계관/설정집/시나리오) → Storage에 원본 저장 → 2트랙 GraphRAG 구축
+1) 3분류 업로드 (세계관/설정집/시나리오) → Storage 저장 → 파싱/청킹 → Extract → Normalize → Materialize(Cosmos DB) → Index(AI Search) [업로드 시 즉시 KB 구축]
 2) 모순 탐지: Hard=자동 판정, Soft=사용자 확인(원본 발췌 필수)
 3) 수정 반영: 스테이징 → Push → Storage에 버전 스냅샷 저장 → GraphRAG 재구축
 
@@ -359,22 +359,27 @@ backend/app/services/storage.py를 구현해줘.
 
 StorageService 인터페이스:
 
-1) save_file(source_id, filename, content_bytes, source_type) → file_path:
-   - 원본 파일을 영구 저장하고 경로를 반환
+1) save_file(file_content, filename, source_id, source_type) → file_path:
+   - 원본 파일을 영구 저장하고 경로(로컬) 또는 URL(Blob)을 반환
+   - 반환된 file_path는 Source vertex의 file_path 필드에 반드시 기록
 
-2) get_file(source_id) → bytes:
-   - 저장된 원본 파일을 읽어서 반환
+2) get_file(file_path) → bytes:
+   - save_file()이 반환한 file_path로 파일 바이트 반환
+   - source_id가 아닌 file_path를 인자로 받음
 
-3) get_file_text(source_id) → str:
-   - 텍스트 파일의 내용을 문자열로 반환
+3) get_file_text(file_path) → str:
+   - save_file()이 반환한 file_path로 텍스트 반환
+   - source_id가 아닌 file_path를 인자로 받음
 
-4) delete_file(source_id):
-   - 원본 파일 삭제
+4) delete_file(file_path):
+   - save_file()이 반환한 file_path로 파일 삭제
+   - source_id가 아닌 file_path를 인자로 받음
+   - 호출 전에 Source vertex에서 file_path를 먼저 조회해야 함
 
-5) save_version_snapshot(version_id, source_id, content_text) → snapshot_path:
+5) save_version_snapshot(source_id, version, content) → snapshot_path:
    - Push 시 수정된 원고를 버전별로 저장
 
-6) get_version_content(version_id, source_id) → str:
+6) get_version_content(source_id, version) → str:
    - 특정 버전의 원고 텍스트 반환
 
 7) diff_version_content(version_a, version_b, source_id) → str:
@@ -778,7 +783,7 @@ VersionService 클래스 (StorageService 연동):
 1) stage_fix(contradiction_id, original_text, fixed_text)
 
 2) push_staged_fixes(fixes) → VersionInfo:
-   - StorageService.get_file_text(source_id)로 현재 원본 읽기
+   - Source vertex에서 file_path 조회 → StorageService.get_file_text(file_path)로 현재 원본 읽기
    - 원본에 수정사항 반영 (텍스트 치환)
    - StorageService.save_version_snapshot(version_id, source_id, 수정된 텍스트)
    - Source vertex의 file_path 업데이트 (최신 버전 가리킴)
