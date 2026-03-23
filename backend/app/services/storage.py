@@ -39,6 +39,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from urllib.parse import unquote
 
 import structlog
 
@@ -515,11 +516,12 @@ class BlobStorageService(StorageService):
         """
         Blob URL에서 blob 이름을 추출합니다.
         'uploads/src-001/file.pdf' 형식도 처리합니다.
+        bc.url은 한글 파일명을 URL-encode하므로 unquote로 디코딩합니다.
         """
         if url_or_path.startswith("https://"):
             parts = url_or_path.split(f"/{container}/", 1)
             if len(parts) == 2:
-                return parts[1]
+                return unquote(parts[1])
         return url_or_path
 
     # ── 원본 파일 관리 ──────────────────────────────────
@@ -546,9 +548,14 @@ class BlobStorageService(StorageService):
             raise StorageError(f"Blob 저장 실패: {blob_name}") from exc
 
     async def get_file(self, file_path: str) -> bytes:
-        blob_name = self._url_to_blob_name(file_path, self._uploads_container)
+        # push 후 file_path가 versions 컨테이너 URL로 바뀔 수 있으므로 URL에서 컨테이너 감지
+        if self._versions_container in file_path:
+            container = self._versions_container
+        else:
+            container = self._uploads_container
+        blob_name = self._url_to_blob_name(file_path, container)
         try:
-            bc = self._blob_client(self._uploads_container, blob_name)
+            bc = self._blob_client(container, blob_name)
             return bc.download_blob().readall()
         except Exception as exc:
             raise FileNotFoundInStorageError(

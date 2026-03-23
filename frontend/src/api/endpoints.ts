@@ -157,6 +157,9 @@ export const versionApi = {
       })
     }),
 
+  unstageFix: (contradictionId: string) =>
+    fetchApi<{status: string, contradiction_id: string}>(`/fixes/stage/${contradictionId}`, { method: 'DELETE' }),
+
   pushFixes: (sourceId?: string, description?: string) =>
     fetchApi<VersionInfo>('/fixes/push', {
       method: 'POST',
