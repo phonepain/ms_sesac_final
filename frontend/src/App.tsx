@@ -250,7 +250,7 @@ export default function App() {
     setStaged(p => p.filter(s => s.id !== id));
   };
 
-  const onReupload = (srcId: string, srcName: string, file: File) => {
+  const onReupload = (srcId: string, _srcName: string, file: File) => {
     if (!activeProj) return;
     runProgress(REUPLOAD_STEPS, "파일 재업로드 및 GraphRAG 재구축", async () => {
       await sourceApi.reupload(srcId, file);
