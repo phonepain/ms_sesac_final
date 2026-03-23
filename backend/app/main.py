@@ -215,9 +215,6 @@ async def reupload_source(
     except Exception as e:
         logger.warning("reupload_remove_index_failed", source_id=source_id, error=str(e))
 
-    # 기존 그래프 데이터 제거 (중복 누적 방지)
-    graph.remove_source(source_id)
-
     # Extract → Normalize → Materialize → Index
     extraction_svc = ExtractionService()
     extraction_results = await extraction_svc.extract_from_chunks(
@@ -381,15 +378,28 @@ async def stage_fix(req: StageFixRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 class PushFixesRequest(BaseModel):
-    source_id: str
+    source_id: Optional[str] = None
     description: Optional[str] = ""
 
 @app.post("/api/fixes/push", response_model=VersionInfo)
 async def push_fixes(req: PushFixesRequest):
     """스테이징된 수정사항 일괄 반영 후 새 버전 생성"""
     try:
+        source_id = req.source_id
+        # source_id 미전달 시 그래프에서 scenario 소스 자동 탐색
+        if not source_id:
+            graph = get_graph_service()
+            sources = graph.list_sources()
+            scenario_src = next((s for s in sources if s.get("source_type") == "scenario"), None)
+            if scenario_src is None and sources:
+                scenario_src = sources[0]
+            if scenario_src is None:
+                raise HTTPException(status_code=400, detail="push할 소스가 없습니다. 먼저 파일을 업로드하세요.")
+            source_id = scenario_src.get("source_id") or scenario_src.get("id")
         svc = get_version_service()
-        return await svc.push_staged_fixes(source_id=req.source_id, description=req.description or "")
+        return await svc.push_staged_fixes(source_id=source_id, description=req.description or "")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("push_fixes_failed", error=str(e))
         raise HTTPException(status_code=400, detail=str(e))

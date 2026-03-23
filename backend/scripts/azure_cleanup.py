@@ -36,7 +36,7 @@ def log(msg=""):
 
 def clean_blob_storage():
     log(DASH)
-    log("[Blob Storage] 파일 삭제")
+    log("[Blob Storage] 컨테이너 전체 삭제")
     log(DASH)
     try:
         from azure.storage.blob import BlobServiceClient
@@ -51,17 +51,14 @@ def clean_blob_storage():
             log(f"  컨테이너: {container_name}")
             try:
                 container = client.get_container_client(container_name)
-                deleted = 0
-                for sid in TARGET_SOURCE_IDS:
-                    blobs = list(container.list_blobs(name_starts_with=sid))
+                blobs = list(container.list_blobs())
+                if not blobs:
+                    log(f"    (삭제할 파일 없음)")
+                else:
                     for blob in blobs:
                         container.delete_blob(blob.name)
                         log(f"    삭제: {blob.name}")
-                        deleted += 1
-                if deleted == 0:
-                    log(f"    (삭제할 파일 없음)")
-                else:
-                    log(f"    총 {deleted}개 파일 삭제 완료")
+                    log(f"    총 {len(blobs)}개 파일 삭제 완료")
             except Exception as e:
                 log(f"    ERR: {e}")
         log()

@@ -164,7 +164,7 @@ export default function App() {
         graphBuilt: nGB,
         contradictions: [
           ...res.contradictions.map((c: any) => ({
-            id: c.id, sv: c.severity.toLowerCase() as any, tp: c.type, ch: c.character_name || 'System',
+            id: c.id, sv: ({ critical: 'critical', major: 'warning', minor: 'info' } as Record<string, string>)[c.severity?.toLowerCase()] as any ?? 'info', tp: c.type, ch: c.character_name || 'System',
             ft: c.location || '정보', dl: c.dialogue || '', ds: c.description,
             ev: (c.evidence || []).map((e: any) => ({ sr: e.source_name, lc: e.source_location, tx: e.text })),
             cf: c.confidence, sg: c.suggestion || '', al: c.alternative || null, ot: c.original_text || '',
@@ -196,7 +196,7 @@ export default function App() {
       const transformedContradictions = [
         ...res.contradictions.map((c: any) => ({
           id: c.id,
-          sv: c.severity.toLowerCase() as any,
+          sv: ({ critical: 'critical', major: 'warning', minor: 'info' } as Record<string, string>)[c.severity?.toLowerCase()] as any ?? 'info',
           tp: c.type,
           ch: c.character_name || 'System',
           ft: c.location || '분석 결과',

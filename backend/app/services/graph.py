@@ -447,7 +447,7 @@ class GremlinGraphService:
           8. ItemEvents         → Item vertex + POSSESSES / LOSES edge
           9. Relationships      → RELATED_TO edge (Character → Character)
         """
-        source_id = str(source.id)
+        source_id = str(source.source_id) if source.source_id else str(source.id)
         created: Dict[str, List[str]] = {
             "source": [], "characters": [], "facts": [], "events": [], "confirmations": [],
             "traits": [], "edges": [],
@@ -457,7 +457,9 @@ class GremlinGraphService:
         try:
             # 0. Source vertex 적재
             src_dict = _vertex_to_dict(source)
-            # Source 자신의 source_id는 자기 id를 참조
+            # Source vertex의 id와 source_id를 비즈니스 키(source_id)로 통일
+            # → get_source(source_id) 조회 및 remove_source(source_id) 삭제 일치
+            src_dict["id"] = source_id
             src_dict["source_id"] = source_id
             self.add_source(src_dict)
             created["source"].append(source_id)
@@ -1152,6 +1154,7 @@ class GremlinGraphService:
             logger.info("snapshot_graph complete", vertices=len(mem.vertices), edges=len(mem.edges))
         except Exception as e:
             logger.error("snapshot_graph failed", error=str(e))
+            raise
         mem._discourse_counter = self._discourse_counter
         return mem
 
@@ -1291,7 +1294,9 @@ class GremlinGraphService:
 
         vid = str(data.get("id") or str(uuid.uuid4()))
         data["id"] = vid
-        label = str(data.get("partition_key") or data.get("label", "unknown"))
+        label = str(data.get("partition_key") or data.get("label") or "")
+        if not label:
+            raise ValueError(f"upsert_vertex: partition_key/label 누락 (id={vid}, keys={list(data.keys())})")
 
         try:
             exists = self._submit_first(
@@ -1667,7 +1672,7 @@ class InMemoryGraphService:
           8. ItemEvents         → Item vertex + POSSESSES / LOSES edge
           9. Relationships      → RELATED_TO edge (Character → Character)
         """
-        source_id = str(source.id)
+        source_id = str(source.source_id) if source.source_id else str(source.id)
         created: Dict[str, List[str]] = {
             "source": [], "characters": [], "facts": [], "events": [], "confirmations": [],
             "traits": [], "edges": [],
@@ -1675,6 +1680,9 @@ class InMemoryGraphService:
 
         # 0. Source vertex 적재
         src_dict = _vertex_to_dict(source)
+        # Source vertex의 id와 source_id를 비즈니스 키(source_id)로 통일
+        # → get_source(source_id) 조회 및 remove_source(source_id) 삭제 일치
+        src_dict["id"] = source_id
         src_dict["source_id"] = source_id
         self.add_source(src_dict)
         created["source"].append(source_id)
@@ -2393,7 +2401,9 @@ class InMemoryGraphService:
             self.vertices[vid].update(data)
             self.log.debug("upsert_vertex_updated", vertex_id=vid)
         else:
-            label = data.get("partition_key") or data.get("label", "unknown")
+            label = data.get("partition_key") or data.get("label") or ""
+            if not label:
+                raise ValueError(f"upsert_vertex: partition_key/label 누락 (id={vid}, keys={list(data.keys())})")
             self.vertices[vid] = {"label": label, **data}
             self.log.debug("upsert_vertex_inserted", vertex_id=vid)
         return vid
