@@ -421,15 +421,54 @@ class NormalizationService(_NormalizationCore):
 
             result: NormalizationResult = response.choices[0].message.parsed
 
-            # 3. 통합된 결과에 원본 Raw 데이터(merged_from)를 다시 매핑 (계보 추적)
+            # [CHANGED][WHAT] LLM 정규화 결과를 raw 이름과 재연결해 캐릭터 참조 일관성을 강제
+            # [CHANGED][HOW] merged_from 기반 역매핑 + 누락 raw 캐릭터 fallback 추가
+            # [CHANGED][PHASE LINK] Phase 2(정규화) -> Phase 3(materialize) edge 생성 안정화
+            used_raw_names: Set[str] = set()
+            linked_characters: List[NormalizedCharacter] = []
             for nc in result.characters:
                 # canonical_name이나 aliases에 포함된 모든 Raw 데이터를 찾음
                 nc.merged_from = [
                     r for r in raws
                     if r.name == nc.canonical_name or r.name in nc.all_aliases
                 ]
+                if nc.merged_from:
+                    used_raw_names.update(r.name for r in nc.merged_from)
+                    alias_set = set(nc.all_aliases)
+                    for raw in nc.merged_from:
+                        if raw.name != nc.canonical_name:
+                            alias_set.add(raw.name)
+                    nc.all_aliases = sorted(alias_set)
+                    linked_characters.append(nc)
+                else:
+                    logger.warning(
+                        "normalized_character_unlinked_dropped",
+                        canonical_name=nc.canonical_name,
+                        aliases=nc.all_aliases,
+                    )
 
-            return result.characters
+            # LLM이 역할명(investigator/suspect 등) 중심으로 정규화해 raw 이름이 누락된 경우 보강
+            existing_canonicals = {c.canonical_name for c in linked_characters}
+            for raw in raws:
+                if raw.name in used_raw_names or raw.name in existing_canonicals:
+                    continue
+                fallback_aliases = sorted({a for a in raw.possible_aliases if a and a != raw.name})
+                linked_characters.append(
+                    NormalizedCharacter(
+                        canonical_name=raw.name,
+                        all_aliases=fallback_aliases,
+                        tier=4,
+                        description=raw.role_hint,
+                        merged_from=[raw],
+                    )
+                )
+                logger.warning(
+                    "normalized_character_fallback_added",
+                    raw_name=raw.name,
+                    role_hint=raw.role_hint,
+                )
+
+            return linked_characters
 
         except Exception as e:
             logger.error("Character normalization failed", error=str(e))
