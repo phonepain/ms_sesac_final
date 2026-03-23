@@ -70,8 +70,17 @@ async def upload_source(
     source_type: str = Form(description="worldview, settings, scenario 중 하나")
 ):
     content = await file.read()
-    source_id = f"src-{uuid.uuid4().hex[:8]}"
     filename = file.filename or "unknown"
+
+    # PDF 5MB 크기 제한
+    MAX_PDF_SIZE = 5 * 1024 * 1024
+    if filename.lower().endswith(".pdf") and len(content) > MAX_PDF_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"PDF 파일은 5MB 이하만 허용됩니다. (업로드 크기: {len(content) // 1024 // 1024}MB)"
+        )
+
+    source_id = f"src-{uuid.uuid4().hex[:8]}"
 
     # 1) 파일 저장 + 청킹 (IngestResult.file_path = Blob URL or 로컬 경로)
     ingest_service = IngestService()
@@ -205,6 +214,9 @@ async def reupload_source(
         await search_svc.remove_source(source_id)
     except Exception as e:
         logger.warning("reupload_remove_index_failed", source_id=source_id, error=str(e))
+
+    # 기존 그래프 데이터 제거 (중복 누적 방지)
+    graph.remove_source(source_id)
 
     # Extract → Normalize → Materialize → Index
     extraction_svc = ExtractionService()

@@ -7,7 +7,6 @@ import AiChatPanel from '../components/project/AiChatPanel';
 import StagedFixes from '../components/project/StagedFixes';
 import ContradictionCard from '../components/project/ContradictionCard';
 import { AI, Se, Up2, Bk, Df } from '../components/common/Icons';
-import { versionApi } from '../api/endpoints';
 
 interface ProjectDetailViewProps {
   proj: Project;

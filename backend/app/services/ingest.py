@@ -171,6 +171,33 @@ class IngestService:
 
     # ── 핵심 public 메서드 ─────────────────────────────────────
 
+    def chunk_text(
+        self,
+        text: str,
+        source_id: str = "agent-manuscript",
+        source_name: str = "manuscript",
+    ) -> List[DocumentChunk]:
+        """순수 텍스트를 청킹합니다 (파일 I/O 없음).
+
+        agent.py처럼 이미 메모리에 텍스트가 있을 때 사용합니다.
+        storage.save_file()을 호출하지 않으므로 스토리지 부작용이 없습니다.
+
+        Parameters
+        ----------
+        text : str
+            청킹할 원문 텍스트
+        source_id : str
+            청크의 source_id 필드에 기록할 값
+        source_name : str
+            청크의 location.source_name 필드에 기록할 값
+
+        Returns
+        -------
+        list[DocumentChunk]
+            ExtractionService.extract_from_chunks()로 바로 전달 가능한 청크 목록
+        """
+        return self._create_chunks(text, source_id, source_name)
+
     async def process_file(
         self,
         file_content: bytes,
