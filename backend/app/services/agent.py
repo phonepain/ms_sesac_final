@@ -101,6 +101,18 @@ async def _respond(state: AgentState) -> AgentState:
     svc = DetectionService()
     result = await svc.analyze(violations)
 
+    # Soft confirmations를 canonical graph에 저장
+    # ConfirmationService.list_pending() / resolve()가 그래프를 백엔드로 사용하므로
+    # 여기서 저장하지 않으면 GET /api/confirmations → 빈 목록,
+    # POST /api/confirmations/{id}/resolve → 404가 된다.
+    # UserConfirmation은 분석 원고 데이터가 아닌 워크플로우 상태이므로
+    # canonical graph 저장이 스냅샷 격리 원칙에 위배되지 않는다.
+    if result.confirmations:
+        canonical = get_graph_service()
+        for conf in result.confirmations:
+            canonical.upsert_vertex(conf)
+        logger.info("confirmations_persisted", count=len(result.confirmations))
+
     # 스냅샷 폐기: canonical graph는 한 번도 건드리지 않았음
     return {**state, "snapshot": None, "result": result}
 

@@ -7,7 +7,7 @@ import NewProjectView from './pages/NewProjectView';
 import type { CategoryKey } from './pages/NewProjectView';
 import ProjectDetailView from './pages/ProjectDetailView';
 
-import type { Project } from './types';
+import type { Project, StagedFix } from './types';
 import { sourceApi, graphApi, analyzeApi, versionApi, statsApi } from './api/endpoints';
 
 // MOCK DATA as fallback
@@ -43,9 +43,16 @@ const BUILD_STEPS_SC: ProgressStep[] = [
 const ANALYZE_STEPS: ProgressStep[] = [
   { l: "GraphRAG 지식 조회...", ms: 1000 },
   { l: "캐릭터 정보 비교...", ms: 1500 },
-  { l: "4가지 모순 분석...", ms: 2000 },
+  { l: "7가지 모순 분석...", ms: 2000 },
   { l: "LLM 검증...", ms: 1800 },
   { l: "리포트 생성...", ms: 600 }
+];
+
+const REUPLOAD_STEPS: ProgressStep[] = [
+  { l: "파일 업로드...", ms: 800 },
+  { l: "문서 파싱 및 청킹...", ms: 1200 },
+  { l: "GraphRAG 증분 재구축...", ms: 2000 },
+  { l: "새 버전 생성...", ms: 600 }
 ];
 
 const PUSH_STEPS: ProgressStep[] = [
@@ -61,7 +68,7 @@ export default function App() {
   const [isNew, setIsNew] = useState(false);
   
   const [tab, setTab] = useState("overview");
-  const [staged, setStaged] = useState<any[]>([]);
+  const [staged, setStaged] = useState<StagedFix[]>([]);
   const [showAi, setShowAi] = useState(false);
   
   const [progress, setProgress] = useState<{ steps: ProgressStep[]; step: number; title: string } | null>(null);
@@ -155,10 +162,20 @@ export default function App() {
           fs.map(f => ({ id: f.id, n: f.name, cat: cat as 'worldview'|'settings'|'scenario', ent: 10, fct: 5 }))
         ),
         graphBuilt: nGB,
-        contradictions: res.contradictions.map(c => ({
-          id: c.id, sv: c.severity.toLowerCase() as any, tp: c.type, ch: c.character_name || 'System',
-          ft: '정보', dl: '', ds: c.description, ev: [], cf: c.confidence, sg: c.suggestion, al: null, ui: false
-        })),
+        contradictions: [
+          ...res.contradictions.map((c: any) => ({
+            id: c.id, sv: c.severity.toLowerCase() as any, tp: c.type, ch: c.character_name || 'System',
+            ft: c.location || '정보', dl: c.dialogue || '', ds: c.description,
+            ev: (c.evidence || []).map((e: any) => ({ sr: e.source_name, lc: e.source_location, tx: e.text })),
+            cf: c.confidence, sg: c.suggestion || '', al: c.alternative || null, ot: c.original_text || '',
+          })),
+          ...(res.confirmations || []).map((c: any) => ({
+            id: c.id, sv: 'warning' as any, tp: c.confirmation_type, ch: '사용자 확인 필요',
+            ft: '', dl: '', ds: c.question || c.context_summary || '',
+            ev: (c.source_excerpts || []).map((e: any) => ({ sr: e.source_name || '', lc: e.source_location || '', tx: e.text || '' })),
+            cf: 0, sg: c.context_summary || '', al: null, ot: '',
+          })),
+        ],
         versions: [{ id: "v1", vr: "v1.0", dt: new Date().toLocaleString("ko-KR"), fx: 0, ds: "최초 업로드" }]
       };
       setProjects(p => [np, ...p]);
@@ -176,20 +193,36 @@ export default function App() {
       const res = await analyzeApi.analyze("Mock content"); // In real app, we might pass the file
       
       // Transform API response
-      const transformedContradictions = res.contradictions.map(c => ({
-        id: c.id, 
-        sv: c.severity.toLowerCase() as any, 
-        tp: c.type, 
-        ch: c.character_name || 'System',
-        ft: '분석 결과', 
-        dl: '', 
-        ds: c.description, 
-        ev: [], 
-        cf: c.confidence, 
-        sg: c.suggestion, 
-        al: null, 
-        ui: false
-      }));
+      const transformedContradictions = [
+        ...res.contradictions.map((c: any) => ({
+          id: c.id,
+          sv: c.severity.toLowerCase() as any,
+          tp: c.type,
+          ch: c.character_name || 'System',
+          ft: c.location || '분석 결과',
+          dl: c.dialogue || '',
+          ds: c.description,
+          ev: (c.evidence || []).map((e: any) => ({ sr: e.source_name, lc: e.source_location, tx: e.text })),
+          cf: c.confidence,
+          sg: c.suggestion || '',
+          al: c.alternative || null,
+          ot: c.original_text || '',
+        })),
+        ...(res.confirmations || []).map((c: any) => ({
+          id: c.id,
+          sv: 'warning' as any,
+          tp: c.confirmation_type,
+          ch: '사용자 확인 필요',
+          ft: '',
+          dl: '',
+          ds: c.question || c.context_summary || '',
+          ev: (c.source_excerpts || []).map((e: any) => ({ sr: e.source_name || '', lc: e.source_location || '', tx: e.text || '' })),
+          cf: 0,
+          sg: c.context_summary || '',
+          al: null,
+          ot: '',
+        })),
+      ];
 
       const updated = { ...activeProj, contradictions: transformedContradictions };
       setProjects(p => p.map(x => x.id === updated.id ? updated : x));
@@ -197,10 +230,16 @@ export default function App() {
     });
   };
 
-  const onStageFix = async (fx: any) => {
-    // Stage at backend
-    await versionApi.stageFix(fx.id, fx.ot || "", fx.fixedText || "");
-    
+  const onStageFix = async (fx: StagedFix) => {
+    try {
+      if (fx.isIntentional) {
+        await versionApi.stageIntentional(fx.id, fx.intentNote || "");
+      } else {
+        await versionApi.stageFix(fx.id, fx.ot || "", fx.fixedText || "");
+      }
+    } catch (e) {
+      console.error(e);
+    }
     setStaged(p => {
       if (p.find(s => s.id === fx.id)) return p.map(s => s.id === fx.id ? fx : s);
       return [...p, fx];
@@ -211,18 +250,36 @@ export default function App() {
     setStaged(p => p.filter(s => s.id !== id));
   };
 
+  const onReupload = (srcId: string, srcName: string, file: File) => {
+    if (!activeProj) return;
+    runProgress(REUPLOAD_STEPS, "파일 재업로드 및 GraphRAG 재구축", async () => {
+      await sourceApi.reupload(srcId, file);
+      const nv = {
+        id: `v-${Date.now()}`,
+        vr: `v${(activeProj.versions.length + 1)}.0`,
+        dt: new Date().toLocaleString("ko-KR"),
+        fx: 0,
+        ds: `파일 재업로드: ${file.name}`,
+        src: file.name
+      };
+      const updated = { ...activeProj, versions: [nv, ...activeProj.versions] };
+      setProjects(p => p.map(x => x.id === updated.id ? updated : x));
+    });
+  };
+
   const onPushFixes = () => {
     if (!activeProj || staged.length === 0) return;
     runProgress(PUSH_STEPS, "수정사항 반영 및 GraphRAG 재구축", async () => {
       const vInfo = await versionApi.pushFixes();
       
       const ids = new Set(staged.map(s => s.id));
-      const nv = { 
-        id: vInfo.id, 
-        vr: vInfo.version, 
-        dt: vInfo.date, 
-        fx: vInfo.fixes_count, 
-        ds: vInfo.description 
+      const nv = {
+        id: vInfo.id,
+        vr: vInfo.version,
+        dt: vInfo.date,
+        fx: vInfo.fixes_count,
+        ds: vInfo.description,
+        src: vInfo.src || '',
       };
       
       const updated = {
@@ -264,18 +321,19 @@ export default function App() {
           )}
 
           {!isNew && activeProj && (
-            <ProjectDetailView 
-              proj={activeProj} 
-              tab={tab} 
-              setTab={setTab} 
-              staged={staged} 
-              onStageFix={onStageFix} 
-              onUnstageFix={onUnstageFix} 
-              onPushFixes={onPushFixes} 
-              onClearStaged={() => setStaged([])} 
-              onAnalyze={onAnalyze} 
-              showAi={showAi} 
-              setShowAi={setShowAi} 
+            <ProjectDetailView
+              proj={activeProj}
+              tab={tab}
+              setTab={setTab}
+              staged={staged}
+              onStageFix={onStageFix}
+              onUnstageFix={onUnstageFix}
+              onPushFixes={onPushFixes}
+              onClearStaged={() => setStaged([])}
+              onAnalyze={onAnalyze}
+              onReupload={onReupload}
+              showAi={showAi}
+              setShowAi={setShowAi}
             />
           )}
 

@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ContiCheck v4</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans KR',-apple-system,sans-serif;background:#09090b;color:#e4e4e7;height:100vh;overflow:hidden}
+.mono{font-family:'JetBrains Mono',monospace}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.fade{animation:fadeIn .25s ease-out}.spin{animation:spin 1s linear infinite}.pulse{animation:pulse 2s ease-in-out infinite}
+button{cursor:pointer;border:none;background:none;font-family:inherit}
+textarea,input{font-family:inherit}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#3f3f46;border-radius:3px}::-webkit-scrollbar-track{background:transparent}
+.dz{transition:all .2s;border:2px dashed rgba(63,63,70,.4);border-radius:10px;padding:16px 10px;text-align:center;cursor:pointer;background:rgba(39,39,42,.06)}
+.dz:hover,.dz.ov{border-color:#10b981;background:rgba(16,185,129,.05)}
+.diff-add{background:rgba(16,185,129,.12);border-left:3px solid #10b981;padding:2px 6px;margin:1px 0;display:block;font-size:10px;color:#d4d4d8}
+.diff-del{background:rgba(239,68,68,.1);border-left:3px solid #ef4444;padding:2px 6px;margin:1px 0;display:block;font-size:10px;color:#a1a1aa;text-decoration:line-through}
+.diff-ctx{padding:2px 6px;margin:1px 0;display:block;font-size:10px;color:#52525b}
+</style>
+</head>
+<body><div id="root"></div>
+<script type="text/babel">
+const{useState,useRef,useEffect}=React;
+
+/* ═══ STYLES ═══ */
+const SV={critical:{bg:"rgba(127,29,29,.4)",bd:"rgba(239,68,68,.4)",bg2:"#ef4444",tx:"#f87171",l:"심각"},warning:{bg:"rgba(120,53,15,.3)",bd:"rgba(245,158,11,.35)",bg2:"#f59e0b",tx:"#fbbf24",l:"주의"},info:{bg:"rgba(12,74,110,.3)",bd:"rgba(14,165,233,.25)",bg2:"#0ea5e9",tx:"#38bdf8",l:"참고"}};
+const CT={worldview:{l:"세계관",c:"#a78bfa",i:"🌍"},settings:{l:"설정집",c:"#f472b6",i:"📋"},scenario:{l:"시나리오",c:"#34d399",i:"🎬"}};
+
+/* ═══ STEPS ═══ */
+const IW=[{l:"세계관/설정집 파싱...",ms:800},{l:"규칙·설정 추출...",ms:2e3},{l:"캐릭터·관계 매핑...",ms:1500},{l:"GraphRAG(설정) 저장...",ms:1200}];
+const IS=[{l:"시나리오 파싱...",ms:800},{l:"장면·대사 분석...",ms:2e3},{l:"이벤트·정보흐름 추출...",ms:1800},{l:"GraphRAG(시나리오) 저장...",ms:1200}];
+const AS=[{l:"GraphRAG 지식 조회...",ms:1e3},{l:"캐릭터 정보 비교...",ms:1500},{l:"7가지 모순 분석...",ms:2e3},{l:"LLM 검증...",ms:1800},{l:"리포트 생성...",ms:500}];
+const RS=[{l:"수정사항 원본 반영...",ms:800},{l:"변경 영역 재파싱...",ms:1200},{l:"GraphRAG 증분 업데이트...",ms:1500},{l:"인덱스 갱신...",ms:800}];
+
+/* ═══ MOCK DATA ═══ */
+const MOCK_PROJECTS=[
+  {id:"p1",name:"그림자의 비밀 시즌1",date:"2026-03-10",kb:{characters:12,facts:47,relationships:83,events:156,traits:24},
+   sources:[{id:"s1",n:"판타지_세계관_설정.pdf",cat:"worldview",ent:18,fct:22},{id:"s2",n:"캐릭터_설정집_v2.txt",cat:"settings",ent:14,fct:19},{id:"s3",n:"그림자의_비밀_시즌1.pdf",cat:"scenario",ent:34,fct:47}],
+   graphBuilt:{ws:true,sc:true},
+   contradictions:[
+     {id:"c1",sv:"critical",tp:"정보 비대칭",ch:"A (형사)",ft:"범인은 B이다",
+      dl:'A: "D, 나 B가 범인인 것 같아."',
+      ds:'A가 B를 범인으로 지목하지만 지식 그래프에 따르면 A가 이를 알게 되는 것은 C의 고백 이후.',
+      ev:[{sr:"그림자의_비밀_시즌1.pdf",lc:"Ch.2 p.58",tx:"C는 범인의 키와 옷차림만 전달"},{sr:"캐릭터_설정집_v2.txt",lc:"A 항목",tx:"A는 Ch.3 전까지 B를 의심하지 않음"}],
+      cf:.95,sg:"C의 고백 이후로 이동하거나 이전에 단서 추가",al:"형사 직감으로 해석 가능",ot:'A: D, 나 B가 범인인 것 같아.'},
+     {id:"c2",sv:"critical",tp:"거짓말·기만",ch:"A (형사)",ft:"B 알리바이 인지 후 행동",
+      dl:'A: "B가 그날 집에 있었다는 게 맞지." (Ch.4)',
+      ds:'A가 Ch.3에서 알리바이가 거짓임을 알았음에도 Ch.4에서 거짓 기반으로 행동.',
+      ev:[{sr:"그림자의_비밀_시즌1.pdf",lc:"Ch.3 p.79",tx:'A: "알리바이가 조작됐어."'},{sr:"그림자의_비밀_시즌1.pdf",lc:"Ch.4 p.95",tx:'A: "B가 집에 있었다는 게 맞지."'}],
+      cf:.98,sg:"Ch.4에서 A가 거짓 알리바이를 활용하는 이유 명시",al:null,ot:'A: B가 그날 집에 있었다는 게 맞지.'},
+     {id:"c3",sv:"warning",tp:"감정 일관성",ch:"D (파트너)",ft:"D의 조사 불일치",
+      dl:'D: "왜요? 아직 증거가 없잖아요."',
+      ds:'D는 이미 B 알리바이를 조사 중이었으나 놀라는 반응.',
+      ev:[{sr:"그림자의_비밀_시즌1.pdf",lc:"Ch.2 p.65",tx:'D: "B씨 알리바이를 확인해봐야겠어."'},{sr:"그림자의_비밀_시즌1.pdf",lc:"Ch.2 p.71",tx:'D: "왜요? 아직 증거가 없잖아요."'}],
+      cf:.62,sg:"D가 결과를 숨기는 이유를 암시",al:"조사 초기라 결과 없을 수 있음",ot:'D: 왜요? 아직 증거가 없잖아요.'},
+   ],
+   versions:[
+     {id:"v2",vr:"v1.1",dt:"2026-03-10 18:00",fx:1,ds:"c3 수정: D 반응에 내면 독백 추가",src:"그림자의_비밀_시즌1.pdf",
+      content:"...[v1.1 원고]\n\nCh.2 Scene 4\nD: (속으로: '아직 결과가 없는데...') \"왜요? 아직 증거가 없잖아요.\"\n..."},
+     {id:"v1",vr:"v1.0",dt:"2026-03-08",fx:0,ds:"최초 업로드",src:"그림자의_비밀_시즌1.pdf",
+      content:"...[v1.0 원고]\n\nCh.2 Scene 4\nD: \"왜요? 아직 증거가 없잖아요.\"\n..."},
+   ]},
+  {id:"p2",name:"용의 후예 파일럿",date:"2026-03-06",kb:{characters:5,facts:12,relationships:18,events:34,traits:8},
+   sources:[{id:"s4",n:"용의후예_세계관.txt",cat:"worldview",ent:8,fct:10},{id:"s5",n:"파일럿_시나리오.pdf",cat:"scenario",ent:12,fct:15}],
+   graphBuilt:{ws:true,sc:true},contradictions:[],
+   versions:[{id:"v1",vr:"v1.0",dt:"2026-03-06",fx:0,ds:"최초 업로드",src:"파일럿_시나리오.pdf",content:"...[v1.0 원고]\n..."}]},
+];
+
+/* ═══ ICONS ═══ */
+const Z={
+  Ck:()=><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>,
+  Cd:()=><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>,
+  Cr:()=><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>,
+  Al:()=><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  Up:()=><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
+  Up2:()=><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
+  Se:()=><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+  Ld:()=><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="spin"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>,
+  Ed:()=><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+  Gc:()=><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="4"/><line x1="1.05" y1="12" x2="7" y2="12"/><line x1="17.01" y1="12" x2="22.96" y2="12"/></svg>,
+  Gp:()=><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/></svg>,
+  Sn:()=><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
+  X:()=><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  Tr:()=><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+  In:()=><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>,
+  Qt:()=><svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" opacity=".3"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/></svg>,
+  Db:()=><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>,
+  Gr:()=><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><line x1="8.6" y1="7.4" x2="15.4" y2="16.6"/></svg>,
+  Ln:()=><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
+  Zp:()=><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+  Pl:()=><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+  AI:()=><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12"/><path d="M12 2C6.48 2 2 6.48 2 12"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>,
+  Dw:()=><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  Df:()=><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="10" x2="20" y2="10"/><line x1="4" y1="14" x2="14" y2="14"/><line x1="4" y1="18" x2="11" y2="18"/></svg>,
+  Bk:()=><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>,
+  Rv:()=><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>,
+  Nt:()=><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
+};
+
+/* ═══ PROGRESS ═══ */
+function Prog({step,steps,title}){return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",backdropFilter:"blur(8px)",zIndex:50,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{background:"#18181b",border:"1px solid rgba(63,63,70,.4)",borderRadius:14,padding:24,maxWidth:370,width:"100%",margin:"0 16px"}}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}><div style={{width:30,height:30,borderRadius:8,background:"rgba(16,185,129,.1)",border:"1px solid rgba(16,185,129,.2)",display:"flex",alignItems:"center",justifyContent:"center",color:"#10b981"}}><Z.Ld/></div><div style={{color:"#fff",fontWeight:600,fontSize:14}}>{title}</div></div><div style={{display:"flex",flexDirection:"column",gap:6}}>{steps.map((s,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:18,height:18,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,...(i<step?{background:"#10b981",color:"#fff"}:i===step?{background:"rgba(16,185,129,.2)",border:"1px solid #10b981",color:"#34d399"}:{background:"#27272a",border:"1px solid #3f3f46",color:"#52525b"})}}>{i<step?<Z.Ck/>:i+1}</div><span style={{fontSize:11,color:i<step?"#a1a1aa":i===step?"#fff":"#52525b"}}>{s.l}</span></div>)}</div><div style={{marginTop:12,height:3,background:"#27272a",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",background:"linear-gradient(90deg,#10b981,#2dd4bf)",borderRadius:2,transition:"width .5s",width:`${((step+1)/steps.length)*100}%`}}/></div></div></div>)}
+
+/* ═══ SIDEBAR ═══ */
+function Sidebar({projects,activeId,onSelect,onNew}){
+  return(<div style={{width:260,borderRight:"1px solid rgba(63,63,70,.2)",background:"rgba(9,9,14,.6)",display:"flex",flexDirection:"column",height:"100vh",flexShrink:0}}>
+    <div style={{padding:"14px 16px",borderBottom:"1px solid rgba(63,63,70,.15)",display:"flex",alignItems:"center",gap:7}}>
+      <div style={{width:22,height:22,borderRadius:5,background:"linear-gradient(135deg,#10b981,#0d9488)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{color:"#fff",fontSize:8,fontWeight:900}}>C</span></div>
+      <span style={{color:"#fff",fontWeight:700,fontSize:13}}>ContiCheck</span>
+      <span className="mono" style={{fontSize:8,background:"#27272a",color:"#52525b",padding:"1px 4px",borderRadius:3}}>v4</span>
+    </div>
+    <div style={{padding:"10px 12px"}}><button onClick={onNew} style={{width:"100%",padding:"9px 12px",borderRadius:8,border:"1px dashed rgba(16,185,129,.3)",background:"rgba(16,185,129,.04)",color:"#34d399",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}><Z.Pl/>새 프로젝트</button></div>
+    <div style={{flex:1,overflow:"auto",padding:"4px 8px"}}>
+      {projects.map(p=>{const isAct=p.id===activeId;const cCnt=p.contradictions?.length||0;return(<button key={p.id} onClick={()=>onSelect(p.id)} style={{width:"100%",textAlign:"left",padding:"10px 12px",borderRadius:8,marginBottom:3,background:isAct?"rgba(16,185,129,.08)":"transparent",border:isAct?"1px solid rgba(16,185,129,.15)":"1px solid transparent",transition:"all .15s"}}>
+        <div style={{fontSize:12,fontWeight:isAct?600:500,color:isAct?"#fff":"#a1a1aa",marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
+        <div style={{display:"flex",alignItems:"center",gap:6,fontSize:9,color:"#52525b"}}>
+          <span>{p.date}</span><span style={{color:"#34d399"}}>{p.kb.characters}명</span><span style={{color:"#38bdf8"}}>{p.kb.facts}사실</span>
+          {cCnt>0&&<span style={{color:"#f87171"}}>{cCnt}모순</span>}
+        </div>
+      </button>);})}
+    </div>
+  </div>);
+}
+
+/* ═══ KB STATS ═══ */
+function KBS({st}){
+  const it=[{l:"캐릭터",v:st.characters,c:"#34d399",ic:<Z.Gr/>},{l:"사실",v:st.facts,c:"#38bdf8",ic:<Z.Db/>},{l:"관계",v:st.relationships,c:"#fbbf24",ic:<Z.Ln/>},{l:"이벤트",v:st.events,c:"#fb7185",ic:<Z.Zp/>},{l:"특성",v:st.traits,c:"#a78bfa",ic:<Z.Ed/>}];
+  return(<div style={{display:"grid",gridTemplateColumns:`repeat(${it.length},1fr)`,gap:6}}>{it.map(x=><div key={x.l} style={{background:"rgba(39,39,42,.2)",border:"1px solid rgba(63,63,70,.1)",borderRadius:8,padding:10,textAlign:"center"}}><div style={{color:x.c,opacity:.7,marginBottom:1}}>{x.ic}</div><div className="mono" style={{fontSize:18,fontWeight:700,color:x.c}}>{x.v}</div><div style={{color:"#52525b",fontSize:9}}>{x.l}</div></div>)}</div>);
+}
+
+/* ═══ SOURCES LIST (v4: 다운로드 + 파일 업데이트) ═══ */
+function SrcL({sources,onReupload}){
+  if(!sources.length)return null;
+  const refs=useRef({});
+  return(<div style={{background:"rgba(39,39,42,.1)",border:"1px solid rgba(63,63,70,.08)",borderRadius:9,padding:12}}>
+    <div style={{fontSize:10,fontWeight:700,color:"#71717a",marginBottom:8,display:"flex",alignItems:"center",gap:4}}><Z.Db/>등록된 소스 <span className="mono" style={{color:"#52525b"}}>{sources.length}</span></div>
+    <div style={{display:"flex",flexDirection:"column",gap:3}}>
+      {sources.map(s=>{const c=CT[s.cat];return(<div key={s.id} style={{display:"flex",alignItems:"center",gap:7,padding:"6px 8px",background:"rgba(9,9,14,.3)",borderRadius:6}}>
+        <span style={{fontSize:12}}>{c?.i||"📄"}</span>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:11,color:"#e4e4e7",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.n}</div>
+          <div style={{fontSize:9,color:"#52525b"}}>{c?.l} · 엔티티 {s.ent} · 사실 {s.fct}</div>
+        </div>
+        {/* 다운로드 */}
+        <button onClick={()=>alert(`원본 다운로드: ${s.n}`)} title="원본 다운로드"
+          style={{padding:"3px 6px",borderRadius:4,border:"1px solid rgba(63,63,70,.2)",background:"transparent",color:"#71717a",display:"flex",alignItems:"center",gap:2,fontSize:9,flexShrink:0}}
+          onMouseEnter={e=>{e.currentTarget.style.color="#34d399";e.currentTarget.style.borderColor="rgba(16,185,129,.3)"}}
+          onMouseLeave={e=>{e.currentTarget.style.color="#71717a";e.currentTarget.style.borderColor="rgba(63,63,70,.2)"}}
+        ><Z.Dw/></button>
+        {/* 파일로 버전 업데이트 */}
+        <input ref={el=>refs.current[s.id]=el} type="file" accept=".txt,.pdf" style={{display:"none"}}
+          onChange={e=>{if(e.target.files[0]){onReupload(s.id,s.n,e.target.files[0].name);e.target.value=""}}}/>
+        <button onClick={()=>refs.current[s.id]?.click()} title="새 파일로 버전 업데이트"
+          style={{padding:"3px 6px",borderRadius:4,border:"1px solid rgba(63,63,70,.2)",background:"transparent",color:"#71717a",display:"flex",alignItems:"center",gap:2,fontSize:9,flexShrink:0}}
+          onMouseEnter={e=>{e.currentTarget.style.color="#a78bfa";e.currentTarget.style.borderColor="rgba(139,92,246,.3)"}}
+          onMouseLeave={e=>{e.currentTarget.style.color="#71717a";e.currentTarget.style.borderColor="rgba(63,63,70,.2)"}}
+        ><Z.Up2/>업데이트</button>
+      </div>);})}
+    </div>
+  </div>);
+}
+
+/* ═══ AI CHAT ═══ */
+function AiChat(){
+  const[ms,sM]=useState([{r:"s",t:"구축된 지식 그래프를 기반으로 질문할 수 있습니다. 캐릭터, 설정, 모순에 대해 자유롭게 물어보세요."}]);
+  const[ip,sI]=useState("");const[ld,sL]=useState(false);const er=useRef(null);
+  useEffect(()=>{er.current?.scrollIntoView({behavior:"smooth"})},[ms]);
+  const send=()=>{if(!ip.trim()||ld)return;const q=ip.trim();sI("");sL(true);sM(p=>[...p,{r:"u",t:q}]);setTimeout(()=>{sM(p=>[...p,{r:"a",t:`"${q}"에 대한 분석 결과입니다.\n\n현재 지식 그래프에 기반하여 답변합니다.`}]);sL(false)},1500)};
+  return(<div style={{background:"rgba(12,12,18,.95)",border:"1px solid rgba(63,63,70,.2)",borderRadius:14,display:"flex",flexDirection:"column",height:320}}>
+    <div style={{padding:"10px 14px",borderBottom:"1px solid rgba(63,63,70,.12)",display:"flex",alignItems:"center",gap:6,background:"rgba(16,185,129,.03)",borderRadius:"14px 14px 0 0"}}>
+      <div style={{width:22,height:22,borderRadius:6,background:"linear-gradient(135deg,#10b981,#0d9488)",display:"flex",alignItems:"center",justifyContent:"center"}}><Z.AI/></div>
+      <span style={{fontSize:12,fontWeight:700,color:"#fff"}}>AI 질의</span><span style={{fontSize:9,color:"#52525b"}}>GraphRAG 기반</span>
+    </div>
+    <div style={{flex:1,overflow:"auto",padding:10,display:"flex",flexDirection:"column",gap:6}}>
+      {ms.map((m,i)=><div key={i} style={{alignSelf:m.r==="u"?"flex-end":"flex-start",maxWidth:"85%",background:m.r==="u"?"rgba(16,185,129,.1)":m.r==="s"?"rgba(139,92,246,.06)":"rgba(39,39,42,.25)",border:`1px solid ${m.r==="u"?"rgba(16,185,129,.15)":"rgba(63,63,70,.08)"}`,borderRadius:10,padding:"8px 11px"}}><p style={{fontSize:11,color:m.r==="s"?"#a78bfa":"#e4e4e7",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{m.t}</p></div>)}
+      {ld&&<div style={{alignSelf:"flex-start",color:"#52525b",fontSize:10,display:"flex",alignItems:"center",gap:4}}><Z.Ld/>생각 중...</div>}
+      <div ref={er}/>
+    </div>
+    <div style={{padding:8,borderTop:"1px solid rgba(63,63,70,.1)",display:"flex",gap:5}}>
+      <input value={ip} onChange={e=>sI(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")send()}} placeholder="질문을 입력하세요..." style={{flex:1,background:"rgba(39,39,42,.35)",border:"1px solid rgba(63,63,70,.2)",borderRadius:8,padding:"7px 11px",fontSize:11,color:"#e4e4e7",outline:"none"}}/>
+      <button onClick={send} disabled={!ip.trim()||ld} style={{padding:"7px 14px",borderRadius:8,background:ip.trim()&&!ld?"linear-gradient(135deg,#059669,#0d9488)":"#27272a",color:ip.trim()&&!ld?"#fff":"#52525b",fontSize:11,fontWeight:600}}><Z.Sn/></button>
+    </div>
+  </div>);
+}
+
+/* ═══ CATEGORY UPLOAD ═══ */
+function CUp({ck,files,onA,onR}){const c=CT[ck],r=useRef(null),[ov,sO]=useState(false);return(<div><div style={{display:"flex",alignItems:"center",gap:5,marginBottom:5}}><span style={{fontSize:14}}>{c.i}</span><span style={{fontSize:11,fontWeight:600,color:c.c}}>{c.l}</span></div><div className={`dz ${ov?"ov":""}`} onDragOver={e=>{e.preventDefault();sO(true)}} onDragLeave={()=>sO(false)} onDrop={e=>{e.preventDefault();sO(false);onA(ck,Array.from(e.dataTransfer.files).filter(f=>f.name.match(/\.(txt|pdf)$/i)))}} onClick={()=>r.current?.click()}><input ref={r} type="file" multiple accept=".txt,.pdf" style={{display:"none"}} onChange={e=>{onA(ck,Array.from(e.target.files));e.target.value=""}}/><Z.Up/><p style={{color:"#71717a",fontSize:9,marginTop:2}}>TXT / PDF</p></div>{files.length>0&&<div style={{marginTop:4,display:"flex",flexDirection:"column",gap:2}}>{files.map(f=><div key={f.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"3px 6px",background:"rgba(39,39,42,.15)",borderRadius:4,borderLeft:`2px solid ${c.c}`}}><span style={{fontSize:10,color:"#d4d4d8"}}>{f.name}</span><button onClick={()=>onR(ck,f.id)} style={{color:"#52525b",padding:1}}><Z.Tr/></button></div>)}</div>}</div>)}
+
+/* ═══ ONBOARDING ═══ */
+function Onb({onClose}){return(<div className="fade" style={{background:"linear-gradient(135deg,rgba(16,185,129,.04),rgba(139,92,246,.04))",border:"1px solid rgba(16,185,129,.12)",borderRadius:12,padding:16,marginBottom:16,position:"relative"}}><button onClick={onClose} style={{position:"absolute",top:8,right:8,color:"#52525b",padding:3}}><Z.X/></button><h3 style={{color:"#fff",fontSize:13,fontWeight:700,marginBottom:8}}>사용 가이드</h3><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7,marginBottom:8}}>{[{m:"시나리오만",it:["🎬"],q:"기본",c:"#71717a"},{m:"세계관+설정집",it:["🌍","📋"],q:"설정 검증",c:"#a78bfa"},{m:"전체 (권장)",it:["🌍","📋","🎬"],q:"최고 품질",c:"#34d399"}].map(x=><div key={x.m} style={{background:"rgba(9,9,14,.4)",border:"1px solid rgba(63,63,70,.1)",borderRadius:7,padding:9}}><div style={{fontSize:8,fontWeight:700,color:x.c,marginBottom:2}}>{x.q}</div><div style={{fontSize:10,fontWeight:600,color:"#e4e4e7",marginBottom:2}}>{x.m}</div><div style={{display:"flex",gap:2}}>{x.it.map(i=><span key={i} style={{fontSize:13}}>{i}</span>)}</div></div>)}</div><p style={{fontSize:9,color:"#52525b"}}><Z.In/> 세계관+설정집을 함께 등록하면 더 정확합니다.</p></div>)}
+
+/* ═══ STAGED FIXES ═══ */
+function Stg({staged,onRm,onPush,onClr}){if(!staged.length)return null;return(<div className="fade" style={{background:"rgba(16,185,129,.03)",border:"1px solid rgba(16,185,129,.12)",borderRadius:10,padding:12,marginBottom:12}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}><div style={{display:"flex",alignItems:"center",gap:4}}><Z.Gc/><span style={{color:"#34d399",fontSize:11,fontWeight:700}}>스테이징</span><span className="mono" style={{fontSize:9,background:"rgba(16,185,129,.1)",color:"#34d399",padding:"1px 5px",borderRadius:3}}>{staged.length}</span></div><div style={{display:"flex",gap:4}}><button onClick={onClr} style={{fontSize:9,color:"#71717a",padding:"3px 6px",borderRadius:4,border:"1px solid rgba(63,63,70,.12)"}}>전체 취소</button><button onClick={onPush} style={{display:"flex",alignItems:"center",gap:3,fontSize:10,fontWeight:600,color:"#fff",background:"#059669",padding:"4px 10px",borderRadius:5}}><Z.Gp/>Push</button></div></div>
+  {staged.map(s=><div key={s.id} style={{background:"rgba(9,9,14,.25)",borderRadius:5,padding:6,marginBottom:2,fontSize:10}}>
+    {s.isIntentional
+      /* 의도된 설정 항목 */
+      ?<><span style={{color:"#a78bfa",fontSize:8,fontWeight:600,background:"rgba(124,58,237,.1)",padding:"1px 4px",borderRadius:2,marginRight:4}}>의도된 설정</span><span style={{color:"#71717a"}}>{s.ch} · {s.tp}</span>{s.intentNote&&<><br/><span style={{color:"#52525b",paddingLeft:4}}>메모: </span><span style={{color:"#a1a1aa",fontStyle:"italic"}}>{s.intentNote}</span></>}</>
+      /* 텍스트 수정 항목 */
+      :<><span style={{color:"#ef4444"}}>- </span><span style={{color:"#71717a"}}>{s.ot?.slice(0,40)}...</span><br/><span style={{color:"#34d399"}}>+ </span><span style={{color:"#d4d4d8"}}>{s.fixedText?.slice(0,40)}...</span></>}
+  </div>)}
+</div>)}
+
+/* ═══ CONTRADICTION CARD (v4: 인라인 처리 + 의도 메모 + 취소) ═══ */
+function CC({it,onSt,onUs,isSt}){
+  const[op,sO]=useState(false);
+  /* dec: null | "intentional" | "fix" | "deferred"
+     intentSaved: 의도된 설정 메모 저장 완료 여부 */
+  const[dec,sDec]=useState(null);
+  const[intentNote,sIN]=useState("");
+  const[intentSaved,sIS]=useState(false);
+  const[ft,sF]=useState(it.ot||"");
+  const sv=SV[it.sv]||SV.info;
+
+  const handleUndo=()=>{
+    if(dec==="fix"&&isSt)onUs(it.id);
+    sDec(null);sIS(false);sIN("");sF(it.ot||"");
+  };
+
+  return(<div style={{borderRadius:9,border:`1px solid ${dec?"rgba(63,63,70,.2)":sv.bd}`,background:dec?"rgba(39,39,42,.06)":sv.bg,transition:"background .2s,border .2s"}}>
+    {/* 헤더 */}
+    <button onClick={()=>sO(!op)} style={{width:"100%",display:"flex",alignItems:"flex-start",gap:6,padding:10,textAlign:"left",color:"inherit"}}>
+      <span style={{display:"inline-flex",alignItems:"center",gap:2,padding:"1px 5px",borderRadius:3,fontSize:8,fontWeight:700,textTransform:"uppercase",color:"#fff",background:dec?"#3f3f46":sv.bg2,flexShrink:0,marginTop:2}}><Z.Al/>{sv.l}</span>
+      {dec==="intentional"&&intentSaved&&<span style={{fontSize:8,fontWeight:600,color:"#34d399",background:"rgba(16,185,129,.1)",padding:"1px 5px",borderRadius:3,flexShrink:0,marginTop:2}}>의도된 설정</span>}
+      {dec==="deferred"&&<span style={{fontSize:8,fontWeight:600,color:"#71717a",background:"rgba(39,39,42,.3)",padding:"1px 5px",borderRadius:3,flexShrink:0,marginTop:2}}>보류</span>}
+      {dec==="fix"&&isSt&&<span style={{fontSize:8,fontWeight:600,color:"#34d399",background:"rgba(16,185,129,.08)",padding:"1px 5px",borderRadius:3,flexShrink:0,marginTop:2}}>수정 대기</span>}
+      {dec==="fix"&&!isSt&&<span style={{fontSize:8,fontWeight:600,color:"#fbbf24",background:"rgba(120,53,15,.2)",padding:"1px 5px",borderRadius:3,flexShrink:0,marginTop:2}}>수정 중</span>}
+      <div style={{flex:1}}>
+        <div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
+          <span style={{fontWeight:600,color:dec?"#a1a1aa":sv.tx,fontSize:11}}>{it.ch}</span>
+          <span style={{fontSize:8,background:"rgba(39,39,42,.4)",color:"#a1a1aa",padding:"1px 4px",borderRadius:2}}>{it.tp}</span>
+        </div>
+        <p style={{color:"#71717a",fontSize:10,marginTop:2,fontStyle:"italic"}}>{it.dl}</p>
+      </div>
+      <div style={{color:"#52525b",flexShrink:0}}>{op?<Z.Cd/>:<Z.Cr/>}</div>
+    </button>
+
+    {op&&<div className="fade" style={{padding:"0 10px 10px",display:"flex",flexDirection:"column",gap:8}}>
+      {/* 모순 설명 */}
+      <div style={{background:"rgba(9,9,14,.3)",borderRadius:6,padding:8}}><div style={{fontSize:9,fontWeight:600,color:"#71717a",marginBottom:3}}>모순 설명</div><p style={{color:"#e4e4e7",fontSize:11,lineHeight:1.7}}>{it.ds}</p></div>
+      {/* 근거 */}
+      {it.ev.map((e,i)=><div key={i} style={{background:"rgba(39,39,42,.2)",borderRadius:5,padding:7,display:"flex",gap:5}}><Z.Qt/><div><span className="mono" style={{fontSize:8,color:"#34d399"}}>{e.sr}, {e.lc}</span><p style={{fontSize:10,color:"#d4d4d8",marginTop:1}}>{e.tx}</p></div></div>)}
+      {/* 수정 제안 */}
+      <div style={{background:"rgba(6,78,59,.08)",borderRadius:6,padding:8}}><div style={{fontSize:9,fontWeight:600,color:"#34d399",marginBottom:2}}>수정 제안</div><p style={{color:"#e4e4e7",fontSize:11,lineHeight:1.6}}>{it.sg}</p></div>
+      {it.al&&<p style={{color:"#52525b",fontSize:9,fontStyle:"italic"}}>{it.al}</p>}
+      {/* 확신도 */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><span style={{fontSize:9,color:"#52525b"}}>확신도</span><div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:60,height:3,background:"#27272a",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",borderRadius:2,width:`${it.cf*100}%`,background:it.cf>=.8?"#f87171":it.cf>=.6?"#fbbf24":"#38bdf8"}}/></div><span className="mono" style={{color:"#d4d4d8",fontSize:9}}>{Math.round(it.cf*100)}%</span></div></div>
+
+      {/* ── 처리 영역 ── */}
+      <div style={{borderTop:"1px solid rgba(63,63,70,.08)",paddingTop:8}}>
+
+        {/* 미결정: 3가지 선택 */}
+        {dec===null&&<div>
+          <div style={{fontSize:9,fontWeight:600,color:"#71717a",marginBottom:5}}>처리 방법</div>
+          <div style={{display:"flex",gap:5}}>
+            <button onClick={()=>sDec("intentional")}
+              style={{flex:1,padding:"7px 4px",borderRadius:6,border:"1px solid rgba(16,185,129,.25)",background:"rgba(6,78,59,.15)",color:"#34d399",fontSize:10,fontWeight:600}}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(6,78,59,.3)"}
+              onMouseLeave={e=>e.currentTarget.style.background="rgba(6,78,59,.15)"}
+            >의도된 설정</button>
+            <button onClick={()=>sDec("fix")}
+              style={{flex:1,padding:"7px 4px",borderRadius:6,border:"1px solid rgba(239,68,68,.25)",background:"rgba(127,29,29,.15)",color:"#f87171",fontSize:10,fontWeight:600}}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(127,29,29,.3)"}
+              onMouseLeave={e=>e.currentTarget.style.background="rgba(127,29,29,.15)"}
+            >모순 확인 → 수정</button>
+            <button onClick={()=>sDec("deferred")}
+              style={{flex:1,padding:"7px 4px",borderRadius:6,border:"1px solid rgba(63,63,70,.2)",background:"rgba(39,39,42,.2)",color:"#71717a",fontSize:10,fontWeight:600}}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(39,39,42,.35)"}
+              onMouseLeave={e=>e.currentTarget.style.background="rgba(39,39,42,.2)"}
+            >보류</button>
+          </div>
+        </div>}
+
+        {/* ── 의도된 설정: 메모 입력 → 저장 ── */}
+        {dec==="intentional"&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {!intentSaved
+            ? /* 메모 입력 */
+              <div>
+                <div style={{fontSize:9,fontWeight:600,color:"#71717a",marginBottom:4,display:"flex",alignItems:"center",gap:3}}><Z.Nt/>의도된 이유 메모 <span style={{color:"#3f3f46"}}>(선택)</span></div>
+                <textarea value={intentNote} onChange={e=>sIN(e.target.value)} rows={2}
+                  placeholder="예: 회상 장면, 복선, 캐릭터의 의도적 거짓말, 신뢰 불가 화자..."
+                  style={{width:"100%",background:"rgba(39,39,42,.3)",border:"1px solid rgba(63,63,70,.15)",borderRadius:6,padding:7,fontSize:10,color:"#e4e4e7",outline:"none",resize:"none",lineHeight:1.5}}/>
+                <div style={{display:"flex",gap:4,marginTop:4,justifyContent:"space-between"}}>
+                  <button onClick={handleUndo} style={{fontSize:9,color:"#71717a",padding:"4px 9px",borderRadius:4,border:"1px solid rgba(63,63,70,.12)",display:"flex",alignItems:"center",gap:3}}><Z.Rv/>결정 취소</button>
+                  <button onClick={()=>{sIS(true);onSt({...it,isIntentional:true,intentNote})}}
+                    style={{display:"flex",alignItems:"center",gap:3,fontSize:10,fontWeight:600,color:"#fff",background:"#059669",padding:"4px 12px",borderRadius:5}}>
+                    <Z.Gc/>Commit
+                  </button>
+                </div>
+              </div>
+            : /* 스테이징 대기 */
+              <div style={{background:"rgba(16,185,129,.05)",border:"1px solid rgba(16,185,129,.15)",borderRadius:6,padding:"8px 10px"}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:intentNote?4:0}}>
+                  <span style={{fontSize:10,color:"#34d399",display:"flex",alignItems:"center",gap:3}}><Z.Gc/>스테이징 대기 — Push 시 의도된 설정으로 기록</span>
+                  <button onClick={handleUndo} style={{fontSize:9,color:"#71717a",padding:"2px 7px",borderRadius:4,border:"1px solid rgba(63,63,70,.12)",display:"flex",alignItems:"center",gap:2,flexShrink:0,marginLeft:8}}><Z.Rv/>스테이징 취소</button>
+                </div>
+                {intentNote&&<p style={{fontSize:10,color:"#a1a1aa",fontStyle:"italic",paddingLeft:2}}>"{intentNote}"</p>}
+              </div>
+          }
+        </div>}
+
+        {/* ── 보류 ── */}
+        {dec==="deferred"&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"rgba(39,39,42,.15)",border:"1px solid rgba(63,63,70,.1)",borderRadius:6,padding:"7px 10px"}}>
+          <span style={{fontSize:10,color:"#71717a"}}>보류 처리됨 — 다음 검토 시 다시 표시됩니다</span>
+          <button onClick={handleUndo} style={{fontSize:9,color:"#71717a",padding:"3px 8px",borderRadius:4,border:"1px solid rgba(63,63,70,.15)",display:"flex",alignItems:"center",gap:2,flexShrink:0,marginLeft:8}}><Z.Rv/>취소</button>
+        </div>}
+
+        {/* ── 수정 모드 ── */}
+        {dec==="fix"&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {isSt
+            ? <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"rgba(16,185,129,.05)",border:"1px solid rgba(16,185,129,.15)",borderRadius:6,padding:"7px 10px"}}>
+                <span style={{fontSize:10,color:"#34d399",display:"flex",alignItems:"center",gap:3}}><Z.Gc/>수정 대기 중 — Push 전까지 변경 가능</span>
+                <button onClick={handleUndo} style={{fontSize:9,color:"#71717a",padding:"3px 8px",borderRadius:4,border:"1px solid rgba(63,63,70,.15)",display:"flex",alignItems:"center",gap:2,flexShrink:0,marginLeft:8}}><Z.Rv/>스테이징 취소</button>
+              </div>
+            : <div>
+                <div style={{fontSize:9,fontWeight:600,color:"#71717a",marginBottom:3}}>수정 내용 입력</div>
+                <textarea value={ft} onChange={e=>sF(e.target.value)} rows={2}
+                  style={{width:"100%",background:"rgba(39,39,42,.3)",border:"1px solid rgba(63,63,70,.15)",borderRadius:6,padding:7,fontSize:11,color:"#e4e4e7",outline:"none",resize:"none"}}/>
+                <div style={{display:"flex",gap:4,marginTop:5,justifyContent:"space-between"}}>
+                  <button onClick={handleUndo} style={{fontSize:9,color:"#71717a",padding:"4px 9px",borderRadius:4,border:"1px solid rgba(63,63,70,.12)",display:"flex",alignItems:"center",gap:3}}><Z.Rv/>결정 취소</button>
+                  <button onClick={()=>onSt({...it,fixedText:ft})} disabled={!ft.trim()||ft===it.ot}
+                    style={{display:"flex",alignItems:"center",gap:3,fontSize:10,fontWeight:600,color:"#fff",background:ft.trim()&&ft!==it.ot?"#059669":"#27272a",padding:"4px 12px",borderRadius:5}}>
+                    <Z.Gc/>Commit
+                  </button>
+                </div>
+              </div>
+          }
+        </div>}
+      </div>
+    </div>}
+  </div>);
+}
+
+/* ═══ NEW PROJECT VIEW ═══ */
+function NewProj({files,onAF,onRF,onBG,gB,onAn}){
+  const[sg,sS]=useState(true);const hW=files.worldview.length>0||files.settings.length>0,hS=files.scenario.length>0,hA=hW||hS,aB=gB.ws||gB.sc;
+  return(<div className="fade" style={{display:"flex",flexDirection:"column",gap:16}}>
+    <h2 style={{fontSize:18,fontWeight:900,color:"#fff"}}>새 프로젝트</h2>
+    {sg&&<Onb onClose={()=>sS(false)}/>}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>{Object.keys(CT).map(k=><CUp key={k} ck={k} files={files[k]} onA={onAF} onR={onRF}/>)}</div>
+    {hA&&<div style={{display:"grid",gridTemplateColumns:hW&&hS?"1fr 1fr":"1fr",gap:7}}>
+      {hW&&<button onClick={()=>onBG("ws")} style={{padding:10,borderRadius:8,border:`1px solid ${gB.ws?"rgba(139,92,246,.2)":"rgba(63,63,70,.12)"}`,background:gB.ws?"rgba(139,92,246,.04)":"rgba(39,39,42,.08)",fontSize:11,fontWeight:600,color:gB.ws?"#a78bfa":"#e4e4e7"}}>{gB.ws?"✅ 세계관·설정 완료":"🌍📋 GraphRAG 구축"}</button>}
+      {hS&&<button onClick={()=>onBG("sc")} style={{padding:10,borderRadius:8,border:`1px solid ${gB.sc?"rgba(52,211,153,.2)":"rgba(63,63,70,.12)"}`,background:gB.sc?"rgba(52,211,153,.04)":"rgba(39,39,42,.08)",fontSize:11,fontWeight:600,color:gB.sc?"#34d399":"#e4e4e7"}}>{gB.sc?"✅ 시나리오 완료":"🎬 GraphRAG 구축"}</button>}
+    </div>}
+    {aB&&<button onClick={onAn} style={{width:"100%",padding:"11px 0",borderRadius:9,fontWeight:600,fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:5,background:"linear-gradient(90deg,#059669,#0d9488)",color:"#fff"}}><Z.Se/>모순 탐지 시작</button>}
+  </div>);
+}
+
+/* ═══ PROJECT VIEW ═══ */
+function ProjView({proj,tab,setTab,staged,onSt,onUs,onPu,onCl,onAn,showAi,setShowAi,onReupload}){
+  const[fi,sF]=useState("all");
+  const[verEx,sVE]=useState({});
+  const vUpRef=useRef(null);
+  const ct=proj.contradictions||[];
+  const sIds=new Set(staged.map(s=>s.id));
+  const ver=proj.versions||[];
+  const fd=fi==="all"?ct:ct.filter(c=>c.sv===fi);
+  const cn={all:ct.length,critical:ct.filter(c=>c.sv==="critical").length,warning:ct.filter(c=>c.sv==="warning").length,info:ct.filter(c=>c.sv==="info").length};
+  const toggleVer=(vid,type)=>sVE(p=>({...p,[vid]:p[vid]===type?null:type}));
+  const mockDiff=()=>(<div style={{fontFamily:"'JetBrains Mono',monospace"}}><span className="diff-ctx">  Ch.2 Scene 4</span><span className="diff-del">- D: "왜요? 아직 증거가 없잖아요."</span><span className="diff-add">+ D: (속으로: '아직 결과가 없는데...') "왜요? 아직 증거가 없잖아요."</span><span className="diff-ctx">  ...</span></div>);
+
+  return(<div className="fade" style={{display:"flex",flexDirection:"column",gap:14,height:"100%"}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div><h2 style={{fontSize:17,fontWeight:900,color:"#fff"}}>{proj.name}</h2><p style={{color:"#52525b",fontSize:10}}>{proj.date}</p></div>
+      <button onClick={()=>setShowAi(!showAi)} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:9,background:showAi?"linear-gradient(135deg,#059669,#0d9488)":"linear-gradient(135deg,rgba(16,185,129,.15),rgba(13,148,136,.15))",border:showAi?"none":"1px solid rgba(16,185,129,.3)",color:"#fff",fontSize:12,fontWeight:600,boxShadow:showAi?"0 4px 16px rgba(16,185,129,.3)":"0 2px 8px rgba(16,185,129,.1)",transition:"all .2s"}}>
+        <Z.AI/>{showAi?"AI 질의 닫기":"AI 질의"}
+      </button>
+    </div>
+
+    <div style={{display:"flex",gap:3}}>
+      {[{k:"overview",l:"개요"},{k:"contradictions",l:`모순 ${ct.length>0?ct.length:""}`},{k:"versions",l:"버전"}].map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,color:tab===t.k?"#34d399":"#71717a",background:tab===t.k?"rgba(16,185,129,.08)":"transparent",border:tab===t.k?"1px solid rgba(16,185,129,.12)":"1px solid transparent"}}>{t.l}</button>)}
+    </div>
+
+    <div style={{flex:1,overflow:"auto",display:"grid",gridTemplateColumns:showAi?"1fr 380px":"1fr",gap:14}}>
+      <div style={{overflow:"auto",display:"flex",flexDirection:"column",gap:12}}>
+
+        {/* 개요 */}
+        {tab==="overview"&&<>
+          <KBS st={proj.kb}/>
+          <SrcL sources={proj.sources} onReupload={onReupload}/>
+          {ct.length===0&&<button onClick={onAn} style={{width:"100%",padding:"11px 0",borderRadius:9,fontWeight:600,fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:5,background:"linear-gradient(90deg,#059669,#0d9488)",color:"#fff"}}><Z.Se/>모순 탐지 시작</button>}
+          {ct.length>0&&<div style={{background:"rgba(239,68,68,.04)",border:"1px solid rgba(239,68,68,.12)",borderRadius:9,padding:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div><span style={{fontSize:12,fontWeight:600,color:"#f87171"}}>{ct.length}건의 모순</span><span style={{fontSize:10,color:"#52525b",marginLeft:6}}>발견됨</span></div>
+            <button onClick={()=>setTab("contradictions")} style={{fontSize:11,color:"#f87171",padding:"5px 12px",borderRadius:6,border:"1px solid rgba(239,68,68,.2)",fontWeight:600}}>결과 보기 →</button>
+          </div>}
+        </>}
+
+        {/* 모순 */}
+        {tab==="contradictions"&&<>
+          <Stg staged={staged} onRm={onUs} onPush={onPu} onClr={onCl}/>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+            {[{k:"all",l:"전체"},{k:"critical",l:"심각"},{k:"warning",l:"주의"},{k:"info",l:"참고"}].map(f=><button key={f.k} onClick={()=>sF(f.k)} style={{display:"flex",alignItems:"center",gap:2,padding:"3px 8px",borderRadius:5,fontSize:10,fontWeight:600,...(fi===f.k?(f.k==="all"?{background:"#3f3f46",color:"#fff"}:{background:SV[f.k].bg,color:SV[f.k].tx,border:`1px solid ${SV[f.k].bd}`}):{background:"rgba(39,39,42,.2)",color:"#52525b"})}}>{f.l}<span className="mono" style={{fontSize:7,background:"rgba(9,9,14,.25)",padding:"0 3px",borderRadius:2}}>{cn[f.k]}</span></button>)}
+          </div>
+          {fd.map(c=><CC key={c.id} it={c} onSt={onSt} onUs={onUs} isSt={sIds.has(c.id)}/>)}
+          {fd.length===0&&<div style={{textAlign:"center",padding:"28px 0",color:"#3f3f46",fontSize:11}}>모순이 없습니다</div>}
+        </>}
+
+        {/* 버전 (v4: 파일로 새 버전 만들기 + 인라인 원고/diff) */}
+        {tab==="versions"&&<div>
+          {/* 파일로 새 버전 만들기 버튼 */}
+          <div style={{marginBottom:14,display:"flex",gap:6}}>
+            <input ref={vUpRef} type="file" accept=".txt,.pdf" style={{display:"none"}}
+              onChange={e=>{if(e.target.files[0]){onReupload(null,null,e.target.files[0].name);e.target.value=""}}}/>
+            <button onClick={()=>vUpRef.current?.click()}
+              style={{display:"flex",alignItems:"center",gap:5,padding:"7px 14px",borderRadius:7,border:"1px dashed rgba(139,92,246,.3)",background:"rgba(124,58,237,.04)",color:"#a78bfa",fontSize:11,fontWeight:600}}>
+              <Z.Up2/>파일로 새 버전 만들기
+            </button>
+            <div style={{display:"flex",alignItems:"center",gap:4,fontSize:9,color:"#52525b"}}>
+              <Z.In/>수정된 파일을 업로드하면 새 버전으로 등록되고 GraphRAG가 증분 업데이트됩니다
+            </div>
+          </div>
+
+          <div style={{paddingLeft:20,position:"relative"}}>
+            <div style={{position:"absolute",left:5,top:5,bottom:5,width:2,background:"rgba(63,63,70,.2)",borderRadius:1}}/>
+            {ver.map((v,i)=><div key={v.id} style={{position:"relative",marginBottom:12}}>
+              <div style={{position:"absolute",left:-17,top:4,width:9,height:9,borderRadius:5,background:i===0?"#10b981":"#3f3f46",border:i===0?"2px solid rgba(16,185,129,.25)":"2px solid #27272a"}}/>
+              <div style={{background:i===0?"rgba(16,185,129,.03)":"rgba(39,39,42,.08)",border:`1px solid ${i===0?"rgba(16,185,129,.1)":"rgba(63,63,70,.06)"}`,borderRadius:8,padding:10}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                    <span className="mono" style={{fontSize:11,fontWeight:700,color:i===0?"#34d399":"#a1a1aa"}}>{v.vr}</span>
+                    {i===0&&<span style={{fontSize:7,background:"rgba(16,185,129,.08)",color:"#34d399",padding:"1px 4px",borderRadius:2}}>최신</span>}
+                    {v.fx>0&&<span style={{fontSize:7,background:"rgba(245,158,11,.06)",color:"#fbbf24",padding:"1px 4px",borderRadius:2}}>{v.fx}수정</span>}
+                    {v.src&&<span style={{fontSize:7,background:"rgba(39,39,42,.2)",color:"#52525b",padding:"1px 4px",borderRadius:2}}>{v.src}</span>}
+                  </div>
+                  <span style={{fontSize:9,color:"#52525b"}}>{v.dt}</span>
+                </div>
+                <p style={{fontSize:10,color:"#d4d4d8",marginBottom:6}}>{v.ds}</p>
+                <div style={{display:"flex",gap:3}}>
+                  <button onClick={()=>toggleVer(v.id,"content")}
+                    style={{fontSize:8,padding:"2px 7px",borderRadius:3,border:`1px solid ${verEx[v.id]==="content"?"rgba(16,185,129,.3)":"rgba(63,63,70,.1)"}`,color:verEx[v.id]==="content"?"#34d399":"#52525b",background:verEx[v.id]==="content"?"rgba(16,185,129,.06)":"transparent",display:"flex",alignItems:"center",gap:2}}
+                  ><Z.Bk/>원고 보기</button>
+                  {i>0&&<button onClick={()=>toggleVer(v.id,"diff")}
+                    style={{fontSize:8,padding:"2px 7px",borderRadius:3,border:`1px solid ${verEx[v.id]==="diff"?"rgba(245,158,11,.3)":"rgba(63,63,70,.1)"}`,color:verEx[v.id]==="diff"?"#fbbf24":"#52525b",background:verEx[v.id]==="diff"?"rgba(120,53,15,.08)":"transparent",display:"flex",alignItems:"center",gap:2}}
+                  ><Z.Df/>비교</button>}
+                </div>
+                {verEx[v.id]==="content"&&<div className="fade" style={{marginTop:8,background:"rgba(9,9,14,.5)",border:"1px solid rgba(63,63,70,.15)",borderRadius:6,padding:10,maxHeight:180,overflow:"auto"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                    <span style={{fontSize:9,fontWeight:600,color:"#34d399",display:"flex",alignItems:"center",gap:3}}><Z.Bk/>{v.vr} 원고</span>
+                    <span style={{fontSize:8,color:"#3f3f46"}}>GET /api/versions/{v.id}/content</span>
+                  </div>
+                  <pre style={{fontSize:10,color:"#d4d4d8",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{v.content||"(내용 없음)"}</pre>
+                </div>}
+                {verEx[v.id]==="diff"&&<div className="fade" style={{marginTop:8,background:"rgba(9,9,14,.5)",border:"1px solid rgba(63,63,70,.15)",borderRadius:6,padding:10,maxHeight:180,overflow:"auto"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                    <span style={{fontSize:9,fontWeight:600,color:"#fbbf24",display:"flex",alignItems:"center",gap:3}}><Z.Df/>이전 버전과 비교</span>
+                    <span style={{fontSize:8,color:"#3f3f46"}}>GET /api/versions/{ver[i+1]?.id}/diff/{v.id}</span>
+                  </div>
+                  {v.fx>0?mockDiff():<p style={{fontSize:10,color:"#52525b"}}>변경 없음</p>}
+                </div>}
+              </div>
+            </div>)}
+          </div>
+        </div>}
+      </div>
+      {showAi&&<AiChat/>}
+    </div>
+  </div>);
+}
+
+/* ═══ APP ═══ */
+function App(){
+  const[projects,setProjects]=useState(MOCK_PROJECTS);
+  const[activeId,setActiveId]=useState("p1");
+  const[isNew,setIsNew]=useState(false);
+  const[tab,setTab]=useState("overview");
+  const[staged,setStaged]=useState([]);
+  const[showAi,setShowAi]=useState(false);
+  const[pr,sPr]=useState(null);
+  const[nFiles,setNF]=useState({worldview:[],settings:[],scenario:[]});
+  const[nGB,setNGB]=useState({ws:false,sc:false});
+  const fi=useRef(0);const vi=useRef(10);
+
+  const activeProj=projects.find(p=>p.id===activeId);
+  const run=(steps,title,cb)=>{sPr({steps,step:0,title});let s=0;const iv=setInterval(()=>{s++;sPr(p=>({...p,step:s}));if(s>=steps.length){clearInterval(iv);setTimeout(()=>{sPr(null);cb()},300)}},steps[s]?.ms||1e3)};
+
+  const onSelectProj=(id)=>{setActiveId(id);setIsNew(false);setTab("overview");setStaged([]);setShowAi(false)};
+  const onNewProj=()=>{setIsNew(true);setActiveId(null);setNF({worldview:[],settings:[],scenario:[]});setNGB({ws:false,sc:false});setTab("overview");setStaged([]);setShowAi(false)};
+  const onAF=(c,nf)=>{const a=nf.map(f=>({id:"f"+(++fi.current),name:f.name}));setNF(p=>({...p,[c]:[...p[c],...a]}))};
+  const onRF=(c,id)=>setNF(p=>({...p,[c]:p[c].filter(f=>f.id!==id)}));
+  const onBG=t=>{run(t==="ws"?IW:IS,t==="ws"?"세계관·설정 GraphRAG 구축":"시나리오 GraphRAG 구축",()=>{setNGB(p=>({...p,[t]:true}))})};
+  const onNewAnalyze=()=>{run(AS,"모순 탐지 분석 중",()=>{
+    const np={id:"p"+(projects.length+1),name:"새 프로젝트 "+(projects.length+1),date:new Date().toISOString().slice(0,10),
+      kb:{characters:Math.floor(Math.random()*10+3),facts:Math.floor(Math.random()*30+10),relationships:Math.floor(Math.random()*40+15),events:Math.floor(Math.random()*60+20),traits:Math.floor(Math.random()*15+5)},
+      sources:Object.entries(nFiles).flatMap(([cat,fs])=>fs.map(f=>({id:f.id,n:f.name,cat,ent:Math.floor(Math.random()*20+5),fct:Math.floor(Math.random()*15+5)}))),
+      graphBuilt:nGB,contradictions:[],versions:[{id:"v"+(++vi.current),vr:"v1.0",dt:new Date().toLocaleString("ko-KR"),fx:0,ds:"최초 업로드",src:"",content:""}]};
+    setProjects(p=>[np,...p]);setActiveId(np.id);setIsNew(false);setTab("overview");
+  })};
+
+  const onAnalyze=()=>{if(!activeProj)return;run(AS,"모순 탐지 분석 중",()=>{
+    const updated={...activeProj,contradictions:MOCK_PROJECTS[0].contradictions};
+    setProjects(p=>p.map(x=>x.id===updated.id?updated:x));setTab("contradictions");
+  })};
+  const onSt=fx=>setStaged(p=>{if(p.find(s=>s.id===fx.id))return p.map(s=>s.id===fx.id?fx:s);return[...p,fx]});
+  const onUs=id=>setStaged(p=>p.filter(s=>s.id!==id));
+  const onPu=()=>{if(!activeProj)return;run(RS,"수정사항 반영 및 GraphRAG 재구축",()=>{
+    const ids=new Set(staged.map(s=>s.id));
+    const nv={id:"v"+(++vi.current),vr:`v1.${activeProj.versions.length}`,dt:new Date().toLocaleString("ko-KR"),fx:staged.length,ds:`텍스트 수정 ${staged.length}건 반영`,src:activeProj.versions[0]?.src||"",content:""};
+    const updated={...activeProj,contradictions:activeProj.contradictions.filter(c=>!ids.has(c.id)),versions:[nv,...activeProj.versions]};
+    setProjects(p=>p.map(x=>x.id===updated.id?updated:x));setStaged([]);
+  })};
+  const onCl=()=>setStaged([]);
+
+  /* v4: 파일 재업로드 → 새 버전 생성 */
+  const onReupload=(srcId,srcName,fileName)=>{
+    if(!activeProj)return;
+    run(RS,"파일 업로드 및 GraphRAG 재구축",()=>{
+      const vn=activeProj.versions.length;
+      const nv={
+        id:"v"+(++vi.current),
+        vr:`v1.${vn}`,
+        dt:new Date().toLocaleString("ko-KR"),
+        fx:0,
+        ds:`파일 업로드: ${fileName}`,
+        src:fileName,
+        content:`...[${fileName} 원고 내용]\n\n(업로드된 파일 기반으로 GraphRAG 재구축 완료)`,
+      };
+      const updated={...activeProj,versions:[nv,...activeProj.versions]};
+      setProjects(p=>p.map(x=>x.id===updated.id?updated:x));
+      setTab("versions");
+    });
+  };
+
+  return(<div style={{display:"flex",height:"100vh",background:"#09090b"}}>
+    <Sidebar projects={projects} activeId={activeId} onSelect={onSelectProj} onNew={onNewProj}/>
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <header style={{height:46,borderBottom:"1px solid rgba(63,63,70,.15)",background:"rgba(9,9,11,.8)",backdropFilter:"blur(12px)",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",flexShrink:0}}>
+        <span style={{fontSize:11,color:"#52525b"}}>{isNew?"새 프로젝트 생성":activeProj?.name||""}</span>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          {staged.length>0&&<span style={{fontSize:9,color:"#34d399",display:"flex",alignItems:"center",gap:2}}><Z.Gc/>{staged.length}건 스테이징</span>}
+          <div className="pulse" style={{width:6,height:6,borderRadius:3,background:"#10b981"}}/>
+        </div>
+      </header>
+      <main style={{flex:1,overflow:"auto",padding:20}}>
+        {isNew&&<NewProj files={nFiles} onAF={onAF} onRF={onRF} onBG={onBG} gB={nGB} onAn={onNewAnalyze}/>}
+        {!isNew&&activeProj&&<ProjView proj={activeProj} tab={tab} setTab={setTab} staged={staged} onSt={onSt} onUs={onUs} onPu={onPu} onCl={onCl} onAn={onAnalyze} showAi={showAi} setShowAi={setShowAi} onReupload={onReupload}/>}
+        {!isNew&&!activeProj&&<div style={{textAlign:"center",padding:"60px 0",color:"#3f3f46"}}><p>프로젝트를 선택하거나 새 프로젝트를 생성하세요</p></div>}
+      </main>
+    </div>
+    {pr&&<Prog step={pr.step} steps={pr.steps} title={pr.title}/>}
+  </div>);
+}
+ReactDOM.render(<App/>,document.getElementById("root"));
+</script>
+</body>
+</html>

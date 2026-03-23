@@ -62,9 +62,13 @@ class StagedFix:
     contradiction_id:
         이 수정이 해결하는 ContradictionReport의 ID
     original_text:
-        원본 원고에서 교체될 텍스트 (정확히 일치해야 함)
+        원본 원고에서 교체될 텍스트 (정확히 일치해야 함, is_intentional=True면 빈 문자열 가능)
     fixed_text:
-        교체 후 텍스트
+        교체 후 텍스트 (is_intentional=True면 빈 문자열 가능)
+    is_intentional:
+        True이면 작가 의도로 인정 — 텍스트 교체 없이 resolved 마킹만 수행
+    intent_note:
+        의도 인정 시 작가의 메모
     staged_at:
         스테이징 시각 (UTC)
     """
@@ -72,6 +76,8 @@ class StagedFix:
     contradiction_id: str
     original_text: str
     fixed_text: str
+    is_intentional: bool = False
+    intent_note: str = ""
     staged_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
 
 
@@ -187,19 +193,23 @@ class VersionService:
     async def stage_fix(
         self,
         contradiction_id: str,
-        original_text: str,
-        fixed_text: str,
+        original_text: str = "",
+        fixed_text: str = "",
+        is_intentional: bool = False,
+        intent_note: str = "",
     ) -> StagedFix:
         """
         수정 사항을 스테이징 큐에 등록합니다.
 
         push_staged_fixes를 호출하기 전까지 원본 원고에는 변경이 없습니다.
         같은 contradiction_id로 중복 스테이징 시 DuplicateStagedFixError.
+        is_intentional=True이면 original_text/fixed_text 검증을 건너뜁니다.
         """
-        if not original_text.strip():
-            raise ValueError("original_text는 비어 있을 수 없습니다.")
-        if not fixed_text.strip():
-            raise ValueError("fixed_text는 비어 있을 수 없습니다.")
+        if not is_intentional:
+            if not original_text.strip():
+                raise ValueError("original_text는 비어 있을 수 없습니다.")
+            if not fixed_text.strip():
+                raise ValueError("fixed_text는 비어 있을 수 없습니다.")
         if contradiction_id in self._staging:
             raise DuplicateStagedFixError(
                 f"이미 스테이징된 contradiction_id입니다: {contradiction_id}. "
@@ -210,6 +220,8 @@ class VersionService:
             contradiction_id=contradiction_id,
             original_text=original_text,
             fixed_text=fixed_text,
+            is_intentional=is_intentional,
+            intent_note=intent_note,
         )
         self._staging[contradiction_id] = fix
 
@@ -352,6 +364,9 @@ class VersionService:
         )
 
         # Step 9: 버전 메타 생성 + 저장
+        source_vertex = self._graph.get_vertex(source_id, "source")
+        source_name = (source_vertex or {}).get("name", "")
+
         version_info = self._create_version(
             version_id=version_id,
             version_name=version_name,
@@ -360,6 +375,7 @@ class VersionService:
             description=description or _auto_description(applied_fixes),
             resolved_contradiction_ids=resolved_ids,
             snapshot_path=snapshot_path,
+            src=source_name,
         )
 
         # Step 10: 스테이징 큐 소거
@@ -460,8 +476,8 @@ class VersionService:
 
         try:
             diff_text = await self._storage.diff_version_content(
-                version_a=version_id_a,
-                version_b=version_id_b,
+                version_a=stored_a.info.version,
+                version_b=stored_b.info.version,
                 source_id=stored_a.source_id,
             )
         except Exception as exc:
@@ -671,6 +687,7 @@ class VersionService:
         description: str,
         resolved_contradiction_ids: list[str],
         snapshot_path: str,
+        src: str = "",
     ) -> VersionInfo:
         """
         새 VersionInfo를 생성하고 인메모리 메타 저장소에 등록합니다.
@@ -684,6 +701,7 @@ class VersionService:
             fixes_count=fixes_count,
             description=description,
             snapshot_path=snapshot_path,
+            src=src,
         )
 
         stored = _StoredVersion(
@@ -727,6 +745,9 @@ def _apply_text_fixes(
     failed: list[StagedFix] = []
 
     for fix in sorted(fixes, key=lambda item: item.staged_at):
+        if fix.is_intentional:
+            applied.append(fix)
+            continue
         if fix.original_text not in current:
             log.warning(
                 "fix_original_not_found",

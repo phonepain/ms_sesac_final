@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Optional
 
 import structlog
 
-from app.models.enums import ConfirmationType, Severity
+from app.models.enums import ConfirmationType, ConfirmationStatus, Severity
 from app.models.vertices import SourceExcerpt, UserConfirmation
 
 if TYPE_CHECKING:
@@ -199,7 +199,7 @@ class ConfirmationService:
         """
         log = self._log.bind(action="list_pending")
         try:
-            raw_list: list[dict] = await self._graph.query_vertices(
+            raw_list: list[dict] = self._graph.query_vertices(
                 partition_key="confirmation",
                 filters={"status": "pending"},
             )
@@ -277,15 +277,15 @@ class ConfirmationService:
         confirmation.resolved_at = datetime.now(tz=timezone.utc)
         # ── decision별 1차 처리
         if decision == "confirmed_contradiction":
-            confirmation.status = "resolved"
+            confirmation.status = ConfirmationStatus.CONFIRMED_CONTRADICTION
             await self._handle_confirmed_contradiction(confirmation, log)
 
         elif decision == "confirmed_intentional":
-            confirmation.status = "resolved"
+            confirmation.status = ConfirmationStatus.CONFIRMED_INTENTIONAL
             await self._handle_confirmed_intentional(confirmation, log)
 
-        else:  # deferred:상태만 변경
-            confirmation.status = "deferred"
+        else:  # deferred: 상태만 변경
+            confirmation.status = ConfirmationStatus.DEFERRED
             log.info("confirmation_deferred")
 
         await self._persist_confirmation(
@@ -361,7 +361,7 @@ class ConfirmationService:
                 context_summary=confirmation.context_summary,
                 source_excerpts=confirmation.source_excerpts,
                 related_entity_ids=confirmation.related_entity_ids,
-                severity=Severity.WARNING,
+                severity=Severity.MAJOR,
             )
             log.info("contradiction_report_created", confirmation_id=confirmation.id)
         except Exception as exc:
@@ -413,7 +413,7 @@ class ConfirmationService:
         now_iso = datetime.now(tz=timezone.utc).isoformat()
         for entity_id in confirmation.related_entity_ids:
             try:
-                await self._graph.patch_vertex(
+                self._graph.patch_vertex(
                     vertex_id=entity_id,
                     partition_key="trait",
                     fields={"valid_until": now_iso},
@@ -459,7 +459,7 @@ class ConfirmationService:
             if entity_id == canonical_id:
                 continue
             try:
-                await self._graph.patch_vertex(
+                self._graph.patch_vertex(
                     vertex_id=entity_id,
                     partition_key="source",
                     fields={"status": "inactive"},
@@ -489,7 +489,7 @@ class ConfirmationService:
 
         for entity_id in confirmation.related_entity_ids:
             try:
-                await self._graph.patch_vertex(
+                self._graph.patch_vertex(
                     vertex_id=entity_id,
                     partition_key="event",
                     fields=fields,
@@ -598,7 +598,7 @@ class ConfirmationService:
             return
 
         try:
-            await self._graph.rebuild_from_canonical_source(canonical_id)
+            self._graph.rebuild_from_canonical_source(canonical_id)
             log.info("graph_rebuilt_from_canonical", canonical_id=canonical_id)
         except Exception as exc:
             log.error("graph_rebuild_failed", error=str(exc))
@@ -618,7 +618,7 @@ class ConfirmationService:
 
         for entity_id in confirmation.related_entity_ids:
             try:
-                await self._graph.resolve_trait_violation(
+                self._graph.resolve_trait_violation(
                     trait_id=entity_id,
                     confirmation_id=confirmation.id,
                 )
@@ -641,7 +641,7 @@ class ConfirmationService:
         error_message: str,
     ) -> None:
         try:
-            await self._graph.upsert_vertex(confirmation)
+            self._graph.upsert_vertex(confirmation)
         except Exception as exc:
             log.error("confirmation_persist_failed", error=str(exc))
             raise ConfirmationError(f"{error_message}: {exc}") from exc
@@ -658,7 +658,7 @@ class ConfirmationService:
             그래프 조회 실패 시
         """
         try:
-            raw = await self._graph.get_vertex(
+            raw = self._graph.get_vertex(
                 vertex_id=confirmation_id,
                 partition_key="confirmation",
             )

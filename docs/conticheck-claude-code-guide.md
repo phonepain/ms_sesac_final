@@ -394,8 +394,15 @@ IngestService 클래스:
 
 upload 흐름:
   파일 수신 → StorageService.save_file()로 원본 저장
-  → Source vertex 생성 (file_path 포함)
-  → parse → 청킹 → 청크를 SearchService에 인덱싱
+  → Source vertex 생성 (file_path 포함) → GraphService.add_source()로 Cosmos DB 적재
+  → parse → 청킹
+  → ExtractionService.extract_from_chunks() → RawEntity
+  → NormalizationService.normalize() → NormalizedEntity
+  → GraphService.materialize() → Vertex/Edge Cosmos DB 적재
+  → SearchService.index_chunks() → 검색 인덱싱
+
+  ※ 청킹~적재까지 업로드 요청 처리 중 서버 메모리에서 연속 실행됨.
+     별도 /api/graph/build 트리거 불필요.
 
 1) parse_txt(file_path, source_type) → list[DocumentChunk]:
    - StorageService.get_file_text()로 텍스트 읽기
@@ -802,7 +809,7 @@ MockSearchService: 문자열 매칭 기반.
 backend/app/main.py:
 
 === 소스 관리 ===
-POST /api/sources/upload       — 3분류 업로드 → StorageService.save_file() + 파싱
+POST /api/sources/upload       — 3분류 업로드 → save_file + 파싱 + Extract + Normalize + Materialize + Index (업로드 시 즉시 KB 구축)
 GET  /api/sources              — 소스 목록 (분류별 필터)
 GET  /api/sources/{id}/download — 원본 파일 다운로드 (StorageService.get_file())
 DELETE /api/sources/{id}       — 삭제 + StorageService.delete_file() + 그래프/인덱스 정리

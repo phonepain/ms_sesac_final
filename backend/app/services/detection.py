@@ -33,8 +33,14 @@ logger = structlog.get_logger()
 
 class DetectionService:
     def __init__(self):
-        if not settings.AZURE_OPENAI_API_KEY:
-            logger.error("Azure OpenAI API Key is missing!")
+        self._mock_mode = not (
+            settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_API_KEY
+        )
+        if self._mock_mode:
+            logger.warning("DetectionService: API 키/엔드포인트 없음 → mock 모드로 동작 (soft violation은 confidence=0.5로 처리)")
+            self.client = None
+            self.deployment_name = None
+            return
 
         self.client = AsyncAzureOpenAI(
             azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
@@ -63,6 +69,9 @@ class DetectionService:
         Returns:
             (confidence, reasoning)
         """
+        if self._mock_mode:
+            return 0.5, "LLM 검증 비활성화 (API 키 없음) — 사용자 확인 필요"
+
         prompt = CONTRADICTION_PROMPT.format(violation_data=str(violation))
         try:
             response = await self.client.beta.chat.completions.parse(
@@ -86,12 +95,38 @@ class DetectionService:
 
     # ── violation dict → Pydantic 변환 ────────────────────────
 
+    @staticmethod
+    def _fmt_evidence(e: Dict[str, Any]) -> str:
+        """evidence dict를 사람이 읽기 좋은 문자열로 변환."""
+        parts = []
+        if "story_order" in e:
+            parts.append(f"story_order={e['story_order']}")
+        if "owners" in e and isinstance(e["owners"], list):
+            parts.append(f"동시 소유자 {len(e['owners'])}명")
+        if "character_name" in e:
+            parts.append(f"캐릭터: {e['character_name']}")
+        if "fact_content" in e:
+            parts.append(f"사실: {str(e['fact_content'])[:60]}")
+        if "relationship_types" in e:
+            parts.append(f"관계: {e['relationship_types']}")
+        if "values" in e and isinstance(e["values"], list):
+            parts.append(f"값: {e['values']}")
+        if "knower" in e:
+            parts.append(f"인지자: {e['knower']}")
+        if "fact" in e:
+            parts.append(f"사실: {str(e['fact'])[:60]}")
+        if not parts:
+            for k, v_val in e.items():
+                if not k.endswith("_id") and k not in ("type", "is_hard"):
+                    parts.append(f"{k}: {v_val}")
+        return " | ".join(parts) if parts else "(정보 없음)"
+
     def _to_report(self, v: Dict[str, Any]) -> ContradictionReport:
         evidence = [
             EvidenceItem(
                 source_name=str(e.get("type", "그래프")),
                 source_location=str(e.get("story_order", "")),
-                text=str(e),
+                text=self._fmt_evidence(e),
             )
             for e in v.get("evidence", [])
         ]
@@ -250,6 +285,15 @@ class DetectionService:
 
     async def verify_violation(self, violation_data: Dict[str, Any]) -> ContradictionVerification:
         """그래프 엔진에서 발견된 모순 후보를 LLM이 정밀 검증합니다."""
+        if self._mock_mode:
+            return ContradictionVerification(
+                is_contradiction=True,
+                confidence=0.5,
+                severity="major",
+                reasoning="LLM 검증 비활성화 (API 키 없음) — 사용자 확인 필요",
+                user_question="LLM 검증 없이 자동 판정할 수 없습니다. 수동 검토가 필요합니다.",
+            )
+
         logger.info("Starting LLM verification for violation", violation_type=violation_data.get("type"))
         prompt = CONTRADICTION_PROMPT.format(violation_data=str(violation_data))
         try:

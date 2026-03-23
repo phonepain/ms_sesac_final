@@ -5,6 +5,7 @@ from azure.search.documents import SearchClient
 
 from app.config import settings
 from app.models.api import DocumentChunk, EvidenceItem
+from app.models.vertices import SourceExcerpt
 
 logger = structlog.get_logger(__name__)
 
@@ -80,30 +81,30 @@ class SearchService:
             logger.error("Failed to search context", error=str(e), query=query)
             return []
 
-    async def get_source_excerpts(self, entity_ids: List[str]) -> List[EvidenceItem]:
+    async def get_source_excerpts(self, entity_ids: List[str]) -> List[SourceExcerpt]:
         if not self.client or not entity_ids:
             return []
-            
+
         try:
             id_list = ",".join(entity_ids)
             filter_query = f"search.in(id, '{id_list}', ',')"
-            
+
             results = self.client.search(search_text="*", filter=filter_query)
-            evidence_list = []
+            excerpt_list = []
             for result in results:
                 location_str = result.get("chapter") or ""
                 if result.get("page"):
                     location_str += f" p.{result.get('page')}"
                 if result.get("line_range"):
                     location_str += f" lines {result.get('line_range')}"
-                    
-                evidence = EvidenceItem(
+
+                excerpt = SourceExcerpt(
                     source_name=result.get("source_name", "Unknown"),
                     source_location=location_str.strip(),
                     text=result.get("content", "")
                 )
-                evidence_list.append(evidence)
-            return evidence_list
+                excerpt_list.append(excerpt)
+            return excerpt_list
         except Exception as e:
             logger.error("Failed to get source excerpts", error=str(e))
             return []
@@ -166,10 +167,10 @@ class MockSearchService:
             
         return evidence_list
 
-    async def get_source_excerpts(self, entity_ids: List[str]) -> List[EvidenceItem]:
+    async def get_source_excerpts(self, entity_ids: List[str]) -> List[SourceExcerpt]:
         logger.info("Mock getting source excerpts", entity_ids=entity_ids)
-        evidence_list = []
-        
+        excerpt_list = []
+
         for chunk in self.chunks:
             if chunk.id in entity_ids:
                 location_str = chunk.location.chapter or ""
@@ -177,15 +178,15 @@ class MockSearchService:
                     location_str += f" p.{chunk.location.page}"
                 if chunk.location.line_range:
                     location_str += f" lines {chunk.location.line_range[0]}-{chunk.location.line_range[1]}"
-                
-                evidence = EvidenceItem(
+
+                excerpt = SourceExcerpt(
                     source_name=chunk.location.source_name,
                     source_location=location_str.strip(),
                     text=chunk.content
                 )
-                evidence_list.append(evidence)
-                
-        return evidence_list
+                excerpt_list.append(excerpt)
+
+        return excerpt_list
 
     async def remove_source(self, source_id: str):
         original_count = len(self.chunks)

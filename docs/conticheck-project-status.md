@@ -1,6 +1,6 @@
 # ContiCheck 프로젝트 진행 상황
 
-> **최종 업데이트**: 2026-03-20  
+> **최종 업데이트**: 2026-03-21
 > **목적**: 세션 간 일관성 유지를 위한 프로젝트 전체 상태 추적  
 > **사용법**: 새 세션을 시작할 때 이 문서와 함께 관련 산출물을 첨부하세요
 
@@ -16,9 +16,12 @@
 [1단계: 지식 베이스 구축]
   사용자가 세계관/설정집/시나리오를 분류하여 TXT/PDF 업로드
   → StorageService에 원본 파일 영구 저장
-  → 2트랙 GraphRAG 구축:
-    트랙 A: 세계관 + 설정집 → 세계관·설정 그래프
-    트랙 B: 시나리오 → 시나리오 그래프
+  → 파싱/청킹 (IngestService)
+  → ExtractionService → RawEntity 추출
+  → NormalizationService → NormalizedEntity 정규화
+  → GraphService.materialize() → Cosmos DB 적재 (KB 구축)
+  → SearchService.index_chunks() → 검색 인덱싱
+  ※ 업로드 시 즉시 KB 구축 완료 (별도 build 트리거 불필요)
 
 [2단계: 모순 탐지]
   In-Memory 스냅샷으로 canonical graph 격리 → 7가지 모순 유형 탐지
@@ -101,7 +104,7 @@
 
 ## 2. 완료된 작업 (설계 단계)
 
-현재 **설계 단계가 완료**되었으며, 구현(백엔드/프론트엔드 코드)은 아직 시작하지 않았습니다.
+현재 **백엔드 구현이 완료**되었으며 (2026-03-21 기준), 프론트엔드 실제 구현(React/TS) 및 샘플 데이터/테스트가 남아있습니다.
 
 ### ✅ 2-1. 프론트엔드 UI 프로토타입 (v3)
 
@@ -214,7 +217,7 @@ v2.2 핵심 설계:
 | 작업 | 설명 | 담당 |
 |------|------|------|
 | **StorageService** | 원본 파일 영구 저장 + 버전 스냅샷 (Blob/로컬 전환, 8개 메서드) | 백엔드 |
-| IngestService | upload → StorageService.save_file() → 파싱 → 청킹 | 백엔드 |
+| IngestService | upload → save_file → 파싱 → 청킹 → Extract → Normalize → Materialize → Index | 백엔드 |
 | 추출 프롬프트 | 소스 분류별 전략 (세계관/설정집/시나리오) | LLM(추출) |
 | ExtractionService | LLM 호출 → RawEntity 생성 | LLM(추출) |
 | MockExtractionService | 하드코딩 결과 반환 | LLM(추출) |
@@ -287,13 +290,15 @@ v2.2 핵심 설계:
 | 모순 카드 | HARD/SOFT 배지 표시 | 프론트엔드 |
 | 버전 UI | 원고 보기(/content) + 비교(/diff) | 프론트엔드 |
 
-### 🔲 4-10. Phase 9 — 샘플 데이터 + 통합 테스트
+### ✅ 4-10. Phase 9 — 샘플 데이터 + 통합 테스트
 
-| 작업 | 설명 | 담당 |
+| 작업 | 설명 | 상태 |
 |------|------|------|
-| 샘플 파일 3종 | 세계관 + 설정집 + 시나리오 (HARD/SOFT 모순 포함) | 전체 |
-| 검증용 원고 | HARD ≥2건 + SOFT ≥2건 | 전체 |
-| test_e2e.py | 5계층 + Storage 전체 파이프라인 (스냅샷 격리, 버전 스냅샷 확인) | 전체 |
+| 샘플 파일 3종 | `data/sample/` — 세계관 / 설정집 / 시나리오 (HARD 2건 + SOFT 3건 모순 내장) | ✅ 완료 |
+| test_e2e.py | Section A(파이프라인), B(그래프→탐지), C(LLM 게이트) 3구성 | ✅ 완료 |
+| LLM E2E 테스트 | `@pytest.mark.llm` — API 키 확보 후 실행 | 보류 |
+
+88/88 비-LLM 테스트 통과. 상세 내용: `docs/session-2026-03-21-pipeline-fix.md`
 
 ---
 
@@ -328,6 +333,7 @@ v2.2 핵심 설계:
 | 25 | **임시 그래프 격리** | analyze() 시 In-Memory 스냅샷 복제, canonical graph 보호 |
 | 26 | **원본 파일 영구 저장** | StorageService (Blob/로컬 전환). 업로드 원본 + 버전별 스냅샷 보관 |
 | 27 | **Source.file_path 추가** | StorageService가 반환한 저장 경로를 Source vertex에 기록 |
+| 28 | **업로드 시 즉시 KB 구축** | 별도 /api/graph/build 트리거 없이 upload 요청 내에서 Extract→Normalize→Materialize→Index 연속 실행. 서버 메모리에서 청크를 재사용하므로 Storage 재조회 불필요 |
 
 ---
 

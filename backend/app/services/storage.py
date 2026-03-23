@@ -42,6 +42,8 @@ from typing import Optional
 
 import structlog
 
+from app.config import settings
+
 logger = structlog.get_logger(__name__)
 
 
@@ -629,7 +631,7 @@ def get_storage_service(base_dir: str = "data") -> StorageService:
         path = await storage.save_file(b"...", "script.txt", "src-001", "scenario")
         text = await storage.get_file_text(path)
     """
-    use_local = os.getenv("USE_LOCAL_STORAGE", "true").lower() == "true"
+    use_local = settings.use_local_storage
 
     if use_local:
         logger.info("storage_mode", mode="local", base_dir=base_dir)
@@ -637,9 +639,9 @@ def get_storage_service(base_dir: str = "data") -> StorageService:
 
     logger.info("storage_mode", mode="azure_blob")
     return BlobStorageService(
-        connection_string=os.getenv("AZURE_STORAGE_CONNECTION_STRING"),
-        uploads_container=os.getenv("AZURE_STORAGE_CONTAINER_UPLOADS", "uploads"),
-        versions_container=os.getenv("AZURE_STORAGE_CONTAINER_VERSIONS", "versions"),
+        connection_string=settings.AZURE_STORAGE_CONNECTION_STRING,
+        uploads_container=settings.AZURE_STORAGE_CONTAINER_UPLOADS,
+        versions_container=settings.AZURE_STORAGE_CONTAINER_VERSIONS,
     )
 
 
