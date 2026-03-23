@@ -9,6 +9,9 @@ NORMALIZE_PROMPT = """
 4. merged_from: (매우 중요) 이 대표 캐릭터로 묶인 '원본 입력 데이터' 객체들을 모양 그대로 복사해서 배열에 넣으세요.
 5. 누락 금지: 입력 데이터에 있는 캐릭터는 단 한 명도 빠짐없이 최종 결과의 merged_from 어딘가에 반드시 포함되어야 합니다!
 6. 결과는 반드시 아래 JSON 형식을 따르세요.
+7. canonical_name은 입력에 실제 등장한 인물 식별자(예: "A", "B", "형사 A")를 그대로 사용하세요.
+8. canonical_name에 역할명/일반명(예: investigator, suspect, witness, observer, detective)만 단독으로 쓰지 마세요.
+9. 이름이 모호하면 역할명으로 치환하지 말고 입력에 나온 원문 이름을 유지하세요.
 
 [입력 데이터]
 {json_data}
