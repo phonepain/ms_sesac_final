@@ -406,7 +406,7 @@ export default function App() {
           stagedLength={staged.length}
         />
 
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-hidden p-6">
           {isNew && (
             <NewProjectView
               files={nFiles}
