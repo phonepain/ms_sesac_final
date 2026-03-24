@@ -5,6 +5,7 @@ import os
 import json
 import re
 import logging
+import threading
 import structlog
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -178,6 +179,7 @@ class GremlinGraphService:
         self.database = database
         self.container = container
         self.client = create_gremlin_client(endpoint, key, database, container)
+        self._lock = threading.Lock()
         self._discourse_counter: float = 0.0
         self.storage = storage_service
         logger.info("GremlinGraphService initialized")
@@ -230,21 +232,25 @@ class GremlinGraphService:
 
     def _submit(self, query: str) -> List[Any]:
         """Gremlin 쿼리 문자열을 Cosmos DB에 제출하고 결과 리스트 반환.
-        연결 끊김 에러 발생 시 1회 재연결 후 재시도한다.
+
+        - threading.Lock으로 동시 접근 충돌 방지
+        - 120초 timeout으로 죽은 연결 hang 방지
+        - 연결 끊김 / timeout 발생 시 1회 재연결 후 재시도
         """
-        try:
-            return self.client.submit(query).all().result()
-        except Exception as e:
-            if self._is_connection_error(e):
-                logger.warning("gremlin_connection_lost_reconnecting", error=str(e))
-                self._reconnect()
-                try:
-                    return self.client.submit(query).all().result()
-                except Exception as e2:
-                    logger.error("gremlin_submit_failed_after_reconnect", query=query[:300], error=str(e2))
-                    raise
-            logger.error("gremlin_submit_failed", query=query[:300], error=str(e))
-            raise
+        with self._lock:
+            try:
+                return self.client.submit(query).all().result(timeout=120)
+            except Exception as e:
+                if self._is_connection_error(e) or isinstance(e, TimeoutError):
+                    logger.warning("gremlin_connection_lost_reconnecting", error=str(e))
+                    self._reconnect()
+                    try:
+                        return self.client.submit(query).all().result(timeout=120)
+                    except Exception as e2:
+                        logger.error("gremlin_submit_failed_after_reconnect", query=query[:300], error=str(e2))
+                        raise
+                logger.error("gremlin_submit_failed", query=query[:300], error=str(e))
+                raise
 
     def _submit_first(self, query: str) -> Optional[Any]:
         """_submit()의 첫 번째 결과만 반환. 없으면 None."""
@@ -316,7 +322,7 @@ class GremlinGraphService:
     def _fetch_edges_by_label(self, label: str) -> List[Dict]:
         """엣지 valueMap 조회. from_id/to_id는 속성으로 저장되어 있음."""
         try:
-            raw = self._submit(f"g.E().hasLabel({self._qval(label)}).valueMap(true)")
+            raw = self._submit(f"g.V().outE({self._qval(label)}).valueMap(true)")
             return [self._normalize_valueMap(r) for r in raw]
         except Exception as e:
             logger.warning("Edge fetch failed", label=label, error=str(e))
@@ -1222,7 +1228,7 @@ class GremlinGraphService:
 
         def count_e(label: str) -> int:
             try:
-                r = self._submit_first(f"g.E().hasLabel({self._qval(label)}).count()")
+                r = self._submit_first(f"g.V().outE({self._qval(label)}).count()")
                 return int(r) if r is not None else 0
             except Exception:
                 return 0
@@ -1244,8 +1250,8 @@ class GremlinGraphService:
         """소스 및 연관 vertex/edge 전체 삭제. 파일 삭제는 호출자(main.py)가 담당."""
         removed = {"vertices": 0, "edges": 0}
         try:
-            e_cnt = self._submit_first(f"g.E().has('source_id', {self._qval(source_id)}).count()")
-            self._submit(f"g.E().has('source_id', {self._qval(source_id)}).drop()")
+            e_cnt = self._submit_first(f"g.V().outE().has('source_id', {self._qval(source_id)}).count()")
+            self._submit(f"g.V().outE().has('source_id', {self._qval(source_id)}).drop()")
             removed["edges"] = int(e_cnt) if e_cnt else 0
 
             v_cnt = self._submit_first(f"g.V().has('source_id', {self._qval(source_id)}).count()")
@@ -1365,8 +1371,8 @@ class GremlinGraphService:
                 src_id = src_norm.get("id")
                 if not src_id or src_id == canonical_id:
                     continue
-                e_cnt = self._submit_first(f"g.E().has('source_id', {self._qval(src_id)}).count()") or 0
-                self._submit(f"g.E().has('source_id', {self._qval(src_id)}).drop()")
+                e_cnt = self._submit_first(f"g.V().outE().has('source_id', {self._qval(src_id)}).count()") or 0
+                self._submit(f"g.V().outE().has('source_id', {self._qval(src_id)}).drop()")
                 v_cnt = self._submit_first(f"g.V().has('source_id', {self._qval(src_id)}).count()") or 0
                 self._submit(f"g.V().has('source_id', {self._qval(src_id)}).drop()")
                 removed_v += int(v_cnt)
@@ -1404,7 +1410,7 @@ class GremlinGraphService:
         try:
             for cid in chunk_ids:
                 cnt = self._submit_first(f"g.V().has('chunk_id', {self._qval(cid)}).count()") or 0
-                self._submit(f"g.E().has('chunk_id', {self._qval(cid)}).drop()")
+                self._submit(f"g.V().outE().has('chunk_id', {self._qval(cid)}).drop()")
                 self._submit(f"g.V().has('chunk_id', {self._qval(cid)}).drop()")
                 removed += int(cnt)
             logger.info("remove_vertices_by_chunk_ids_ok", removed=removed)
@@ -2543,14 +2549,14 @@ def get_graph_service(json_path: Optional[str] = None):
                 endpoint=settings.cosmos_endpoint,
                 key=settings.cosmos_key,
                 database=settings.cosmos_database,
-                container=settings.cosmos_graph_ws,
+                container=settings.cosmos_container,
             )
             logger.info(
                 "graph_service_created",
                 backend="Gremlin",
                 endpoint=settings.cosmos_endpoint,
                 database=settings.cosmos_database,
-                container=settings.cosmos_graph_ws,
+                container=settings.cosmos_container,
             )
         except Exception as e:
             logger.error(

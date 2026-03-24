@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import ProgressOverlay from './components/common/ProgressOverlay';
@@ -8,23 +8,8 @@ import type { CategoryKey } from './pages/NewProjectView';
 import ProjectDetailView from './pages/ProjectDetailView';
 
 import type { Project, StagedFix } from './types';
-import { sourceApi, graphApi, analyzeApi, versionApi, statsApi } from './api/endpoints';
+import { sourceApi, graphApi, analyzeApi, versionApi, statsApi, confirmationApi } from './api/endpoints';
 
-// MOCK DATA as fallback
-const INITIAL_PROJECTS: Project[] = [
-  {
-    id: "p1", name: "그림자의 비밀 시즌1", date: "2026-03-10",
-    kb: { characters: 12, facts: 47, relationships: 83, events: 156, traits: 24 },
-    sources: [
-      { id: "s1", n: "판타지_세계관_설정.pdf", cat: "worldview", ent: 18, fct: 22 },
-      { id: "s2", n: "캐릭터_설정집_v2.txt", cat: "settings", ent: 14, fct: 19 },
-      { id: "s3", n: "그림자의_비밀_시즌1.pdf", cat: "scenario", ent: 34, fct: 47 }
-    ],
-    graphBuilt: { ws: true, sc: true },
-    contradictions: [],
-    versions: []
-  }
-];
 
 const BUILD_STEPS_WS: ProgressStep[] = [
   { l: "세계관/설정집 파싱...", ms: 800 },
@@ -63,8 +48,8 @@ const PUSH_STEPS: ProgressStep[] = [
 ];
 
 export default function App() {
-  const [projects, setProjects] = useState<Project[]>(INITIAL_PROJECTS);
-  const [activeId, setActiveId] = useState<string | null>("p1");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [isNew, setIsNew] = useState(false);
   
   const [tab, setTab] = useState("overview");
@@ -80,6 +65,77 @@ export default function App() {
   const [nGB, setNGB] = useState({ ws: false, sc: false });
 
   const activeProj = projects.find(p => p.id === activeId);
+
+  // --- 서버 데이터 초기 로드 ---
+  useEffect(() => {
+    const loadServerData = async () => {
+      const [sourcesRes, statsRes, versionsRes, confirmationsRes] = await Promise.allSettled([
+        sourceApi.list(),
+        statsApi.getKbStats(),
+        versionApi.listVersions(),
+        confirmationApi.list(),
+      ]);
+
+      const sources: any[] = sourcesRes.status === 'fulfilled' ? sourcesRes.value : [];
+      const stats: any   = statsRes.status === 'fulfilled'   ? statsRes.value   : {};
+      const versions: any[] = versionsRes.status === 'fulfilled' ? versionsRes.value : [];
+      const confirmations: any[] = confirmationsRes.status === 'fulfilled' ? confirmationsRes.value : [];
+
+      if (sourcesRes.status === 'rejected') console.error('sources 로드 실패:', sourcesRes.reason);
+      if (statsRes.status === 'rejected')   console.error('stats 로드 실패:',   statsRes.reason);
+
+      if (sources.length === 0) return;
+
+      const proj: Project = {
+        id: 'server',
+        name: sources[0]?.name?.split('_')[0] || '현재 프로젝트',
+        date: new Date().toISOString().slice(0, 10),
+        kb: {
+          characters: stats.characters   ?? 0,
+          facts:       stats.facts        ?? 0,
+          relationships: stats.relationships ?? 0,
+          events:      stats.events       ?? 0,
+          traits:      stats.traits       ?? 0,
+        },
+        sources: sources.map((s: any) => ({
+          id: s.id || s.source_id,
+          n: s.name,
+          cat: (s.source_type || s.type || 'worldview') as 'worldview' | 'settings' | 'scenario',
+          ent: s.extracted_entities || 0,
+          fct: 0,
+        })),
+        graphBuilt: {
+          ws: sources.some((s: any) => ['worldview', 'settings'].includes(s.source_type || s.type || '')),
+          sc: sources.some((s: any) => (s.source_type || s.type) === 'scenario'),
+        },
+        contradictions: confirmations.map((c: any) => ({
+          id: c.id,
+          sv: 'warning' as const,
+          tp: c.confirmation_type,
+          ch: '사용자 확인 필요',
+          ft: '',
+          dl: '',
+          ds: c.question || c.context_summary || '',
+          ev: (c.source_excerpts || []).map((e: any) => ({ sr: e.source_name || '', lc: e.source_location || '', tx: e.text || '' })),
+          cf: 0,
+          sg: c.context_summary || '',
+          al: null,
+        })),
+        versions: versions.map((v: any) => ({
+          id: v.id,
+          vr: v.version,
+          dt: v.date,
+          fx: v.fixes_count,
+          ds: v.description,
+        })),
+      };
+
+      setProjects([proj]);
+      setActiveId('server');
+    };
+
+    loadServerData();
+  }, []);
 
   // --- Helpers ---
   const runProgress = async (steps: ProgressStep[], title: string, callApi: () => Promise<void>) => {
