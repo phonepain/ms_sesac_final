@@ -400,6 +400,19 @@ class LocalStorageService(StorageService):
         except OSError as exc:
             raise StorageError(f"파일 삭제 실패: {file_path}") from exc
 
+    async def delete_all_uploads(self) -> int:
+        """uploads 디렉토리의 모든 파일을 삭제합니다."""
+        count = 0
+        for item in list(self._uploads.iterdir()):
+            if item.is_dir():
+                count += sum(1 for f in item.rglob("*") if f.is_file())
+                shutil.rmtree(item, ignore_errors=True)
+            elif item.is_file():
+                item.unlink(missing_ok=True)
+                count += 1
+        logger.info("delete_all_uploads complete", files_deleted=count)
+        return count
+
     # ── 버전 스냅샷 관리 ─────────────────────────────────
 
     async def save_version_snapshot(
@@ -576,6 +589,19 @@ class BlobStorageService(StorageService):
             logger.info("blob_file_deleted", blob=blob_name)
         except Exception as exc:
             raise StorageError(f"Blob 삭제 실패: {blob_name}") from exc
+
+    async def delete_all_uploads(self) -> int:
+        """업로드 컨테이너의 모든 blob을 삭제합니다."""
+        try:
+            container_client = self._client.get_container_client(self._uploads_container)
+            blobs = list(container_client.list_blobs())
+            if blobs:
+                container_client.delete_blobs(*[b.name for b in blobs])
+            logger.info("delete_all_uploads complete", count=len(blobs))
+            return len(blobs)
+        except Exception as exc:
+            logger.error("delete_all_uploads failed", error=str(exc))
+            raise StorageError(f"전체 업로드 삭제 실패") from exc
 
     # ── 버전 스냅샷 관리 ─────────────────────────────────
 

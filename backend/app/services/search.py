@@ -1,4 +1,6 @@
 from typing import List, Optional
+import json
+import os
 import structlog
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
@@ -112,16 +114,60 @@ class SearchService:
     async def remove_source(self, source_id: str):
         if not self.client:
             return
-            
+
         try:
             results = self.client.search(search_text="*", filter=f"source_id eq '{source_id}'", select="id", top=1000)
             docs_to_delete = [{"id": r["id"]} for r in results]
-            
+
             if docs_to_delete:
                 self.client.delete_documents(documents=docs_to_delete)
                 logger.info("Removed source documents", source_id=source_id, count=len(docs_to_delete))
         except Exception as e:
             logger.error("Failed to remove source", error=str(e))
+
+    async def reset_index(self) -> None:
+        """인덱스를 삭제하고 JSON 정의로 재생성합니다 (데이터 초기화)."""
+        if not self.endpoint or not self.key:
+            logger.warning("SearchService not configured, skipping reset_index")
+            return
+        try:
+            from azure.search.documents.indexes import SearchIndexClient
+            from azure.search.documents.indexes.models import SearchIndex
+
+            index_client = SearchIndexClient(
+                endpoint=self.endpoint,
+                credential=AzureKeyCredential(self.key)
+            )
+
+            # 인덱스 삭제
+            try:
+                index_client.delete_index(self.index_name)
+                logger.info("search_index_deleted", index=self.index_name)
+            except Exception as e:
+                logger.warning("search_index_delete_skipped", error=str(e))
+
+            # JSON 파일로 재생성
+            json_path = os.path.join(
+                os.path.dirname(__file__), "..", "..", "..", "docs", "azure-search-index.json"
+            )
+            json_path = os.path.normpath(json_path)
+            if os.path.exists(json_path):
+                with open(json_path, "r", encoding="utf-8") as f:
+                    index_def = json.load(f)
+                index = SearchIndex.deserialize(index_def)
+                index_client.create_index(index)
+                logger.info("search_index_recreated", index=self.index_name)
+                # SearchClient 재초기화
+                self.client = SearchClient(
+                    endpoint=self.endpoint,
+                    index_name=self.index_name,
+                    credential=AzureKeyCredential(self.key)
+                )
+            else:
+                logger.warning("index_json_not_found", path=json_path)
+        except Exception as e:
+            logger.error("reset_index_failed", error=str(e))
+            raise
 
 
 class MockSearchService:
@@ -192,6 +238,10 @@ class MockSearchService:
         original_count = len(self.chunks)
         self.chunks = [c for c in self.chunks if c.source_id != source_id]
         logger.info("Mock removed source", source_id=source_id, removed=original_count - len(self.chunks))
+
+    async def reset_index(self) -> None:
+        self.chunks = []
+        logger.info("MockSearchService index reset")
 
 
 _search_service = None

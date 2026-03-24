@@ -8,7 +8,7 @@ import type { CategoryKey } from './pages/NewProjectView';
 import ProjectDetailView from './pages/ProjectDetailView';
 
 import type { Project, StagedFix } from './types';
-import { sourceApi, graphApi, analyzeApi, versionApi, statsApi, confirmationApi } from './api/endpoints';
+import { sourceApi, graphApi, analyzeApi, versionApi, statsApi, confirmationApi, resetApi } from './api/endpoints';
 
 
 const BUILD_STEPS_WS: ProgressStep[] = [
@@ -171,6 +171,29 @@ export default function App() {
     setActiveId(id); setIsNew(false); setTab("overview"); setStaged([]); setShowAi(false);
   };
   
+  const RESET_STEPS: ProgressStep[] = [
+    { l: "그래프 데이터 삭제 중...", ms: 800 },
+    { l: "스토리지 파일 삭제 중...", ms: 1000 },
+    { l: "AI Search 인덱스 재생성 중...", ms: 1500 },
+  ];
+
+  const onResetAll = () => {
+    runProgress(RESET_STEPS, "전체 데이터 초기화 중", async () => {
+      await resetApi.resetAll();
+      setProjects([]);
+      setActiveId(null);
+      setIsNew(false);
+      setNFiles({ worldview: [], settings: [], scenario: [] });
+      setPendingFiles({ worldview: [], settings: [], scenario: [] });
+      setNGB({ ws: false, sc: false });
+      setStaged([]);
+    });
+  };
+
+  const onRenameProject = (id: string, name: string) => {
+    setProjects(p => p.map(x => x.id === id ? { ...x, name } : x));
+  };
+
   const onNewProj = () => {
     setIsNew(true); setActiveId(null);
     setNFiles({ worldview: [], settings: [], scenario: [] });
@@ -372,6 +395,8 @@ export default function App() {
         activeId={activeId}
         onSelect={onSelectProj}
         onNew={onNewProj}
+        onResetAll={onResetAll}
+        onRenameProject={onRenameProject}
       />
 
       <div className="flex-1 flex flex-col min-w-0">

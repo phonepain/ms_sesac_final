@@ -74,6 +74,31 @@ app.add_middleware(
 def health_check():
     return {"status": "ok", "app": settings.app_name}
 
+
+# ==========================================
+# 0. 전체 초기화 API
+# ==========================================
+@app.post("/api/reset")
+async def reset_all():
+    """스토리지 파일, 그래프, AI Search 인덱스를 전부 초기화합니다."""
+    graph_svc = get_graph_service()
+    storage_svc = get_global_storage()
+    search_svc = get_search_service()
+    version_svc = get_version_service()
+
+    graph_result = graph_svc.clear_all()
+    deleted_files = await storage_svc.delete_all_uploads()
+    await search_svc.reset_index()
+    version_svc._staging.clear()
+
+    return {
+        "status": "ok",
+        "message": "전체 초기화 완료",
+        "graph_cleared": graph_result,
+        "files_deleted": deleted_files,
+    }
+
+
 # ==========================================
 # 1. 소스 관리 API
 # ==========================================
