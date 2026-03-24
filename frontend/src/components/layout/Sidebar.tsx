@@ -82,15 +82,8 @@ export default function Sidebar({ projects, activeId, onSelect, onNew, onResetAl
 
       {/* 프로젝트 목록 */}
       <div className="flex-1 overflow-auto px-2 py-1">
-        <div className="flex items-center justify-between px-2 py-1.5">
+        <div className="px-2 py-1.5">
           <span className="text-[9px] font-bold text-[#a89880] tracking-[0.06em]">내 작품</span>
-          <button
-            onClick={() => setShowConfirm(true)}
-            title="전체 데이터 초기화"
-            className="text-[#c0a898] hover:text-[#b83232] transition-colors text-[11px] leading-none"
-          >
-            🗑
-          </button>
         </div>
         {projects.map(p => {
           const isAct = p.id === activeId;
@@ -126,13 +119,22 @@ export default function Sidebar({ projects, activeId, onSelect, onNew, onResetAl
                   }`}>
                     {p.name}
                   </div>
-                  <button
-                    onClick={e => startEdit(e, p)}
-                    title="이름 변경"
-                    className="opacity-0 group-hover:opacity-100 text-[#a89880] hover:text-[#c4622d] transition-all text-[10px] shrink-0"
-                  >
-                    ✏
-                  </button>
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 shrink-0 transition-all">
+                    <button
+                      onClick={e => startEdit(e, p)}
+                      title="이름 변경"
+                      className="text-[#a89880] hover:text-[#c4622d] transition-colors text-base leading-none px-0.5"
+                    >
+                      ✏
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); setShowConfirm(true); }}
+                      title="삭제"
+                      className="text-[#a89880] hover:text-[#b83232] transition-colors text-base leading-none px-0.5"
+                    >
+                      🗑
+                    </button>
+                  </div>
                 </div>
               )}
               <div className="flex items-center gap-1.5 text-[10px] text-[#a89880] mt-0.5">

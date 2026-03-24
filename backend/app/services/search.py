@@ -15,9 +15,9 @@ class SearchService:
     def __init__(self):
         self.endpoint = settings.search_endpoint
         self.key = settings.search_key
-        # Index name set as a default, could be configured via env
         self.index_name = "conticheck-index"
-        
+        self._index_ready = False
+
         if not self.endpoint or not self.key or "localhost" in self.endpoint:
             logger.warning("Azure Search endpoint or key not configured properly (or using localhost placeholder). SearchClient will not connect.")
             self.client = None
@@ -31,9 +31,55 @@ class SearchService:
                 logger.error("Failed to initialize SearchClient", error=str(e))
                 self.client = None
 
+    def _ensure_index(self):
+        """인덱스가 없으면 JSON 정의로 자동 생성합니다. 한 번 확인하면 재호출하지 않습니다."""
+        if self._index_ready:
+            return
+        try:
+            from azure.search.documents.indexes import SearchIndexClient
+            from azure.search.documents.indexes.models import SearchIndex
+
+            index_client = SearchIndexClient(
+                endpoint=self.endpoint,
+                credential=AzureKeyCredential(self.key)
+            )
+            # 인덱스 존재 여부 확인
+            existing = [i.name for i in index_client.list_indexes()]
+            if self.index_name in existing:
+                self._index_ready = True
+                return
+
+            json_path = os.path.join(
+                os.path.dirname(__file__), "..", "..", "..", "docs", "azure-search-index.json"
+            )
+            json_path = os.path.normpath(json_path)
+            if not os.path.exists(json_path):
+                logger.warning("index_json_not_found", path=json_path)
+                return
+
+            with open(json_path, "r", encoding="utf-8") as f:
+                index_def = json.load(f)
+            index = SearchIndex.deserialize(index_def)
+            index_client.create_index(index)
+            logger.info("search_index_auto_created", index=self.index_name)
+
+            self.client = SearchClient(
+                endpoint=self.endpoint,
+                index_name=self.index_name,
+                credential=AzureKeyCredential(self.key)
+            )
+            self._index_ready = True
+        except Exception as e:
+            logger.error("ensure_index_failed", error=str(e))
+
     async def index_chunks(self, source_id: str, chunks: List[DocumentChunk]):
         if not self.client:
             logger.error("SearchClient not initialized. Cannot index.")
+            return
+
+        self._ensure_index()
+        if not self.client:
+            logger.error("Index not available after ensure_index. Skipping.")
             return
 
         documents = []
@@ -61,23 +107,27 @@ class SearchService:
         if not self.client:
             logger.error("SearchClient not initialized. Cannot search.")
             return []
-            
+
         try:
-            results = self.client.search(search_text=query, top=top_k)
+            results = self.client.search(
+                search_text=query,
+                top=top_k,
+                select=["id", "source_id", "content", "source_name", "page", "chapter", "line_range"],
+            )
             evidence_list = []
             for result in results:
-                location_str = result.get("chapter") or ""
-                if result.get("page"):
-                    location_str += f" p.{result.get('page')}"
-                if result.get("line_range"):
-                    location_str += f" lines {result.get('line_range')}"
-                    
-                evidence = EvidenceItem(
+                location_parts = [p for p in [
+                    result.get("chapter"),
+                    f"p.{result['page']}" if result.get("page") else None,
+                    f"lines {result['line_range']}" if result.get("line_range") else None,
+                ] if p]
+                evidence_list.append(EvidenceItem(
                     source_name=result.get("source_name", "Unknown"),
-                    source_location=location_str.strip(),
-                    text=result.get("content", "")
-                )
-                evidence_list.append(evidence)
+                    source_location=" ".join(location_parts),
+                    text=result.get("content", ""),
+                ))
+
+            logger.info("search_context_result", query=query[:60], hits=len(evidence_list))
             return evidence_list
         except Exception as e:
             logger.error("Failed to search context", error=str(e), query=query)

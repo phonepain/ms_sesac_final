@@ -400,13 +400,48 @@ class NormalizationService(_NormalizationCore):
         if not raws:
             return []
 
-        # [대용량 최적화] 동일한 이름은 사전 병합하여 LLM에 보낼 토큰을 줄입니다.
-        unique_names_map = {}
+        # ── Phase 0: possible_aliases 기반 규칙 사전 병합 ──
+        # "이아름 aliases=['형사 A', 'A']" + "A aliases=[]" → "A"를 이아름에 흡수
+        # LLM에 보내기 전에 확실한 동일인을 먼저 합침
+        alias_owner: Dict[str, str] = {}  # alias → canonical raw name
+        canonical_raws: Dict[str, RawCharacter] = {}  # name → RawCharacter (대표)
+        merge_groups: Dict[str, Set[str]] = {}  # canonical → {name, alias1, alias2, ...}
+
+        # 1단계: aliases가 있는 캐릭터부터 그룹 구성
         for r in raws:
+            if r.possible_aliases:
+                if r.name not in merge_groups:
+                    merge_groups[r.name] = {r.name}
+                    canonical_raws[r.name] = r
+                for a in r.possible_aliases:
+                    if a:
+                        merge_groups[r.name].add(a)
+                        alias_owner[a] = r.name
+
+        # 2단계: aliases 없는 캐릭터가 기존 그룹의 alias에 해당하면 흡수
+        absorbed: Set[str] = set()
+        for r in raws:
+            if r.name in alias_owner and r.name not in merge_groups:
+                owner = alias_owner[r.name]
+                merge_groups[owner].add(r.name)
+                # raw의 aliases도 그룹에 추가
+                for a in (r.possible_aliases or []):
+                    if a:
+                        merge_groups[owner].add(a)
+                absorbed.add(r.name)
+
+        # 사전 병합된 raw 목록 생성 (흡수된 것 제외)
+        pre_merged_raws = [r for r in raws if r.name not in absorbed]
+        logger.info("pre_merge_characters",
+                     original=len(raws), merged=len(pre_merged_raws),
+                     absorbed=len(absorbed), groups=len(merge_groups))
+
+        # ── Phase 1: LLM 정규화 ──
+        unique_names_map = {}
+        for r in pre_merged_raws:
             if r.name not in unique_names_map:
                 unique_names_map[r.name] = r.role_hint
 
-        # LLM에게는 중복 없는 이름 리스트만 보냅니다.
         logger.info("Simplifying characters for LLM", unique_count=len(unique_names_map))
         prompt = NORMALIZE_PROMPT.format(json_data=json.dumps(unique_names_map, ensure_ascii=False))
 
@@ -417,18 +452,14 @@ class NormalizationService(_NormalizationCore):
                     {"role": "system", "content": "당신은 데이터 정규화 전문가입니다. 동일 인물을 찾아 그룹화하세요."},
                     {"role": "user", "content": prompt},
                 ],
-                response_format=NormalizationResult,  # 캐릭터 리스트 스키마 활용
+                response_format=NormalizationResult,
             )
 
             result: NormalizationResult = response.choices[0].message.parsed
 
-            # [CHANGED][WHAT] LLM 정규화 결과를 raw 이름과 재연결해 캐릭터 참조 일관성을 강제
-            # [CHANGED][HOW] merged_from 기반 역매핑 + 누락 raw 캐릭터 fallback 추가
-            # [CHANGED][PHASE LINK] Phase 2(정규화) -> Phase 3(materialize) edge 생성 안정화
             used_raw_names: Set[str] = set()
             linked_characters: List[NormalizedCharacter] = []
             for nc in result.characters:
-                # canonical_name이나 aliases에 포함된 모든 Raw 데이터를 찾음
                 nc.merged_from = [
                     r for r in raws
                     if r.name == nc.canonical_name or r.name in nc.all_aliases
@@ -439,6 +470,9 @@ class NormalizationService(_NormalizationCore):
                     for raw in nc.merged_from:
                         if raw.name != nc.canonical_name:
                             alias_set.add(raw.name)
+                    # 사전 병합 그룹의 aliases도 추가
+                    if nc.canonical_name in merge_groups:
+                        alias_set.update(merge_groups[nc.canonical_name] - {nc.canonical_name})
                     nc.all_aliases = sorted(alias_set)
                     linked_characters.append(nc)
                 else:
@@ -448,10 +482,18 @@ class NormalizationService(_NormalizationCore):
                         aliases=nc.all_aliases,
                     )
 
-            # LLM이 역할명(investigator/suspect 등) 중심으로 정규화해 raw 이름이 누락된 경우 보강
+            # ── Phase 2: fallback — LLM이 놓친 raw 캐릭터 보강 ──
             existing_canonicals = {c.canonical_name for c in linked_characters}
+            all_known_names: Set[str] = set()
+            for c in linked_characters:
+                all_known_names.add(c.canonical_name)
+                all_known_names.update(c.all_aliases)
+
             for raw in raws:
                 if raw.name in used_raw_names or raw.name in existing_canonicals:
+                    continue
+                if raw.name in all_known_names:
+                    # 이미 다른 캐릭터의 alias로 포함됨 → 스킵
                     continue
                 fallback_aliases = sorted({a for a in raw.possible_aliases if a and a != raw.name})
                 linked_characters.append(
