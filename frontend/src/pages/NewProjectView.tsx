@@ -10,21 +10,15 @@ interface NewProjectViewProps {
   onRemovePending: (category: CategoryKey, id: string) => void;
   onRemoveFile: (category: CategoryKey, id: string) => void;
   onConfirmUpload: () => void;
-  onBuildGraph: (track: 'ws' | 'sc') => void;
-  graphBuilt: { ws: boolean; sc: boolean };
   onAnalyze: () => void;
 }
 
 export default function NewProjectView({
-  files, pendingFiles, onAddFiles, onRemovePending, onRemoveFile, onConfirmUpload, onBuildGraph, graphBuilt, onAnalyze
+  files, pendingFiles, onAddFiles, onRemovePending, onRemoveFile, onConfirmUpload, onAnalyze
 }: NewProjectViewProps) {
   const [showGuide, setShowGuide] = useState(true);
 
-  const hasWsFiles = files.worldview.length > 0 || files.settings.length > 0;
-  const hasScFiles = files.scenario.length > 0;
-  const hasAnyFiles = hasWsFiles || hasScFiles;
-  const anyGraphBuilt = graphBuilt.ws || graphBuilt.sc;
-
+  const hasAnyFiles = Object.values(files).some(arr => arr.length > 0);
   const totalPending = Object.values(pendingFiles).reduce((s, arr) => s + arr.length, 0);
 
   return (
@@ -88,23 +82,8 @@ export default function NewProjectView({
         </button>
       )}
 
-      {/* GraphRAG 구축 버튼 — 단일 그래프이므로 버튼 하나 */}
-      {hasAnyFiles && totalPending === 0 && (
-        <button
-          onClick={() => onBuildGraph('ws')}
-          className={`w-full py-3 rounded-xl border text-xs font-semibold transition-all ${
-            graphBuilt.ws
-              ? 'border-[rgba(45,122,86,0.3)] bg-[#e8f4ee] text-[#2d7a56]'
-              : 'border-[#ede4d8] bg-white text-[#2c2416] hover:border-[#c4622d] hover:text-[#c4622d]'
-          }`}
-          style={{ boxShadow: "0 2px 8px rgba(44,36,22,0.06)" }}
-        >
-          {graphBuilt.ws ? "✅ 지식베이스 구축 완료" : "🗂️ 지식베이스 구축하기"}
-        </button>
-      )}
-
       {/* 모순 탐지 시작 */}
-      {anyGraphBuilt && (
+      {hasAnyFiles && totalPending === 0 && (
         <button
           onClick={onAnalyze}
           className="w-full py-4 rounded-xl font-bold text-[14px] text-white flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5"

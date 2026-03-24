@@ -76,7 +76,7 @@ def clean_cosmos_db():
     try:
         from gremlin_python.driver import client as gc, serializer
 
-        for graph_name in [settings.cosmos_graph_ws, settings.cosmos_graph_sc]:
+        for graph_name in [settings.cosmos_container]:
             log(f"  그래프: {graph_name}")
             try:
                 t0 = time.time()

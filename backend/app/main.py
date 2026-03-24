@@ -581,23 +581,14 @@ async def query_ai(req: AIQueryRequest):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": req.query},
             ],
-            max_tokens=1024,
-            temperature=0.3,
+            max_completion_tokens=1024,
         )
         answer = response.choices[0].message.content or "답변을 생성할 수 없습니다."
 
-    except Exception as e:
-        logger.error("ai_query_llm_failed", error=str(e), deployment=settings.AZURE_OPENAI_DETECTION_DEPLOYMENT)
-        # LLM 실패 시 검색 결과를 정리해서 보여줌
-        if context:
-            answer = (
-                "⚠️ AI 답변 생성에 실패했습니다. 관련 내용을 직접 확인해주세요.\n\n"
-                + "\n\n---\n\n".join(
-                    f"📄 {e.source_name}\n{e.text}" for e in evidence
-                )
-            )
-        else:
-            answer = "⚠️ AI 답변 생성에 실패했고, 관련 정보도 찾을 수 없습니다."
+    except Exception as exc:
+        err_msg = str(exc)
+        logger.error("ai_query_llm_failed", error=err_msg, deployment=settings.AZURE_OPENAI_DETECTION_DEPLOYMENT)
+        answer = f"⚠️ LLM 호출 실패: {err_msg}"
 
     return {"answer": answer, "sources": sources}
 
