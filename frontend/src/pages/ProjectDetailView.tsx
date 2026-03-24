@@ -75,7 +75,7 @@ export default function ProjectDetailView({
   return (
     <div className="fade flex flex-col gap-4" style={{ height: '100%' }}>
       {/* 프로젝트 헤더 */}
-      <div className="flex items-center justify-between shrink-0">
+      <div className="flex items-center justify-between flex-wrap gap-y-2 shrink-0">
         <div>
           <h2 className="serif text-xl font-bold text-[#2c2416]">{proj.name}</h2>
           <p className="text-[#a89880] text-[11px] mt-0.5">{proj.date} 분석</p>
@@ -94,7 +94,7 @@ export default function ProjectDetailView({
       </div>
 
       {/* 탭 네비게이션 */}
-      <div className="flex gap-1 shrink-0">
+      <div className="flex gap-1 shrink-0 overflow-x-auto pb-0.5 scrollbar-none">
         {[
           { k: "overview", l: "📊 개요" },
           { k: "contradictions", l: `⚠️ 모순${contradictions.length > 0 ? ` (${contradictions.length}건)` : ''}` },
@@ -120,7 +120,7 @@ export default function ProjectDetailView({
           - 안쪽 컬럼: overflow-y-auto + flex flex-col
             → ContradictionCard에 flex-shrink:0 이 있으므로 카드가 압축되지 않음
       */}
-      <div className={`flex-1 min-h-0 grid gap-4 ${showAi ? "grid-cols-[1fr_360px]" : "grid-cols-1"}`}>
+      <div className={`flex-1 min-h-0 grid gap-4 ${showAi ? "grid-cols-1 md:grid-cols-[1fr_360px]" : "grid-cols-1"}`}>
         <div className="overflow-y-auto flex flex-col gap-3 pr-1 pb-4" style={{ minHeight: 0 }}>
 
           {/* 개요 탭 */}
@@ -332,7 +332,7 @@ export default function ProjectDetailView({
         </div>
 
         {showAi && (
-          <div className="overflow-y-auto min-h-0">
+          <div className="overflow-y-auto min-h-0 max-h-[50vh] md:max-h-none">
             <AiChatPanel />
           </div>
         )}

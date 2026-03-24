@@ -8,9 +8,11 @@ interface SidebarProps {
   onNew: () => void;
   onResetAll: () => void;
   onRenameProject: (id: string, name: string) => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-export default function Sidebar({ projects, activeId, onSelect, onNew, onResetAll, onRenameProject }: SidebarProps) {
+export default function Sidebar({ projects, activeId, onSelect, onNew, onResetAll, onRenameProject, isOpen, onClose }: SidebarProps) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
@@ -39,16 +41,33 @@ export default function Sidebar({ projects, activeId, onSelect, onNew, onResetAl
   };
 
   return (
-    <div className="w-[240px] border-r border-[#ede4d8] bg-[#fff8f0] flex flex-col h-screen shrink-0">
+    <div
+      className={`
+        fixed md:relative inset-y-0 left-0 z-50 md:z-auto
+        w-[240px] border-r border-[#ede4d8] bg-[#fff8f0] flex flex-col h-screen shrink-0
+        transition-transform duration-300 ease-in-out
+        ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}
+    >
       {/* 로고 */}
-      <div className="px-4 py-[18px] border-b border-[#ede4d8] flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg bg-[#c4622d] flex items-center justify-center">
-          <span className="text-white text-[13px] font-black serif">C</span>
+      <div className="px-4 py-[18px] border-b border-[#ede4d8] flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-[#c4622d] flex items-center justify-center shrink-0">
+            <span className="text-white text-[13px] font-black serif">C</span>
+          </div>
+          <div>
+            <div className="serif text-sm font-bold text-[#2c2416]">ContiCheck</div>
+            <div className="text-[9px] text-[#a89880]">이야기 정합성 검사</div>
+          </div>
         </div>
-        <div>
-          <div className="serif text-sm font-bold text-[#2c2416]">ContiCheck</div>
-          <div className="text-[9px] text-[#a89880]">이야기 정합성 검사</div>
-        </div>
+        {/* 모바일 닫기 버튼 */}
+        <button
+          onClick={onClose}
+          className="md:hidden text-[#a89880] hover:text-[#6b5c47] text-lg leading-none px-1"
+          aria-label="닫기"
+        >
+          ✕
+        </button>
       </div>
 
       {/* 새 작품 분석하기 */}
