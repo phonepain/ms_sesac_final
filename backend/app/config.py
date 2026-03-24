@@ -17,8 +17,7 @@ class Settings(BaseSettings):
     cosmos_endpoint: str = "wss://localhost:8901/gremlin"
     cosmos_key: str = "local_key"
     cosmos_database: str = "conticheck_db"
-    cosmos_graph_ws: str = "ws-graph"
-    cosmos_graph_sc: str = "scenario-graph"
+    cosmos_container: str = "scenario-graph"
 
     # Azure AI Search
     search_endpoint: str = "https://localhost"
