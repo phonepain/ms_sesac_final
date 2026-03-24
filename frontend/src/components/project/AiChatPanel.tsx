@@ -29,18 +29,19 @@ export default function AiChatPanel() {
     try {
       const res = await aiApi.query(query);
       const answerText = res.sources?.length
-        ? `${res.answer}\n\n[출처: ${res.sources.join(', ')}]`
+        ? `${res.answer}\n\n📌 출처: ${res.sources.join(', ')}`
         : res.answer;
       setMessages(prev => [...prev, { r: 'ai', t: answerText }]);
-    } catch {
-      setMessages(prev => [...prev, { r: 'system', t: '죄송해요, 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' }]);
+    } catch (e: any) {
+      const detail = e?.message || '오류가 발생했습니다.';
+      setMessages(prev => [...prev, { r: 'system', t: `⚠️ ${detail}` }]);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="bg-white border border-[#ede4d8] rounded-2xl flex flex-col h-[400px]"
+    <div className="bg-white border border-[#ede4d8] rounded-2xl flex flex-col" style={{ height: '100%', minHeight: '360px' }}
       style={{ boxShadow: "0 2px 8px rgba(44,36,22,0.06)" }}>
       {/* 헤더 */}
       <div className="px-4 py-3 border-b border-[#ede4d8] flex items-center gap-2 bg-[#fff8f0] rounded-t-2xl">

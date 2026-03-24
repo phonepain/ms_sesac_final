@@ -32,6 +32,41 @@ from app.models.api import KBStats
 # ─────────────────────────────────────────────────────────────
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 한글 관계명 → RelationshipType enum 매핑
+_KO_RELATIONSHIP_MAP: Dict[str, str] = {
+    "어머니": "family_parent", "아버지": "family_parent", "부모": "family_parent",
+    "아들": "family_parent", "딸": "family_parent", "자녀": "family_parent",
+    "형": "family_sibling", "누나": "family_sibling", "오빠": "family_sibling",
+    "언니": "family_sibling", "남매": "family_sibling", "형제": "family_sibling",
+    "자매": "family_sibling", "쌍둥이": "family_sibling",
+    "남편": "family_spouse", "아내": "family_spouse", "배우자": "family_spouse",
+    "연인": "romantic", "애인": "romantic",
+    "친구": "friend", "절친": "friend",
+    "동료": "colleague", "동기": "colleague", "파트너": "colleague",
+    "라이벌": "rival", "경쟁자": "rival",
+    "적": "enemy", "원수": "enemy", "숙적": "enemy",
+    "스승": "mentor_student", "제자": "mentor_student", "사제": "mentor_student",
+    "주인": "master_servant", "하인": "master_servant", "종복": "master_servant",
+}
+
+
+def _normalize_relationship_type(raw: str) -> str:
+    """한글/영문 관계명을 RelationshipType enum 값으로 정규화."""
+    if not raw:
+        return "colleague"
+    low = raw.strip().lower()
+    # 이미 enum 값이면 그대로
+    try:
+        RelationshipType(low)
+        return low
+    except ValueError:
+        pass
+    # 한글 매핑
+    for ko, enum_val in _KO_RELATIONSHIP_MAP.items():
+        if ko in raw:
+            return enum_val
+    return raw
 DEFAULT_JSON_PATH = os.path.join(BASE_DIR, "data", "graph_input.json")
 
 
@@ -1244,8 +1279,8 @@ class _ViolationMixin:
         return violations
 
     def find_all_violations(self) -> Dict[str, List[Dict[str, Any]]]:
-        """10가지 쿼리 통합 + Hard / Soft 분류"""
-        all_v = (
+        """11가지 쿼리 통합 + Hard / Soft 분류 + 탐지기 간 중복 제거"""
+        raw = (
             self.find_knowledge_violations()
             + self.find_timeline_violations()
             + self.find_relationship_violations()
@@ -1258,6 +1293,18 @@ class _ViolationMixin:
             + self._find_timestamp_violations()
             + self.find_world_rule_violations()
         )
+        # 탐지기 간 중복 제거: 동일 description의 핵심 내용이 겹치면 첫 번째만 유지
+        all_v: List[Dict[str, Any]] = []
+        seen_desc: set = set()
+        for v in raw:
+            desc = v.get("description", "")
+            # 핵심 키 추출: 숫자+단위 제거 후 주요 명사만 비교
+            key_parts = re.findall(r'[가-힣]{2,}', desc)
+            dedup_key = (v.get("type", ""), tuple(sorted(set(key_parts))))
+            if dedup_key in seen_desc:
+                continue
+            seen_desc.add(dedup_key)
+            all_v.append(v)
         hard = [v for v in all_v if v.get("is_hard")]
         soft = [v for v in all_v if not v.get("is_hard")]
         logger.info("find_all_violations complete", hard=len(hard), soft=len(soft), total=len(all_v))
@@ -1806,7 +1853,7 @@ class GremlinGraphService(_ViolationMixin):
                         created["edges"].append(f"status-dead-{char_id}")
 
             # 3b. 사망 관련 Facts → HAS_STATUS dead 엣지 생성
-            _DEATH_KW = ["사망", "죽", "숨졌", "시체", "피살", "살해", "사망한 상태", "암살", "익사", "사고사", "전사"]
+            _DEATH_KW = ["사망", "죽", "숨졌", "시체", "피살", "살해", "사망한 상태", "암살", "익사", "사고사", "전사", "처형", "사형", "사망 처리", "사망 판정", "사망자 등록", "사사"]
             for nf in normalized.facts:
                 content = nf.content
                 if not any(kw in content for kw in _DEATH_KW):
@@ -2027,7 +2074,7 @@ class GremlinGraphService(_ViolationMixin):
                 edge_id = self.add_related_to(from_id, to_id, {
                     "source_id": source_id,
                     "source_location": "",
-                    "relationship_type": rr.type_hint or "colleague",
+                    "relationship_type": _normalize_relationship_type(rr.type_hint or "colleague"),
                     "detail": rr.detail or "",
                     "established_order": do,
                     "created_at": datetime.now(timezone.utc).isoformat(),
@@ -2812,7 +2859,7 @@ class InMemoryGraphService(_ViolationMixin):
 
         # 3b. 사망 관련 Facts → HAS_STATUS dead 엣지 생성
         # LLM이 death event 대신 fact로 추출하는 경우 대응 (예: "박영호는 사망한 상태로 발견됨")
-        _DEATH_KW = ["사망", "죽", "숨졌", "시체", "피살", "살해", "사망한 상태", "암살", "익사", "사고사", "전사"]
+        _DEATH_KW = ["사망", "죽", "숨졌", "시체", "피살", "살해", "사망한 상태", "암살", "익사", "사고사", "전사", "처형", "사형", "사망 처리", "사망 판정", "사망자 등록", "사사"]
         for nf in normalized.facts:
             content = nf.content
             if not any(kw in content for kw in _DEATH_KW):
@@ -3028,7 +3075,7 @@ class InMemoryGraphService(_ViolationMixin):
             edge_id = self.add_related_to(from_id, to_id, {
                 "source_id": source_id,
                 "source_location": "",
-                "relationship_type": rr.type_hint or "colleague",
+                "relationship_type": _normalize_relationship_type(rr.type_hint or "colleague"),
                 "detail": rr.detail or "",
                 "established_order": do,
                 "created_at": datetime.now(timezone.utc).isoformat(),

@@ -545,41 +545,59 @@ async def query_ai(req: AIQueryRequest):
     from openai import AsyncAzureOpenAI
 
     search_svc = get_search_service()
-    evidence = await search_svc.search_context(req.query)
+    evidence = await search_svc.search_context(req.query, top_k=8)
     sources = [f"{e.source_name} ({e.source_location})" for e in evidence if e.source_name]
-    context = "\n\n".join(f"[{e.source_name}] {e.text}" for e in evidence) if evidence else ""
+    context = "\n\n".join(f"[출처: {e.source_name}]\n{e.text}" for e in evidence) if evidence else ""
 
-    # Azure OpenAI가 설정된 경우 GPT로 답변 생성
-    if settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_API_KEY:
-        try:
-            client = AsyncAzureOpenAI(
-                azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-                api_key=settings.AZURE_OPENAI_API_KEY,
-                api_version=settings.AZURE_OPENAI_API_VERSION,
-            )
+    if not settings.AZURE_OPENAI_ENDPOINT or not settings.AZURE_OPENAI_API_KEY:
+        return {"answer": "AI 질의 기능을 사용하려면 Azure OpenAI 환경변수를 설정해주세요.", "sources": []}
+
+    try:
+        client = AsyncAzureOpenAI(
+            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+            api_key=settings.AZURE_OPENAI_API_KEY,
+            api_version=settings.AZURE_OPENAI_API_VERSION,
+        )
+
+        if context:
             system_prompt = (
-                "당신은 드라마/소설 시나리오 정합성 검증 시스템의 AI 어시스턴트입니다. "
-                "아래 지식베이스 컨텍스트를 참고하여 사용자의 질문에 한국어로 답변하세요. "
-                "컨텍스트에 없는 내용은 추측하지 말고 '정보를 찾을 수 없습니다'라고 답하세요.\n\n"
-                f"=== 지식베이스 컨텍스트 ===\n{context}" if context else
-                "당신은 드라마/소설 시나리오 정합성 검증 시스템의 AI 어시스턴트입니다. "
-                "현재 지식베이스에 관련 정보가 없습니다. 그 사실을 사용자에게 알리세요."
+                "당신은 드라마/소설 시나리오 정합성 검증 시스템의 AI 어시스턴트입니다.\n"
+                "아래 [지식베이스 컨텍스트]를 바탕으로 사용자의 질문에 한국어로 명확하게 답변하세요.\n"
+                "- 컨텍스트에서 관련 정보를 찾아 자연스러운 문장으로 요약해 답하세요.\n"
+                "- 컨텍스트에 없는 내용은 추측하지 말고 '해당 정보는 지식베이스에 없습니다'라고 답하세요.\n"
+                "- 원문을 그대로 복사하지 말고, 질문에 맞게 재구성해서 답하세요.\n\n"
+                f"[지식베이스 컨텍스트]\n{context}"
             )
-            response = await client.chat.completions.create(
-                model=settings.AZURE_OPENAI_DETECTION_DEPLOYMENT,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": req.query},
-                ],
-                max_tokens=1024,
-                temperature=0.3,
+        else:
+            system_prompt = (
+                "당신은 드라마/소설 시나리오 정합성 검증 시스템의 AI 어시스턴트입니다.\n"
+                "현재 지식베이스에 관련 정보가 없습니다. 사용자에게 파일을 먼저 업로드하고 "
+                "지식베이스를 구축해달라고 안내하세요."
             )
-            answer = response.choices[0].message.content or "답변을 생성할 수 없습니다."
-        except Exception as e:
-            logger.error("ai_query_llm_failed", error=str(e))
-            answer = f"[{req.query}] 관련 컨텍스트:\n{context}" if context else f"'{req.query}'에 대한 관련 정보를 찾을 수 없습니다."
-    else:
-        answer = f"[{req.query}] 관련 컨텍스트:\n{context}" if context else f"'{req.query}'에 대한 관련 정보를 찾을 수 없습니다."
+
+        response = await client.chat.completions.create(
+            model=settings.AZURE_OPENAI_DETECTION_DEPLOYMENT,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": req.query},
+            ],
+            max_tokens=1024,
+            temperature=0.3,
+        )
+        answer = response.choices[0].message.content or "답변을 생성할 수 없습니다."
+
+    except Exception as e:
+        logger.error("ai_query_llm_failed", error=str(e), deployment=settings.AZURE_OPENAI_DETECTION_DEPLOYMENT)
+        # LLM 실패 시 검색 결과를 정리해서 보여줌
+        if context:
+            answer = (
+                "⚠️ AI 답변 생성에 실패했습니다. 관련 내용을 직접 확인해주세요.\n\n"
+                + "\n\n---\n\n".join(
+                    f"📄 {e.source_name}\n{e.text}" for e in evidence
+                )
+            )
+        else:
+            answer = "⚠️ AI 답변 생성에 실패했고, 관련 정보도 찾을 수 없습니다."
 
     return {"answer": answer, "sources": sources}
 

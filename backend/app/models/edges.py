@@ -125,4 +125,8 @@ RELATIONSHIP_CONFLICT_MATRIX = {
     frozenset([RelationshipType.FAMILY_PARENT, RelationshipType.FAMILY_SPOUSE]): "critical",
     frozenset([RelationshipType.FAMILY_SIBLING, RelationshipType.FAMILY_SPOUSE]): "warning",
     frozenset([RelationshipType.FAMILY_PARENT, RelationshipType.ROMANTIC]): "warning",
+    frozenset([RelationshipType.COLLEAGUE, RelationshipType.ENEMY]): "warning",
+    frozenset([RelationshipType.FRIEND, RelationshipType.ENEMY]): "critical",
+    frozenset([RelationshipType.MENTOR_STUDENT, RelationshipType.ENEMY]): "warning",
+    frozenset([RelationshipType.ROMANTIC, RelationshipType.ENEMY]): "warning",
 }
