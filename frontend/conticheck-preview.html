@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ContiCheck — 디자인 미리보기</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&family=Noto+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans KR',sans-serif;background:#fdfaf5;color:#2c2416;height:100vh;overflow:hidden}
+button{cursor:pointer;border:none;background:none;font-family:inherit;color:inherit}
+textarea,input{font-family:inherit}
+.serif{font-family:'Noto Serif KR',serif}
+.mono{font-family:'JetBrains Mono',monospace}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:#ede4d8;border-radius:2px}
+::-webkit-scrollbar-track{background:transparent}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.fade{animation:fadeUp .25s ease-out}
+.spin{animation:spin 1s linear infinite}
+.pulse{animation:pulse 2s ease-in-out infinite}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef, useEffect } = React;
+
+/* ════════════════════════════════
+   MOCK DATA
+════════════════════════════════ */
+const MOCK_PROJECT = {
+  id: "p1",
+  name: "그림자의 비밀 시즌1",
+  date: "2026-03-10",
+  kb: { characters: 12, facts: 47, relationships: 83, events: 156, traits: 24 },
+  sources: [
+    { id:"s1", n:"판타지_세계관_설정.pdf",    cat:"worldview", ent:18, fct:22 },
+    { id:"s2", n:"캐릭터_설정집_v2.txt",      cat:"settings",  ent:14, fct:19 },
+    { id:"s3", n:"그림자의_비밀_시즌1.pdf",   cat:"scenario",  ent:34, fct:47 },
+  ],
+  contradictions: [
+    {
+      id:"c1", sv:"critical", tp:"정보 비대칭", ch:"A (형사)",
+      ft:"범인은 B이다",
+      dl:'A: "D, 나 B가 범인인 것 같아."',
+      ds:"A가 B를 범인으로 지목하는 장면입니다. 지식 그래프에 따르면 A가 이 사실을 알게 되는 것은 C의 고백 이후인데, C의 고백 전에 A가 이를 발언하는 것은 앞뒤가 맞지 않습니다.",
+      ev:[
+        { sr:"그림자의_비밀_시즌1.pdf", lc:"Ch.2 p.58", tx:"C는 범인의 키와 옷차림만 전달. B의 이름은 언급되지 않음." },
+        { sr:"캐릭터_설정집_v2.txt",    lc:"A 항목",    tx:"A는 Ch.3 전까지 B를 의심하지 않음으로 설정됨." },
+      ],
+      cf:0.95,
+      sg:"C의 고백 장면(Ch.3) 이후로 이 대사를 옮기거나, 이전 시점에 A가 B를 의심할 수 있는 단서를 추가해보세요.",
+      al:"형사의 직감으로 해석하는 방법도 있습니다.",
+      ot:'A: D, 나 B가 범인인 것 같아.',
+    },
+    {
+      id:"c2", sv:"critical", tp:"거짓말·기만", ch:"A (형사)",
+      ft:"B 알리바이 인지 후 행동",
+      dl:'A: "B가 그날 집에 있었다는 게 맞지." (Ch.4)',
+      ds:"A가 Ch.3에서 B의 알리바이가 거짓임을 인지했음에도, Ch.4에서 거짓 알리바이를 사실인 것처럼 발언합니다. 진실을 알면서도 거짓 기반으로 행동하는 것은 논리적 모순입니다.",
+      ev:[
+        { sr:"그림자의_비밀_시즌1.pdf", lc:"Ch.3 p.79", tx:'A: "알리바이가 조작됐어. B는 그날 집에 없었어."' },
+        { sr:"그림자의_비밀_시즌1.pdf", lc:"Ch.4 p.95", tx:'A: "B가 그날 집에 있었다는 게 맞지."' },
+      ],
+      cf:0.98,
+      sg:"Ch.4에서 A가 이 발언을 하는 맥락을 명확히 하거나, A가 거짓 정보를 의도적으로 활용하는 이유를 장면에 추가해주세요.",
+      al:null,
+      ot:'A: B가 그날 집에 있었다는 게 맞지.',
+    },
+    {
+      id:"c3", sv:"warning", tp:"감정 일관성", ch:"D (파트너)",
+      ft:"D의 행동 불일치",
+      dl:'D: "왜요? 아직 증거가 없잖아요."',
+      ds:"D는 Ch.2에서 이미 B의 알리바이를 직접 조사하기로 했는데, 같은 챕터 후반에서 B에 대한 이야기가 나오자 전혀 모르는 것처럼 놀라는 반응을 보입니다.",
+      ev:[
+        { sr:"그림자의_비밀_시즌1.pdf", lc:"Ch.2 p.65", tx:'D: "B씨 알리바이를 확인해봐야겠어."' },
+        { sr:"그림자의_비밀_시즌1.pdf", lc:"Ch.2 p.71", tx:'D: "왜요? 아직 증거가 없잖아요."' },
+      ],
+      cf:0.62,
+      sg:"D가 조사 결과를 A에게 숨기는 이유를 암시하는 장면을 추가하면 이 반응이 의도적 복선이 됩니다.",
+      al:"D가 아직 조사 초기 단계라 결과가 없을 수 있다는 해석도 가능합니다.",
+      ot:'D: 왜요? 아직 증거가 없잖아요.',
+    },
+    {
+      id:"c4", sv:"info", tp:"소유물 추적", ch:"C (목격자)",
+      ft:"증거 칼 이동 경로",
+      dl:'C: "칼은 제가 갖고 있어요." (Ch.4)',
+      ds:"Ch.2에서 C가 칼을 B에게 건네주는 장면이 있었는데, Ch.4에서 다시 C가 칼을 소지하고 있습니다. 칼이 어떻게 다시 C에게 돌아왔는지 설명이 없습니다.",
+      ev:[
+        { sr:"그림자의_비밀_시즌1.pdf", lc:"Ch.2 p.60", tx:"C가 B에게 증거 칼을 전달하는 장면 묘사." },
+        { sr:"그림자의_비밀_시즌1.pdf", lc:"Ch.4 p.88", tx:'C: "칼은 제가 갖고 있어요."' },
+      ],
+      cf:0.55,
+      sg:"B에게서 C에게 칼이 돌아오는 경위를 한 문장이라도 추가해주세요.",
+      al:"C가 B 몰래 회수했을 수 있으나 묘사가 없습니다.",
+      ot:'C: 칼은 제가 갖고 있어요.',
+    },
+  ],
+  versions: [
+    { id:"v2", vr:"v1.1", dt:"2026-03-10 오후 6:00", fx:1, ds:"D의 반응 장면에 내면 독백 추가 — 조사 결과를 의도적으로 숨기는 복선 설정", src:"그림자의_비밀_시즌1.pdf" },
+    { id:"v1", vr:"v1.0", dt:"2026-03-08",            fx:0, ds:"처음 업로드", src:"그림자의_비밀_시즌1.pdf" },
+  ],
+};
+
+const MOCK_PROJECTS = [
+  MOCK_PROJECT,
+  { id:"p2", name:"용의 후예 파일럿", date:"2026-03-06",
+    kb:{characters:5,facts:12,relationships:18,events:34,traits:8},
+    sources:[{id:"s4",n:"용의후예_세계관.txt",cat:"worldview",ent:8,fct:10}],
+    contradictions:[], versions:[{id:"v1",vr:"v1.0",dt:"2026-03-06",fx:0,ds:"처음 업로드",src:""}] },
+];
+
+/* ════════════════════════════════
+   DESIGN TOKENS
+════════════════════════════════ */
+const SV = {
+  critical:{ bg:"#fdeaea", bd:"rgba(184,50,50,0.2)",  badge:"#c0392b", tx:"#b83232", l:"심각한 모순", emoji:"🔴" },
+  warning: { bg:"#fef3db", bd:"rgba(196,124,26,0.2)", badge:"#e67e22", tx:"#c47c1a", l:"확인 필요",   emoji:"🟡" },
+  info:    { bg:"#e8f4ee", bd:"rgba(45,122,86,0.2)",  badge:"#27ae60", tx:"#2d7a56", l:"참고",        emoji:"🟢" },
+};
+const CAT = {
+  worldview:{ l:"세계관",  c:"#7c5cbf", i:"🌍" },
+  settings: { l:"설정집",  c:"#c4622d", i:"📋" },
+  scenario: { l:"시나리오", c:"#2d7a56", i:"🎬" },
+};
+
+/* ════════════════════════════════
+   SIDEBAR
+════════════════════════════════ */
+function Sidebar({ projects, activeId, onSelect, onNew }) {
+  return (
+    <div style={{width:240,borderRight:"1px solid #ede4d8",background:"#fff8f0",display:"flex",flexDirection:"column",height:"100vh",flexShrink:0}}>
+      {/* 로고 */}
+      <div style={{padding:"18px 16px 14px",borderBottom:"1px solid #ede4d8",display:"flex",alignItems:"center",gap:8}}>
+        <div style={{width:28,height:28,borderRadius:8,background:"#c4622d",display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <span style={{color:"#fff",fontSize:13,fontWeight:900,fontFamily:"'Noto Serif KR',serif"}}>C</span>
+        </div>
+        <div>
+          <div style={{fontFamily:"'Noto Serif KR',serif",fontSize:14,fontWeight:700,color:"#2c2416"}}>ContiCheck</div>
+          <div style={{fontSize:9,color:"#a89880"}}>이야기 정합성 검사</div>
+        </div>
+      </div>
+      {/* 새 작품 */}
+      <div style={{padding:"12px 12px 8px"}}>
+        <button onClick={onNew} style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px dashed #ede4d8",color:"#c4622d",fontSize:12,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:6,transition:"background .15s"}}
+          onMouseEnter={e=>e.currentTarget.style.background="#fdeee6"}
+          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          ＋ 새 작품 분석하기
+        </button>
+      </div>
+      {/* 목록 */}
+      <div style={{flex:1,overflow:"auto",padding:"4px 8px"}}>
+        <div style={{fontSize:9,fontWeight:700,color:"#a89880",padding:"6px 8px 4px",letterSpacing:".06em"}}>내 작품</div>
+        {projects.map(p => {
+          const act = p.id === activeId;
+          const cc = p.contradictions?.length || 0;
+          return (
+            <button key={p.id} onClick={()=>onSelect(p.id)}
+              style={{width:"100%",textAlign:"left",padding:"10px 12px",borderRadius:10,marginBottom:2,
+                background:act?"#fdeee6":"transparent",border:act?"1px solid rgba(196,98,45,.2)":"1px solid transparent",transition:"all .15s"}}
+              onMouseEnter={e=>{if(!act)e.currentTarget.style.background="#f5efe6"}}
+              onMouseLeave={e=>{if(!act)e.currentTarget.style.background="transparent"}}>
+              <div style={{fontSize:12,fontWeight:act?700:500,color:act?"#c4622d":"#2c2416",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
+              <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:"#a89880"}}>
+                <span>{p.date}</span>
+                {cc>0&&<span style={{color:"#b83232",fontWeight:600}}>⚠ {cc}건</span>}
+                {cc===0&&p.sources?.length>0&&<span style={{color:"#2d7a56"}}>✓ 이상 없음</span>}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════
+   HEADER
+════════════════════════════════ */
+function Header({ projName, isNew, stagedLen }) {
+  return (
+    <header style={{height:48,borderBottom:"1px solid #ede4d8",background:"#fff8f0",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 24px",flexShrink:0}}>
+      <span style={{fontSize:12,color:"#a89880"}}>{isNew?"새 작품 분석":projName||""}</span>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        {stagedLen>0&&<span style={{fontSize:11,color:"#2d7a56",fontWeight:600}}>✅ {stagedLen}건 수정 대기 중</span>}
+        <div className="pulse" style={{width:6,height:6,borderRadius:"50%",background:"#2d7a56"}}></div>
+        <span style={{fontSize:10,color:"#a89880"}}>연결됨</span>
+      </div>
+    </header>
+  );
+}
+
+/* ════════════════════════════════
+   KB STATS
+════════════════════════════════ */
+function KbStats({ kb }) {
+  const items = [
+    {l:"등장인물",v:kb.characters,icon:"👥",c:"#c4622d"},
+    {l:"주요 사실",v:kb.facts,    icon:"📝",c:"#c47c1a"},
+    {l:"인물 관계",v:kb.relationships,icon:"🔗",c:"#2d7a56"},
+    {l:"주요 사건",v:kb.events,   icon:"🎬",c:"#7c5cbf"},
+    {l:"특성",     v:kb.traits,   icon:"✨",c:"#2d6a9f"},
+  ];
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+      {items.map(x=>(
+        <div key={x.l} style={{background:"#fff",border:"1px solid #ede4d8",borderRadius:12,padding:"12px 8px",textAlign:"center",boxShadow:"0 2px 8px rgba(44,36,22,.06)"}}>
+          <div style={{fontSize:20,marginBottom:4}}>{x.icon}</div>
+          <div className="serif" style={{fontSize:22,fontWeight:700,color:x.c}}>{x.v}</div>
+          <div style={{fontSize:10,color:"#a89880",marginTop:2}}>{x.l}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ════════════════════════════════
+   SOURCE LIST
+════════════════════════════════ */
+function SourceList({ sources }) {
+  if(!sources||!sources.length) return null;
+  return (
+    <div style={{background:"#fff",border:"1px solid #ede4d8",borderRadius:12,padding:16,boxShadow:"0 2px 8px rgba(44,36,22,.06)"}}>
+      <div style={{fontSize:12,fontWeight:600,color:"#2c2416",marginBottom:12}}>📂 등록된 파일</div>
+      {sources.map(s=>{
+        const c=CAT[s.cat]||{i:"📄",l:"기타",c:"#a89880"};
+        return(
+          <div key={s.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"#f5efe6",borderRadius:8,marginBottom:6}}>
+            <span style={{fontSize:16}}>{c.i}</span>
+            <div style={{flex:1}}>
+              <div style={{fontSize:12,fontWeight:500,color:"#2c2416"}}>{s.n}</div>
+              <div style={{fontSize:10,color:"#a89880"}}>{c.l} · 인물 {s.ent}명 · 사실 {s.fct}건 파악</div>
+            </div>
+            <div style={{display:"flex",gap:6,flexShrink:0}}>
+              <button style={{fontSize:10,color:"#a89880",padding:"3px 8px",borderRadius:4,border:"1px solid #ede4d8",background:"#fff"}}
+                onMouseEnter={e=>{e.currentTarget.style.color="#c4622d"}}
+                onMouseLeave={e=>{e.currentTarget.style.color="#a89880"}}>↓</button>
+              <button style={{fontSize:10,color:"#a89880",padding:"3px 8px",borderRadius:4,border:"1px solid #ede4d8",background:"#fff"}}
+                onMouseEnter={e=>{e.currentTarget.style.color="#7c5cbf"}}
+                onMouseLeave={e=>{e.currentTarget.style.color="#a89880"}}>↑ 업데이트</button>
+            </div>
+            <span style={{fontSize:10,color:"#2d7a56",fontWeight:600,flexShrink:0}}>✓ 완료</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ════════════════════════════════
+   STAGED FIXES
+════════════════════════════════ */
+function StagedFixes({ staged, onRemove, onPush, onClear }) {
+  if(!staged.length) return null;
+  return (
+    <div className="fade" style={{background:"#e8f4ee",border:"1px solid rgba(45,122,86,.2)",borderRadius:12,padding:14,marginBottom:4}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:13,fontWeight:700,color:"#2d7a56"}}>✅ 수정 대기 중</span>
+          <span style={{fontSize:11,background:"#2d7a56",color:"#fff",padding:"1px 8px",borderRadius:10,fontWeight:700}}>{staged.length}건</span>
+        </div>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={onClear} style={{fontSize:11,color:"#a89880",padding:"5px 10px",borderRadius:6,border:"1px solid #ede4d8",background:"#fff"}}>취소</button>
+          <button onClick={onPush} style={{fontSize:11,fontWeight:700,color:"#fff",background:"#2d7a56",padding:"5px 14px",borderRadius:6}}>📤 원고에 반영하기</button>
+        </div>
+      </div>
+      {staged.map(s=>(
+        <div key={s.id} style={{background:"rgba(255,255,255,.6)",borderRadius:8,padding:"8px 10px",marginBottom:4,fontSize:11,position:"relative"}}>
+          <button onClick={()=>onRemove(s.id)} style={{position:"absolute",top:6,right:8,color:"#a89880",fontSize:12}}>✕</button>
+          {s.isIntentional
+            ?<><span style={{fontSize:9,fontWeight:700,background:"rgba(124,92,191,.1)",color:"#7c5cbf",padding:"1px 5px",borderRadius:3,marginRight:6}}>의도된 설정</span>
+              <span style={{color:"#6b5c47"}}>{s.ch} · {s.tp}</span>
+              {s.intentNote&&<div style={{color:"#a89880",marginTop:3,fontStyle:"italic"}}>메모: "{s.intentNote}"</div>}</>
+            :<><span style={{color:"#b83232"}}>수정 전: </span><span style={{color:"#a89880"}}>{(s.ot||"").slice(0,50)}...</span><br/>
+              <span style={{color:"#2d7a56"}}>수정 후: </span><span style={{color:"#2c2416"}}>{(s.fixedText||"").slice(0,50)}...</span></>
+          }
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ════════════════════════════════
+   CONTRADICTION CARD
+════════════════════════════════ */
+function ContradictionCard({ item, isStaged, onStage, onUnstage }) {
+  const [open, setOpen] = useState(false);
+  const [dec, setDec] = useState(null); // null | 'intentional' | 'fix' | 'deferred'
+  const [intentNote, setIntentNote] = useState("");
+  const [intentSaved, setIntentSaved] = useState(false);
+  const [fixedText, setFixedText] = useState(item.ot||"");
+  const sv = SV[item.sv]||SV.info;
+  const processed = (dec==='intentional'&&intentSaved)||(dec==='fix'&&isStaged)||dec==='deferred';
+
+  const undo = ()=>{
+    if(dec==='fix'&&isStaged) onUnstage(item.id);
+    if(dec==='intentional'&&intentSaved) onUnstage(item.id);
+    setDec(null); setIntentNote(""); setIntentSaved(false); setFixedText(item.ot||"");
+  };
+
+  const badge = (()=>{
+    if(dec==='intentional'&&intentSaved) return <span style={{fontSize:10,background:"rgba(45,122,86,.1)",color:"#2d7a56",padding:"2px 8px",borderRadius:6,fontWeight:600}}>✓ 의도된 설정으로 저장</span>;
+    if(dec==='fix'&&!isStaged) return <span style={{fontSize:10,background:"#fef3db",color:"#c47c1a",padding:"2px 8px",borderRadius:6,fontWeight:600}}>✏️ 수정 중</span>;
+    if(dec==='fix'&&isStaged) return <span style={{fontSize:10,background:"#e8f4ee",color:"#2d7a56",padding:"2px 8px",borderRadius:6,fontWeight:600}}>✅ 수정 저장됨</span>;
+    if(dec==='deferred') return <span style={{fontSize:10,background:"#f5efe6",color:"#a89880",padding:"2px 8px",borderRadius:6}}>보류</span>;
+    return <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:6,color:"#fff",background:sv.badge}}>{sv.emoji} {sv.l}</span>;
+  })();
+
+  const charName   = item.ch  || '(캐릭터 미상)';
+  const typeLabel  = item.tp  || '';
+  const dialogue   = item.dl  || '';
+  const desc       = item.ds  || '(설명 없음)';
+  const suggestion = item.sg  || '';
+  const alt        = item.al  || '';
+  const origText   = item.ot  || '';
+  const evidence   = Array.isArray(item.ev) ? item.ev : [];
+  const confidence = typeof item.cf === 'number' ? item.cf : 0;
+
+  return (
+    <div style={{
+      flexShrink: 0,
+      width: "100%",
+      minHeight: 48,
+      borderRadius: 16,
+      border: `1px solid ${processed?"#ede4d8":sv.bd}`,
+      background: processed?"#fdfaf5":sv.bg,
+      opacity: processed ? 0.65 : 1,
+      transition: "all .2s"
+    }}>
+      {/* 헤더 버튼 */}
+      <button onClick={()=>setOpen(!open)} style={{width:"100%",display:"flex",alignItems:"flex-start",gap:10,padding:"14px 16px",textAlign:"left",borderRadius:16,minHeight:48}}>
+        <div style={{flexShrink:0,marginTop:2}}>{badge}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:4}}>
+            <span style={{fontWeight:600,fontSize:13,color:processed?"#a89880":"#2c2416"}}>{charName}</span>
+            {typeLabel&&<span style={{fontSize:10,background:"rgba(255,255,255,.6)",color:"#6b5c47",padding:"1px 6px",borderRadius:4,border:"1px solid #ede4d8"}}>{typeLabel}</span>}
+          </div>
+          {dialogue&&<p style={{fontSize:12,color:"#6b5c47",fontStyle:"italic",lineHeight:1.5,wordBreak:"break-word"}}>{dialogue}</p>}
+          {isStaged&&!processed&&<span style={{fontSize:10,color:"#2d7a56",fontWeight:600,marginTop:4,display:"block"}}>✅ 수정 대기 중</span>}
+        </div>
+        <span style={{color:"#a89880",fontSize:13,flexShrink:0,marginTop:2}}>{open?"▲":"▼"}</span>
+      </button>
+
+      {open&&(
+        <div className="fade" style={{padding:"0 16px 16px",display:"flex",flexDirection:"column",gap:12,minHeight:100}}>
+          {/* 문제의 대사 */}
+          {dialogue&&(
+            <div style={{background:"rgba(255,255,255,.6)",borderRadius:10,padding:12,borderLeft:`3px solid ${sv.badge}`}}>
+              <div style={{fontSize:10,fontWeight:600,color:"#a89880",marginBottom:6}}>📣 문제의 대사·장면</div>
+              <p style={{fontSize:13,fontStyle:"italic",lineHeight:1.7,color:"#2c2416",wordBreak:"break-word"}}>"{dialogue}"</p>
+            </div>
+          )}
+          {/* 왜 모순인가 */}
+          <div>
+            <div style={{fontSize:10,fontWeight:600,color:"#a89880",marginBottom:6}}>🔍 왜 모순인가요?</div>
+            <p style={{fontSize:12,color:"#6b5c47",lineHeight:1.8,wordBreak:"break-word"}}>{desc}</p>
+          </div>
+          {/* 근거 */}
+          {evidence.length > 0 ? evidence.map((e,i)=>(
+            <div key={i} style={{background:"rgba(255,255,255,.5)",borderRadius:8,padding:"8px 12px"}}>
+              <div style={{fontSize:10,color:"#c4622d",fontWeight:600,marginBottom:4}}>📄 {e.sr||'출처 미상'}{e.lc ? ` — ${e.lc}` : ''}</div>
+              <p style={{fontSize:11,color:"#6b5c47",lineHeight:1.6,wordBreak:"break-word"}}>{e.tx||'(내용 없음)'}</p>
+            </div>
+          )) : <div style={{fontSize:10,color:"#a89880",fontStyle:"italic"}}>근거 데이터 없음</div>}
+          {/* 수정 제안 */}
+          {suggestion&&(
+            <div style={{background:"#e8f4ee",border:"1px solid rgba(45,122,86,.15)",borderRadius:10,padding:12}}>
+              <div style={{fontSize:10,fontWeight:600,color:"#2d7a56",marginBottom:6}}>✏️ 수정 제안</div>
+              <p style={{fontSize:12,color:"#2c2416",lineHeight:1.7,wordBreak:"break-word"}}>{suggestion}</p>
+            </div>
+          )}
+          {/* 대안 */}
+          {alt&&<p style={{fontSize:11,color:"#a89880",fontStyle:"italic",wordBreak:"break-word"}}>💡 {alt}</p>}
+          {/* 확신도 */}
+          {confidence>0&&(
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:10,color:"#a89880",flexShrink:0}}>분석 확신도</span>
+              <div style={{flex:1,height:6,background:"#ede4d8",borderRadius:4,overflow:"hidden",minWidth:60}}>
+                <div style={{height:"100%",borderRadius:4,width:`${confidence*100}%`,
+                  background:confidence>=.8?"#b83232":confidence>=.6?"#c47c1a":"#2d7a56",transition:"width .5s"}}/>
+              </div>
+              <span className="mono" style={{fontSize:10,color:"#6b5c47",fontWeight:600,flexShrink:0}}>{Math.round(confidence*100)}%</span>
+            </div>
+          )}
+
+          {/* 처리 영역 */}
+          <div style={{borderTop:"1px solid rgba(44,36,22,.06)",paddingTop:12}}>
+            {dec===null&&(
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>setDec('intentional')}
+                  style={{flex:1,padding:"10px 8px",borderRadius:10,border:"1px solid rgba(124,92,191,.25)",background:"rgba(124,92,191,.06)",color:"#7c5cbf",fontSize:11,fontWeight:600,transition:"background .15s"}}
+                  onMouseEnter={e=>e.currentTarget.style.background="rgba(124,92,191,.12)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="rgba(124,92,191,.06)"}>
+                  💡 의도된 설정
+                </button>
+                <button onClick={()=>setDec('fix')}
+                  style={{flex:1,padding:"10px 8px",borderRadius:10,border:"1px solid #ede4d8",background:"#fff",color:"#6b5c47",fontSize:11,fontWeight:600,transition:"all .15s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor="#c4622d";e.currentTarget.style.color="#c4622d"}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="#ede4d8";e.currentTarget.style.color="#6b5c47"}}>
+                  ✏️ 직접 수정하기
+                </button>
+                <button onClick={()=>setDec('deferred')}
+                  style={{padding:"10px 12px",borderRadius:10,border:"1px solid #ede4d8",background:"#fff",color:"#a89880",fontSize:11,transition:"background .15s"}}
+                  onMouseEnter={e=>e.currentTarget.style.background="#f5efe6"}
+                  onMouseLeave={e=>e.currentTarget.style.background="#fff"}>
+                  보류
+                </button>
+              </div>
+            )}
+
+            {/* 의도된 설정 — 메모 입력 */}
+            {dec==='intentional'&&!intentSaved&&(
+              <div className="fade" style={{display:"flex",flexDirection:"column",gap:8}}>
+                <div style={{fontSize:10,fontWeight:600,color:"#a89880"}}>💬 이 부분이 의도된 이유를 알려주세요 (선택)</div>
+                <textarea value={intentNote} onChange={e=>setIntentNote(e.target.value)} rows={2}
+                  placeholder="예: 회상 장면, 복선, 캐릭터의 의도적 거짓말..."
+                  style={{width:"100%",background:"#fff",border:"1px solid #ede4d8",borderRadius:8,padding:"8px 12px",fontSize:12,outline:"none",resize:"none",lineHeight:1.7}}/>
+                <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                  <button onClick={undo} style={{fontSize:11,color:"#a89880",padding:"6px 12px",borderRadius:8,border:"1px solid #ede4d8",background:"#fff"}}>취소</button>
+                  <button onClick={()=>{onStage({id:item.id,ch:charName,tp:typeLabel,isIntentional:true,intentNote});setIntentSaved(true);}}
+                    style={{fontSize:11,fontWeight:700,color:"#fff",background:"#7c5cbf",padding:"6px 16px",borderRadius:8}}>저장하기</button>
+                </div>
+              </div>
+            )}
+            {dec==='intentional'&&intentSaved&&(
+              <div className="fade" style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span style={{fontSize:11,color:"#2d7a56"}}>✅ 의도된 설정으로 저장됨</span>
+                <button onClick={undo} style={{fontSize:10,color:"#a89880",padding:"4px 10px",borderRadius:6,border:"1px solid #ede4d8",background:"#fff"}}>취소</button>
+              </div>
+            )}
+
+            {/* 수정 모드 */}
+            {dec==='fix'&&!isStaged&&(
+              <div className="fade" style={{display:"flex",flexDirection:"column",gap:8}}>
+                <div style={{fontSize:10,fontWeight:600,color:"#a89880"}}>✍️ 수정할 내용을 입력하세요</div>
+                <textarea value={fixedText} onChange={e=>setFixedText(e.target.value)} rows={3}
+                  style={{width:"100%",background:"#fff",border:"1px solid #ede4d8",borderRadius:8,padding:"10px 12px",fontSize:12,outline:"none",resize:"none",lineHeight:1.7}}/>
+                <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                  <button onClick={undo} style={{fontSize:11,color:"#a89880",padding:"6px 12px",borderRadius:8,border:"1px solid #ede4d8",background:"#fff"}}>취소</button>
+                  <button onClick={()=>onStage({id:item.id,ch:charName,tp:typeLabel,ot:origText,fixedText})}
+                    style={{fontSize:11,fontWeight:700,color:"#fff",background:"#2d7a56",padding:"6px 16px",borderRadius:8}}>✓ 수정 저장하기</button>
+                </div>
+              </div>
+            )}
+            {dec==='fix'&&isStaged&&(
+              <div className="fade" style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span style={{fontSize:11,color:"#2d7a56"}}>✅ 수정 대기 중</span>
+                <button onClick={undo} style={{fontSize:10,color:"#a89880",padding:"4px 10px",borderRadius:6,border:"1px solid #ede4d8",background:"#fff"}}>취소</button>
+              </div>
+            )}
+
+            {/* 보류 */}
+            {dec==='deferred'&&(
+              <div className="fade" style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"#f5efe6",borderRadius:8,padding:"8px 12px"}}>
+                <span style={{fontSize:11,color:"#a89880"}}>보류 처리됨</span>
+                <button onClick={undo} style={{fontSize:10,color:"#a89880",padding:"4px 10px",borderRadius:6,border:"1px solid #ede4d8",background:"#fff"}}>취소</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ════════════════════════════════
+   AI CHAT PANEL
+════════════════════════════════ */
+function AiChatPanel() {
+  const [msgs, setMsgs] = useState([
+    {r:"s", t:"안녕하세요! 작품의 인물, 설정, 사건에 대해 무엇이든 물어보세요 😊"}
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const endRef = useRef(null);
+  useEffect(()=>{ endRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs]);
+
+  const send = () => {
+    if(!input.trim()||loading) return;
+    const q = input.trim(); setInput(""); setLoading(true);
+    setMsgs(p=>[...p,{r:"u",t:q}]);
+    setTimeout(()=>{
+      setMsgs(p=>[...p,{r:"a",t:`"${q}"에 대한 분석 결과입니다.\n\n현재 지식 그래프에 기반하여 관련 인물과 사건을 확인했습니다.`}]);
+      setLoading(false);
+    },1200);
+  };
+
+  return (
+    <div style={{background:"#fff",border:"1px solid #ede4d8",borderRadius:16,display:"flex",flexDirection:"column",height:400,boxShadow:"0 2px 8px rgba(44,36,22,.06)"}}>
+      <div style={{padding:"12px 16px",borderBottom:"1px solid #ede4d8",background:"#fff8f0",borderRadius:"16px 16px 0 0",display:"flex",alignItems:"center",gap:8}}>
+        <div style={{width:28,height:28,borderRadius:"50%",background:"#c4622d",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🤖</div>
+        <div>
+          <div style={{fontSize:12,fontWeight:700,color:"#2c2416"}}>AI에게 질문하기</div>
+          <div style={{fontSize:9,color:"#a89880"}}>작품 지식 그래프 기반</div>
+        </div>
+      </div>
+      <div style={{flex:1,overflow:"auto",padding:12,display:"flex",flexDirection:"column",gap:8}}>
+        {msgs.map((m,i)=>(
+          <div key={i} style={{alignSelf:m.r==="u"?"flex-end":"flex-start",maxWidth:"88%",
+            background:m.r==="u"?"#fdeee6":m.r==="s"?"#f5efe6":"#e8f4ee",
+            border:"1px solid #ede4d8",borderRadius:10,padding:"8px 12px"}}>
+            <p style={{fontSize:11,color:"#2c2416",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{m.t}</p>
+          </div>
+        ))}
+        {loading&&<div style={{alignSelf:"flex-start",color:"#a89880",fontSize:11,fontStyle:"italic"}}>생각하는 중...</div>}
+        <div ref={endRef}/>
+      </div>
+      <div style={{padding:10,borderTop:"1px solid #ede4d8",display:"flex",gap:8}}>
+        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")send();}}
+          placeholder="예: A와 B의 관계가 어떻게 되나요?"
+          style={{flex:1,background:"#fff8f0",border:"1px solid #ede4d8",borderRadius:8,padding:"8px 12px",fontSize:11,outline:"none",color:"#2c2416"}}/>
+        <button onClick={send} disabled={!input.trim()||loading}
+          style={{padding:"8px 14px",borderRadius:8,background:input.trim()&&!loading?"#c4622d":"#f5efe6",color:input.trim()&&!loading?"#fff":"#a89880",fontSize:12,fontWeight:600,transition:"all .15s"}}>
+          전송
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════
+   PROGRESS OVERLAY
+════════════════════════════════ */
+function ProgressOverlay({ step, steps, title }) {
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(253,250,245,.9)",backdropFilter:"blur(6px)",zIndex:50,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{background:"#fff",border:"1px solid #ede4d8",borderRadius:20,padding:32,maxWidth:360,width:"90%",boxShadow:"0 8px 32px rgba(44,36,22,.12)"}}>
+        <div style={{textAlign:"center",marginBottom:24}}>
+          <div className="spin" style={{width:48,height:48,borderRadius:"50%",background:"#fdeee6",border:"2px solid #c4622d",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px",color:"#c4622d",fontSize:20}}>⟳</div>
+          <h3 className="serif" style={{fontSize:15,fontWeight:700}}>{title}</h3>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {steps.map((s,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{width:22,height:22,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,
+                ...(i<step?{background:"#2d7a56",color:"#fff"}:i===step?{background:"#fdeee6",border:"2px solid #c4622d",color:"#c4622d"}:{background:"#f5efe6",color:"#a89880"})}}>
+                {i<step?"✓":i+1}
+              </div>
+              <span style={{fontSize:12,color:i===step?"#2c2416":"#a89880",fontWeight:i===step?600:400}}>{s.l}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{marginTop:20,height:4,background:"#f5efe6",borderRadius:2,overflow:"hidden"}}>
+          <div style={{height:"100%",background:"linear-gradient(90deg,#c4622d,#e8905e)",borderRadius:2,transition:"width .5s",width:`${((step+1)/steps.length*100)}%`}}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════
+   PROJECT DETAIL VIEW
+════════════════════════════════ */
+function ProjectDetailView({ proj, tab, setTab, staged, onStage, onUnstage, onPush, onClear, onAnalyze, showAi, setShowAi }) {
+  const [filter, setFilter] = useState("all");
+  const [vPanels, setVPanels] = useState({});
+
+  const ct = proj.contradictions||[];
+  const stagedIds = new Set(staged.map(s=>s.id));
+  const counts = {
+    all:ct.length,
+    critical:ct.filter(c=>c.sv==="critical").length,
+    warning:ct.filter(c=>c.sv==="warning").length,
+    info:ct.filter(c=>c.sv==="info").length,
+  };
+  const filtered = filter==="all"?ct:ct.filter(c=>c.sv===filter);
+  const filterLabels = { all:"전체", critical:"🔴 심각한 모순", warning:"🟡 확인 필요", info:"🟢 참고" };
+
+  const togglePanel=(vid,type)=>{
+    setVPanels(p=>({...p,[vid]:p[vid]===type?null:type}));
+  };
+
+  return (
+    <div className="fade" style={{display:"flex",flexDirection:"column",gap:16,height:"100%"}}>
+      {/* 헤더 */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+        <div>
+          <h2 className="serif" style={{fontSize:20,fontWeight:700,color:"#2c2416"}}>{proj.name}</h2>
+          <p style={{fontSize:11,color:"#a89880",marginTop:2}}>{proj.date} 분석</p>
+        </div>
+        <button onClick={()=>setShowAi(!showAi)}
+          style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",borderRadius:10,
+            background:showAi?"#c4622d":"#fff",border:"1px solid #c4622d",color:showAi?"#fff":"#c4622d",
+            fontSize:12,fontWeight:700,boxShadow:"0 2px 10px rgba(196,98,45,.15)",transition:"all .2s"}}
+          onMouseEnter={e=>{if(!showAi)e.currentTarget.style.background="#fdeee6"}}
+          onMouseLeave={e=>{if(!showAi)e.currentTarget.style.background="#fff"}}>
+          🤖 {showAi?"AI 질문 닫기":"AI에게 질문하기"}
+        </button>
+      </div>
+
+      {/* 탭 */}
+      <div style={{display:"flex",gap:4,flexShrink:0}}>
+        {[{k:"overview",l:"📊 개요"},{k:"contradictions",l:`⚠️ 모순${ct.length>0?` (${ct.length}건)`:""}`},{k:"versions",l:"📝 수정 이력"}].map(t=>(
+          <button key={t.k} onClick={()=>setTab(t.k)}
+            style={{padding:"7px 14px",borderRadius:8,fontSize:12,fontWeight:600,transition:"all .15s",
+              color:tab===t.k?"#c4622d":"#a89880",
+              background:tab===t.k?"#fdeee6":"transparent",
+              border:tab===t.k?"1px solid rgba(196,98,45,.2)":"1px solid transparent"}}>
+            {t.l}
+          </button>
+        ))}
+      </div>
+
+      {/* 콘텐츠 그리드 */}
+      <div style={{flex:1,overflow:"auto",display:"grid",gridTemplateColumns:showAi?"1fr 360px":"1fr",gap:16}}>
+        <div style={{overflowY:"auto",display:"flex",flexDirection:"column",gap:12,paddingRight:4,minHeight:0}}>
+
+          {/* ── 개요 탭 ── */}
+          {tab==="overview"&&<>
+            <KbStats kb={proj.kb}/>
+            <SourceList sources={proj.sources}/>
+            {ct.length===0&&(
+              <button onClick={onAnalyze}
+                style={{width:"100%",padding:"14px",borderRadius:12,background:"#c4622d",color:"#fff",fontSize:13,fontWeight:700,boxShadow:"0 4px 20px rgba(196,98,45,.25)",display:"flex",alignItems:"center",justifyContent:"center",gap:6,transition:"transform .2s"}}
+                onMouseEnter={e=>e.currentTarget.style.transform="translateY(-1px)"}
+                onMouseLeave={e=>e.currentTarget.style.transform="translateY(0)"}>
+                🔍 모순 탐지 시작하기
+              </button>
+            )}
+            {ct.length>0&&(
+              <div style={{background:"#fdeaea",border:"1px solid rgba(184,50,50,.2)",borderRadius:12,padding:16,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#b83232"}}>{ct.length}건의 모순이 발견됐어요</div>
+                  <div style={{fontSize:11,color:"#a89880",marginTop:4}}>{counts.critical}건 중요, {counts.warning}건 확인 필요</div>
+                </div>
+                <button onClick={()=>setTab("contradictions")}
+                  style={{fontSize:12,fontWeight:600,color:"#b83232",padding:"8px 16px",borderRadius:8,border:"1px solid rgba(184,50,50,.25)",background:"#fff"}}>
+                  결과 보기 →
+                </button>
+              </div>
+            )}
+          </>}
+
+          {/* ── 모순 탭 ── */}
+          {tab==="contradictions"&&<>
+            <StagedFixes staged={staged} onRemove={onUnstage} onPush={onPush} onClear={onClear}/>
+            {/* 필터 */}
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
+              {["all","critical","warning","info"].map(f=>{
+                const act=filter===f;
+                const sv=SV[f];
+                return(
+                  <button key={f} onClick={()=>setFilter(f)}
+                    style={{display:"flex",alignItems:"center",gap:4,padding:"5px 12px",borderRadius:8,fontSize:11,fontWeight:600,transition:"all .15s",
+                      ...(act?(f==="all"?{background:"#fff",color:"#2c2416",border:"1px solid #ede4d8"}:{background:sv?.bg,color:sv?.tx,border:`1px solid ${sv?.bd}`})
+                          :{background:"#f5efe6",color:"#a89880",border:"1px solid transparent"})}}>
+                    {filterLabels[f]}
+                    <span className="mono" style={{fontSize:8,background:"rgba(255,255,255,.6)",padding:"0 4px",borderRadius:3}}>{counts[f]}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {filtered.map(c=>(
+              <ContradictionCard key={c.id} item={c} isStaged={stagedIds.has(c.id)} onStage={onStage} onUnstage={onUnstage}/>
+            ))}
+            {filtered.length===0&&(
+              <div style={{textAlign:"center",padding:"40px 0",color:"#a89880"}}>
+                <div style={{fontSize:36,marginBottom:8}}>✨</div>
+                <div style={{fontSize:13}}>선택한 조건의 모순이 없어요!</div>
+              </div>
+            )}
+          </>}
+
+          {/* ── 버전 탭 ── */}
+          {tab==="versions"&&<>
+            <button style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:11,color:"#a89880",padding:"10px",borderRadius:10,border:"1px solid #ede4d8",background:"#fff",width:"100%",transition:"all .15s"}}
+              onMouseEnter={e=>{e.currentTarget.style.color="#c4622d";e.currentTarget.style.borderColor="rgba(196,98,45,.3)";e.currentTarget.style.background="#fdeee6"}}
+              onMouseLeave={e=>{e.currentTarget.style.color="#a89880";e.currentTarget.style.borderColor="#ede4d8";e.currentTarget.style.background="#fff"}}>
+              📁 파일로 새 버전 만들기
+            </button>
+            <div style={{paddingLeft:24,position:"relative"}}>
+              <div style={{position:"absolute",left:8,top:4,bottom:4,width:2,background:"#ede4d8",borderRadius:1}}/>
+              {(proj.versions||[]).map((v,i)=>(
+                <div key={v.id} style={{position:"relative",marginBottom:14}}>
+                  <div style={{position:"absolute",left:-20,top:6,width:10,height:10,borderRadius:"50%",
+                    background:i===0?"#c4622d":"#ede4d8",border:i===0?"2px solid rgba(196,98,45,.25)":"2px solid #fff"}}/>
+                  <div style={{background:"#fff",border:`1px solid ${i===0?"rgba(196,98,45,.2)":"#ede4d8"}`,borderRadius:10,padding:12,boxShadow:"0 2px 8px rgba(44,36,22,.06)"}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <span className="mono" style={{fontSize:12,fontWeight:700,color:i===0?"#c4622d":"#6b5c47"}}>{v.vr}</span>
+                        {i===0&&<span style={{fontSize:9,background:"#fdeee6",color:"#c4622d",padding:"1px 6px",borderRadius:4}}>최신</span>}
+                        {v.fx>0&&<span style={{fontSize:9,background:"#fef3db",color:"#c47c1a",padding:"1px 6px",borderRadius:4}}>{v.fx}건 수정</span>}
+                        {v.src&&<span style={{fontSize:9,background:"#f5efe6",color:"#a89880",padding:"1px 6px",borderRadius:4}}>{v.src}</span>}
+                      </div>
+                      <span style={{fontSize:10,color:"#a89880"}}>{v.dt}</span>
+                    </div>
+                    <p style={{fontSize:11,color:"#6b5c47",lineHeight:1.6}}>{v.ds}</p>
+                    <div style={{display:"flex",gap:6,marginTop:8}}>
+                      <button onClick={()=>togglePanel(v.id,"content")}
+                        style={{fontSize:10,padding:"3px 8px",borderRadius:4,border:"1px solid #ede4d8",transition:"all .15s",
+                          ...(vPanels[v.id]==="content"?{color:"#c4622d",borderColor:"rgba(196,98,45,.3)",background:"#fdeee6"}:{color:"#a89880",background:"#fff"})}}>
+                        원고 보기
+                      </button>
+                      {i>0&&(
+                        <button onClick={()=>togglePanel(v.id,"diff")}
+                          style={{fontSize:10,padding:"3px 8px",borderRadius:4,border:"1px solid #ede4d8",transition:"all .15s",
+                            ...(vPanels[v.id]==="diff"?{color:"#c4622d",borderColor:"rgba(196,98,45,.3)",background:"#fdeee6"}:{color:"#a89880",background:"#fff"})}}>
+                          이전 버전과 비교
+                        </button>
+                      )}
+                    </div>
+                    {vPanels[v.id]==="content"&&(
+                      <div className="fade" style={{marginTop:10,background:"#f5efe6",borderRadius:8,padding:10,fontFamily:"'JetBrains Mono',monospace",fontSize:10,color:"#6b5c47",lineHeight:1.7,maxHeight:200,overflow:"auto"}}>
+                        {`[${v.vr} 원고 내용]\n\nCh.2 Scene 4\n${v.vr==="v1.1"?'D: (속으로: \'아직 결과가 없는데...\') "왜요? 아직 증거가 없잖아요."':'D: "왜요? 아직 증거가 없잖아요."'}\n\nA: "뭔가 숨기는 것 같은데..."\n\n[이하 생략]`}
+                      </div>
+                    )}
+                    {vPanels[v.id]==="diff"&&(
+                      <div className="fade" style={{marginTop:10,background:"#f5efe6",borderRadius:8,padding:10,fontFamily:"'JetBrains Mono',monospace",fontSize:10,lineHeight:1.7,maxHeight:200,overflow:"auto"}}>
+                        <span style={{display:"block",color:"#52525b",padding:"1px 0"}}>  Ch.2 Scene 4</span>
+                        <span style={{display:"block",color:"#b83232",background:"rgba(184,50,50,.06)",padding:"1px 4px",textDecoration:"line-through"}}>- D: "왜요? 아직 증거가 없잖아요."</span>
+                        <span style={{display:"block",color:"#2d7a56",background:"rgba(45,122,86,.08)",padding:"1px 4px"}}>+ D: (속으로: '아직 결과가 없는데...') "왜요? 아직 증거가 없잖아요."</span>
+                        <span style={{display:"block",color:"#52525b",padding:"1px 0"}}>  ...</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>}
+        </div>
+
+        {showAi&&<AiChatPanel/>}
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════
+   APP ROOT
+════════════════════════════════ */
+function App() {
+  const [projects, setProjects] = useState(MOCK_PROJECTS);
+  const [activeId, setActiveId] = useState("p1");
+  const [isNew, setIsNew] = useState(false);
+  const [tab, setTab] = useState("overview");
+  const [staged, setStaged] = useState([]);
+  const [showAi, setShowAi] = useState(false);
+  const [progress, setProgress] = useState(null);
+
+  const activeProj = projects.find(p=>p.id===activeId);
+
+  const runProgress = (steps, title, cb) => {
+    setProgress({steps,step:0,title});
+    let s=0;
+    const iv=setInterval(()=>{
+      s++; setProgress(p=>({...p,step:s}));
+      if(s>=steps.length){ clearInterval(iv); setTimeout(()=>{ setProgress(null); cb&&cb(); },300); }
+    },steps[s]?.ms||900);
+  };
+
+  const onSelect=(id)=>{ setActiveId(id); setIsNew(false); setTab("overview"); setStaged([]); setShowAi(false); };
+  const onNew=()=>{ setIsNew(true); setActiveId(null); setStaged([]); setShowAi(false); };
+
+  const onAnalyze=()=>runProgress(
+    [{l:"GraphRAG 지식 조회...",ms:900},{l:"캐릭터 정보 비교...",ms:1200},{l:"7가지 모순 분석...",ms:1500},{l:"LLM 검증...",ms:1000},{l:"리포트 생성...",ms:500}],
+    "모순 탐지 중...",
+    ()=>{ setTab("contradictions"); }
+  );
+
+  const onStage = (fix) => {
+    setStaged(p=>{
+      if(p.find(s=>s.id===fix.id)) return p.map(s=>s.id===fix.id?fix:s);
+      return [...p, fix];
+    });
+  };
+  const onUnstage = (id) => setStaged(p=>p.filter(s=>s.id!==id));
+  const onClear = () => setStaged([]);
+  const onPush = () => runProgress(
+    [{l:"수정사항 원본 반영...",ms:800},{l:"변경 영역 재파싱...",ms:1000},{l:"GraphRAG 증분 업데이트...",ms:1200},{l:"완료!",ms:400}],
+    "원고에 반영 중...",
+    ()=>{
+      const ids = new Set(staged.map(s=>s.id));
+      const nv = {id:`v${Date.now()}`,vr:`v1.${(activeProj?.versions?.length||0)+1}`,dt:new Date().toLocaleDateString("ko-KR"),fx:staged.length,ds:`${staged.length}건 수정 반영`,src:activeProj?.sources?.[0]?.n||""};
+      setProjects(p=>p.map(x=>x.id===activeProj.id?{...x,contradictions:x.contradictions.filter(c=>!ids.has(c.id)),versions:[nv,...x.versions]}:x));
+      setStaged([]);
+    }
+  );
+
+  return (
+    <div style={{display:"flex",height:"100vh",background:"#fdfaf5",overflow:"hidden"}}>
+      <Sidebar projects={projects} activeId={activeId} onSelect={onSelect} onNew={onNew}/>
+
+      <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0}}>
+        <Header projName={isNew?"새 작품 분석":activeProj?.name||""} isNew={isNew} stagedLen={staged.length}/>
+
+        <main style={{flex:1,overflow:"auto",padding:24}}>
+          {isNew&&(
+            <div className="fade" style={{textAlign:"center",padding:"80px 0",color:"#a89880"}}>
+              <div style={{fontSize:40,marginBottom:12}}>📖</div>
+              <p style={{fontSize:14}}>새 작품 분석 화면입니다 (미리보기 파일에서는 Mock 데이터만 제공)</p>
+            </div>
+          )}
+          {!isNew&&activeProj&&(
+            <ProjectDetailView
+              proj={activeProj} tab={tab} setTab={setTab}
+              staged={staged} onStage={onStage} onUnstage={onUnstage}
+              onPush={onPush} onClear={onClear} onAnalyze={onAnalyze}
+              showAi={showAi} setShowAi={setShowAi}
+            />
+          )}
+          {!isNew&&!activeProj&&(
+            <div style={{textAlign:"center",padding:"80px 0",color:"#a89880"}}>
+              <div style={{fontSize:40,marginBottom:12}}>📖</div>
+              <p style={{fontSize:14}}>작품을 선택하거나 새 작품을 분석해보세요</p>
+            </div>
+          )}
+        </main>
+      </div>
+
+      {progress&&<ProgressOverlay step={progress.step} steps={progress.steps} title={progress.title}/>}
+    </div>
+  );
+}
+
+ReactDOM.render(React.createElement(App), document.getElementById("root"));
+</script>
+</body>
+</html>

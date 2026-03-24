@@ -26,16 +26,38 @@ export interface Project {
 
 export type SeverityType = 'critical' | 'warning' | 'info';
 
+// Warm, author-friendly color palette (writer.html style)
 export const SV_COLORS = {
-  critical: { bg: "rgba(127,29,29,.4)", bd: "rgba(239,68,68,.4)", bg2: "#ef4444", tx: "#f87171", l: "심각" },
-  warning:  { bg: "rgba(120,53,15,.3)",  bd: "rgba(245,158,11,.35)", bg2: "#f59e0b", tx: "#fbbf24", l: "주의" },
-  info:     { bg: "rgba(12,74,110,.3)",  bd: "rgba(14,165,233,.25)", bg2: "#0ea5e9", tx: "#38bdf8", l: "참고" }
+  critical: {
+    bg: "#fdeaea",
+    bd: "rgba(184,50,50,0.2)",
+    bg2: "#c0392b",
+    tx: "#b83232",
+    l: "심각한 모순",
+    emoji: "🔴"
+  },
+  warning: {
+    bg: "#fef3db",
+    bd: "rgba(196,124,26,0.2)",
+    bg2: "#e67e22",
+    tx: "#c47c1a",
+    l: "확인 필요",
+    emoji: "🟡"
+  },
+  info: {
+    bg: "#e8f4ee",
+    bd: "rgba(45,122,86,0.2)",
+    bg2: "#27ae60",
+    tx: "#2d7a56",
+    l: "참고",
+    emoji: "🟢"
+  }
 };
 
 export const CAT_INFO = {
-  worldview: { l: "세계관",  c: "#a78bfa", i: "🌍" },
-  settings:  { l: "설정집",  c: "#f472b6", i: "📋" },
-  scenario:  { l: "시나리오", c: "#34d399", i: "🎬" }
+  worldview: { l: "세계관",  c: "#7c5cbf", i: "🌍" },
+  settings:  { l: "설정집",  c: "#c4622d", i: "📋" },
+  scenario:  { l: "시나리오", c: "#2d7a56", i: "🎬" }
 };
 
 export type DecisionType = 'intentional' | 'fix' | 'deferred';
