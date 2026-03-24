@@ -335,6 +335,47 @@ class _ViolationMixin:
                     suggestion="사망 이벤트 또는 이후 등장 시점을 수정하세요.",
                 ))
 
+        # 사망 후 이벤트 참여 체크 (characters_involved 기반)
+        name_to_id: Dict[str, str] = {}
+        for cv in self._vertices_by_label("character"):
+            cname = _prop(cv, "name") or _prop(cv, "canonical_name") or ""
+            cid_ = _prop(cv, "id")
+            if cname and cid_:
+                name_to_id[cname] = cid_
+        for ev in self._vertices_by_label("event"):
+            so = _prop(ev, "story_order")
+            if so is None:
+                continue
+            so = float(so)
+            raw_ci = ev.get("characters_involved") or []
+            if isinstance(raw_ci, str):
+                try:
+                    raw_ci = json.loads(raw_ci)
+                except Exception:
+                    raw_ci = [raw_ci] if raw_ci else []
+            elif not isinstance(raw_ci, list):
+                raw_ci = []
+            for char_name in raw_ci:
+                cid = name_to_id.get(char_name)
+                if not cid:
+                    continue
+                death_so = death_index.get(cid)
+                if death_so is not None and so > death_so:
+                    key = (cid, death_so)
+                    if key in seen_violation:
+                        continue
+                    seen_violation.add(key)
+                    desc = _prop(ev, "description") or ""
+                    violations.append(_make_violation(
+                        vtype=ContradictionType.TIMELINE,
+                        severity=Severity.CRITICAL,
+                        description=f"캐릭터 '{char_name}'이(가) 사망(story_order={death_so}) 후 이벤트에 등장(story_order={so}): {desc[:60]}",
+                        confidence=0.95,
+                        character_id=cid, character_name=char_name,
+                        evidence=[{"death_at": death_so, "appears_at": so, "event": desc[:80]}],
+                        suggestion="사망 이벤트 또는 이후 등장 시점을 수정하세요.",
+                    ))
+
         time_char_locs: Dict[Tuple[str, float], List[str]] = defaultdict(list)
         for e in at_location:
             cid, so, loc = _prop(e, "from_id"), _prop(e, "story_order"), _prop(e, "to_id")
@@ -568,6 +609,35 @@ class _ViolationMixin:
                             evidence=[{"lost_at": lost_at, "repossessed_at": so}],
                             needs_user_input=True,
                             confirmation_type=ConfirmationType.ITEM_DISCREPANCY,
+                        ))
+
+            # 유일 아이템: 이전 소유자가 잃지 않았는데 다른 사람이 소유
+            item_vertex = self.get_item(item_id) or {}
+            is_unique = item_vertex.get("is_unique") in (True, "True", "true", 1)
+            if is_unique:
+                possesses_only = [h for h in sorted_h if h["type"] == "possesses"]
+                lose_chars = {h["char_id"] for h in sorted_h if h["type"] == "loses"}
+                for i in range(1, len(possesses_only)):
+                    prev = possesses_only[i - 1]
+                    curr = possesses_only[i]
+                    if prev["char_id"] != curr["char_id"] and prev["char_id"] not in lose_chars:
+                        prev_name = (self.get_character(prev["char_id"]) or {}).get("name", prev["char_id"])
+                        curr_name = (self.get_character(curr["char_id"]) or {}).get("name", curr["char_id"])
+                        violations.append(_make_violation(
+                            vtype=ContradictionType.ITEM,
+                            severity=Severity.CRITICAL,
+                            description=(
+                                f"유일 아이템 '{item_name}': '{prev_name}'이(가) 분실 기록 없이 "
+                                f"'{curr_name}'이(가) 소유(story_order={curr['story_order']})"
+                            ),
+                            confidence=0.85,
+                            evidence=[{
+                                "item_id": item_id, "prev_owner": prev_name,
+                                "curr_owner": curr_name, "is_unique": True,
+                            }],
+                            needs_user_input=True,
+                            confirmation_type=ConfirmationType.ITEM_DISCREPANCY,
+                            suggestion="소유권 이전 이벤트(양도/분실)를 추가하거나 소유자를 수정하세요.",
                         ))
         return violations
 
@@ -1471,7 +1541,13 @@ class GremlinGraphService(_ViolationMixin):
 
             # 3. Event vertices (discourse_order/story_order 자동 부여)
             raw_event_dicts = [
-                {"description": ne.description, "event_type": ne.event_type, "location": ne.location}
+                {
+                    "description": ne.description,
+                    "event_type": ne.event_type,
+                    "location": ne.location,
+                    "status_char": ne.status_char,
+                    "characters_involved": ne.characters_involved,
+                }
                 for ne in normalized.events
             ]
             for ev_data in self._assign_time_axes(raw_event_dicts):
@@ -1486,6 +1562,7 @@ class GremlinGraphService(_ViolationMixin):
                     source_location="",
                 )
                 event_dict = _vertex_to_dict(event)
+                event_dict["characters_involved"] = ev_data.get("characters_involved") or []
                 self.add_event(event_dict)
                 self.add_sourced_from(event_dict["id"], source_id, {
                     "source_id": source_id,
@@ -1493,6 +1570,68 @@ class GremlinGraphService(_ViolationMixin):
                     "created_at": event_dict["created_at"],
                 })
                 created["events"].append(event_dict["id"])
+
+                # 3a. death 이벤트 → HAS_STATUS dead 엣지 자동 생성
+                _is_death = (
+                    event_dict.get("event_type") == "death"
+                    or (ev_data.get("status_char") and any(
+                        kw in event_dict.get("description", "")
+                        for kw in ["사망", "죽", "숨졌", "시체", "피살", "살해"]
+                    ))
+                )
+                if _is_death:
+                    status_char = ev_data.get("status_char")
+                    char_id = _resolve_char(status_char) if status_char else None
+                    if char_id:
+                        self.add_has_status(char_id, event_dict["id"], {
+                            "status_type": "dead",
+                            "status_value": "사망",
+                            "story_order": event_dict.get("story_order") or event_dict.get("discourse_order"),
+                            "source_id": source_id,
+                            "source_location": "",
+                            "created_at": event_dict["created_at"],
+                        })
+                        created["edges"].append(f"status-dead-{char_id}")
+
+            # 3b. 사망 관련 Facts → HAS_STATUS dead 엣지 생성
+            _DEATH_KW = ["사망", "죽", "숨졌", "시체", "피살", "살해", "사망한 상태"]
+            for nf in normalized.facts:
+                content = nf.content
+                if not any(kw in content for kw in _DEATH_KW):
+                    continue
+                for nc in normalized.characters:
+                    names_to_check = [nc.canonical_name] + list(nc.all_aliases)
+                    if not any(n in content for n in names_to_check):
+                        continue
+                    char_id_for_death = char_name_to_id.get(nc.canonical_name)
+                    if not char_id_for_death:
+                        continue
+                    do_death = self._get_next_discourse_order()
+                    # 설정집/세계관의 사망 사실은 시나리오 이전 상태 → story_order=0.0
+                    death_so = 0.0
+                    death_event = Event(
+                        source_id=source_id,
+                        discourse_order=do_death,
+                        story_order=death_so,
+                        is_linear=True,
+                        event_type=_safe_enum(EventType, "death", EventType.SCENE),
+                        description=content,
+                        location=None,
+                        source_location="",
+                    )
+                    death_dict = _vertex_to_dict(death_event)
+                    death_dict["characters_involved"] = [nc.canonical_name]
+                    self.add_event(death_dict)
+                    self.add_has_status(char_id_for_death, death_dict["id"], {
+                        "status_type": "dead",
+                        "status_value": "사망",
+                        "story_order": death_so,
+                        "source_id": source_id,
+                        "source_location": "",
+                        "created_at": death_dict["created_at"],
+                    })
+                    created["edges"].append(f"status-dead-fact-{char_id_for_death}")
+                    break  # 캐릭터당 1번만
 
             # 4. SourceConflict → UserConfirmation vertices
             for conflict in normalized.source_conflicts:
@@ -1682,6 +1821,27 @@ class GremlinGraphService(_ViolationMixin):
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 })
                 created["edges"].append(edge_id)
+
+            # 10. Fact에서 아이템 유일성 힌트 추출 → is_unique 업데이트
+            _UNIQUE_KW = ["하나뿐", "유일", "단 하나", "오직 하나", "1개뿐", "한 개뿐"]
+            try:
+                items_raw = self._submit("g.V().hasLabel('item').valueMap(true).toList()")
+                facts_raw = self._submit("g.V().hasLabel('fact').valueMap(true).toList()")
+                for item_r in items_raw:
+                    iname = self._prop(item_r.get("name"))
+                    is_uniq = self._prop(item_r.get("is_unique"))
+                    if is_uniq in (True, "True", "true", 1):
+                        continue
+                    item_id = self._prop(item_r.get("id")) or self._prop(item_r.get(T.id))
+                    for fact_r in facts_raw:
+                        fc = self._prop(fact_r.get("content")) or ""
+                        if iname and iname in fc and any(kw in fc for kw in _UNIQUE_KW):
+                            self._submit(
+                                f"g.V('{item_id}').property('is_unique', true)"
+                            )
+                            break
+            except Exception as e:
+                logger.warning("unique_hint_update_failed", error=str(e))
 
             logger.info("Materialization complete", **{k: len(v) for k, v in created.items()})
             return created
@@ -2440,10 +2600,12 @@ class InMemoryGraphService(_ViolationMixin):
                 if not char_id_for_death:
                     continue
                 do_death = self._get_next_discourse_order()
+                # 설정집/세계관의 사망 사실은 시나리오 이전 상태 → story_order=0.0
+                death_so = 0.0
                 death_event = Event(
                     source_id=source_id,
                     discourse_order=do_death,
-                    story_order=do_death,
+                    story_order=death_so,
                     is_linear=True,
                     event_type=_safe_enum(EventType, "death", EventType.SCENE),
                     description=content,
@@ -2456,7 +2618,7 @@ class InMemoryGraphService(_ViolationMixin):
                 self.add_has_status(char_id_for_death, death_dict["id"], {
                     "status_type": "dead",
                     "status_value": "사망",
-                    "story_order": do_death,
+                    "story_order": death_so,
                     "source_id": source_id,
                     "source_location": "",
                     "created_at": death_dict["created_at"],
@@ -2647,6 +2809,18 @@ class InMemoryGraphService(_ViolationMixin):
                 "created_at": datetime.now(timezone.utc).isoformat(),
             })
             created["edges"].append(edge_id)
+
+        # 10. Fact에서 아이템 유일성 힌트 추출 → is_unique 업데이트
+        _UNIQUE_KW = ["하나뿐", "유일", "단 하나", "오직 하나", "1개뿐", "한 개뿐"]
+        for item_v in self._vertices_by_label("item"):
+            if item_v.get("is_unique") in (True, "True", "true", 1):
+                continue
+            iname = item_v.get("name", "")
+            for fact_v in self._vertices_by_label("fact"):
+                fc = fact_v.get("content", "")
+                if iname and iname in fc and any(kw in fc for kw in _UNIQUE_KW):
+                    item_v["is_unique"] = True
+                    break
 
         self.log.info("materialize_complete", **{k: len(v) for k, v in created.items()})
         return created

@@ -62,6 +62,9 @@ export default function App() {
   const [nFiles, setNFiles] = useState<Record<CategoryKey, Array<{id: string, name: string}>>>({
     worldview: [], settings: [], scenario: []
   });
+  const [pendingFiles, setPendingFiles] = useState<Record<CategoryKey, Array<{id: string, name: string, file: File}>>>({
+    worldview: [], settings: [], scenario: []
+  });
   const [nGB, setNGB] = useState({ ws: false, sc: false });
 
   const activeProj = projects.find(p => p.id === activeId);
@@ -169,39 +172,53 @@ export default function App() {
   };
   
   const onNewProj = () => {
-    setIsNew(true); setActiveId(null); 
+    setIsNew(true); setActiveId(null);
     setNFiles({ worldview: [], settings: [], scenario: [] });
+    setPendingFiles({ worldview: [], settings: [], scenario: [] });
     setNGB({ ws: false, sc: false });
     setTab("overview"); setStaged([]); setShowAi(false);
   };
 
   // New Project View handlers
-  const onAddFiles = async (cat: CategoryKey, files: File[]) => {
-    // Call real API
-    try {
-      for (const f of files) {
-        await sourceApi.upload(f, cat);
-      }
-      const additions = files.map((f, i) => ({ id: `f-${Date.now()}-${i}`, name: f.name }));
-      setNFiles(p => ({ ...p, [cat]: [...p[cat], ...additions] }));
-    } catch (e) {
-      console.error(e);
-      alert("파일 업로드에 실패했습니다.");
-    }
+  const onAddFiles = (cat: CategoryKey, files: File[]) => {
+    const additions = files.map((f, i) => ({ id: `f-${Date.now()}-${i}`, name: f.name, file: f }));
+    setPendingFiles(p => ({ ...p, [cat]: [...p[cat], ...additions] }));
   };
-  
+
+  const onRemovePending = (cat: CategoryKey, id: string) => {
+    setPendingFiles(p => ({ ...p, [cat]: p[cat].filter(f => f.id !== id) }));
+  };
+
   const onRemoveFile = (cat: CategoryKey, id: string) => {
     setNFiles(p => ({ ...p, [cat]: p[cat].filter(f => f.id !== id) }));
   };
 
-  const onBuildGraph = (track: 'ws' | 'sc') => {
-    runProgress(track === 'ws' ? BUILD_STEPS_WS : BUILD_STEPS_SC, 
-      track === 'ws' ? "세계관·설정 GraphRAG 구축" : "시나리오 GraphRAG 구축", 
-      async () => {
-        await graphApi.build(track);
-        setNGB(p => ({ ...p, [track]: true }));
+  const UPLOAD_STEPS: ProgressStep[] = [
+    { l: "파일 업로드 중...", ms: 1200 },
+    { l: "문서 파싱 및 청킹...", ms: 1500 },
+    { l: "지식베이스 구축 중...", ms: 2000 },
+    { l: "인덱싱 완료...", ms: 600 },
+  ];
+
+  const onConfirmUpload = () => {
+    const allPending = (Object.entries(pendingFiles) as [CategoryKey, typeof pendingFiles[CategoryKey]][])
+      .flatMap(([cat, files]) => files.map(f => ({ cat, ...f })));
+    if (allPending.length === 0) return;
+
+    runProgress(UPLOAD_STEPS, `파일 업로드 중 (${allPending.length}개)`, async () => {
+      for (const f of allPending) {
+        await sourceApi.upload(f.file, f.cat);
+        setNFiles(p => ({ ...p, [f.cat]: [...p[f.cat], { id: f.id, name: f.name }] }));
       }
-    );
+      setPendingFiles({ worldview: [], settings: [], scenario: [] });
+    });
+  };
+
+  const onBuildGraph = (_track: 'ws' | 'sc') => {
+    runProgress(BUILD_STEPS_WS, "지식베이스 구축 중", async () => {
+      await graphApi.build('ws');
+      setNGB({ ws: true, sc: true });
+    });
   };
 
   const onNewAnalyze = () => {
@@ -245,8 +262,7 @@ export default function App() {
   const onAnalyze = () => {
     if (!activeProj) return;
     runProgress(ANALYZE_STEPS, "모순 탐지 분석 중", async () => {
-      // Actually fetch fresh contradictions via API
-      const res = await analyzeApi.analyze("Mock content"); // In real app, we might pass the file
+      const res = await analyzeApi.scan();
       
       // Transform API response
       const transformedContradictions = [
@@ -369,8 +385,11 @@ export default function App() {
           {isNew && (
             <NewProjectView
               files={nFiles}
+              pendingFiles={pendingFiles}
               onAddFiles={onAddFiles}
+              onRemovePending={onRemovePending}
               onRemoveFile={onRemoveFile}
+              onConfirmUpload={onConfirmUpload}
               onBuildGraph={onBuildGraph}
               graphBuilt={nGB}
               onAnalyze={onNewAnalyze}
