@@ -168,7 +168,8 @@ class _ViolationMixin:
     # ── 특성-이벤트 탐지 상수 ─────────────────────────────────
     _PROHIBITIVE_MARKERS = [
         "혐오", "절대", "하지 않", "않는다", "못하", "안 마", "마시지 않",
-        "먹지 않", "싫어", "거부", "금지", "불가",
+        "먹지 않", "싫어", "거부", "금지", "불가", "불능", "봉인",
+        "할 수 없", "사용할 수 없", "수 없는", "참여하지 않",
     ]
     _PARTICLE_SUFFIXES = (
         "에서", "에게", "로서", "하며", "이며", "이고", "까지", "부터",
@@ -1042,8 +1043,208 @@ class _ViolationMixin:
                 )
         return None
 
+    # ── 타임스탬프 파싱 ────────────────────────────────────────────
+
+    _TS_RE = re.compile(
+        r'(?P<ampm>오전|오후|밤|새벽|낮|정오)?\s*(?P<h>\d{1,2})\s*시\s*(?:(?P<m>\d{1,2})\s*분)?'
+    )
+
+    @classmethod
+    def _parse_timestamp_minutes(cls, text: str) -> Optional[int]:
+        """텍스트에서 첫 번째 시각을 분 단위 절대값으로 변환. 없으면 None."""
+        m = cls._TS_RE.search(text)
+        if not m:
+            return None
+        h = int(m.group("h"))
+        mins = int(m.group("m")) if m.group("m") else 0
+        ampm = m.group("ampm") or ""
+        if ampm in ("오후", "밤") and h < 12:
+            h += 12
+        elif ampm in ("새벽",) and h == 12:
+            h = 0
+        return h * 60 + mins
+
+    def _find_timestamp_violations(self) -> List[Dict[str, Any]]:
+        """연속 이벤트의 타임스탬프 간 시간차 vs min_duration 제약 비교."""
+        violations = []
+        # 제약 수집
+        all_facts = self._vertices_by_label("fact")
+        constraints = []
+        for fv in all_facts:
+            content = str(_prop(fv, "content") or "")
+            for c in self._extract_fact_constraints(content):
+                if c["type"] == "min_duration":
+                    c["fact_content"] = content
+                    c["fact_id"] = _prop(fv, "id")
+                    c["context_keywords"] = self._extract_subject_keywords(content)
+                    constraints.append(c)
+        if not constraints:
+            return violations
+
+        # 이벤트에서 타임스탬프 추출
+        events = self._vertices_by_label("event")
+        ts_events = []
+        for ev in events:
+            desc = str(_prop(ev, "description") or "")
+            ts = self._parse_timestamp_minutes(desc)
+            if ts is not None:
+                so = _prop(ev, "story_order") or _prop(ev, "discourse_order") or 0
+                ts_events.append({"ts": ts, "desc": desc, "so": so, "id": _prop(ev, "id")})
+        ts_events.sort(key=lambda x: float(x["so"]))
+
+        seen: set = set()
+        for i in range(1, len(ts_events)):
+            prev, curr = ts_events[i - 1], ts_events[i]
+            diff = curr["ts"] - prev["ts"]
+            if diff <= 0:
+                continue  # 시간 역전이거나 동일 시간
+            for constraint in constraints:
+                cval = constraint["value"]
+                if constraint["unit"] == "시간":
+                    cval *= 60
+                if diff >= cval:
+                    continue  # 제약 충족
+                # context 키워드 매칭 (완화: 키워드 없거나 1개 이상 매칭)
+                ctx_kws = constraint.get("context_keywords", [])
+                combined = prev["desc"] + " " + curr["desc"]
+                if len(ctx_kws) > 2 and not any(kw in combined for kw in ctx_kws):
+                    continue
+                vkey = (constraint["fact_id"], constraint["type"], constraint["value"])
+                if vkey in seen:
+                    continue
+                seen.add(vkey)
+                violations.append(_make_violation(
+                    vtype=ContradictionType.TIMELINE,
+                    severity=Severity.MAJOR,
+                    description=(
+                        f"세계 규칙 위반 — 최소 {constraint['value']}{constraint['unit']} 소요 구간을 "
+                        f"{diff}분 만에 이동(story_order={curr['so']}): {curr['desc'][:60]}"
+                    ),
+                    confidence=0.75,
+                    evidence=[{
+                        "fact": constraint["fact_content"],
+                        "prev_event": prev["desc"][:60],
+                        "curr_event": curr["desc"][:60],
+                        "time_diff_min": diff,
+                        "required_min": cval,
+                    }],
+                    needs_user_input=True,
+                    confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY,
+                    suggestion="이동 시간 또는 장면 시각을 수정하세요.",
+                ))
+        return violations
+
+    # ── 세계 규칙 금지 사항 vs 이벤트 ─────────────────────────────
+
+    _WORLD_PROHIBITION_MARKERS = re.compile(
+        r'불가능|봉인|금지|반드시|필수|할 수 없|사용할 수 없'
+    )
+
+    def find_world_rule_violations(self) -> List[Dict[str, Any]]:
+        """10. 세계 규칙 금지/필수 사항 vs 이벤트 행동 교차 검증."""
+        violations = []
+        all_facts = self._vertices_by_label("fact")
+
+        # 금지/필수 규칙 수집 (캐릭터 이름이 아닌 세계 규칙)
+        name_to_id: Dict[str, str] = {}
+        for cv in self._vertices_by_label("character"):
+            name = _prop(cv, "name") or _prop(cv, "canonical_name") or ""
+            if name:
+                name_to_id[name] = _prop(cv, "id")
+
+        rules: List[Dict] = []
+        for fv in all_facts:
+            content = str(_prop(fv, "content") or "")
+            if not self._WORLD_PROHIBITION_MARKERS.search(content):
+                continue
+            keywords = self._extract_subject_keywords(content)
+            # 캐릭터 이름 제거
+            keywords = [kw for kw in keywords if kw not in name_to_id]
+            if len(keywords) < 2:
+                continue
+            rules.append({
+                "content": content,
+                "keywords": keywords,
+                "fact_id": _prop(fv, "id"),
+            })
+
+        if not rules:
+            return violations
+
+        seen: set = set()
+        for ev in self._vertices_by_label("event"):
+            desc = str(_prop(ev, "description") or "")
+            so = _prop(ev, "story_order") or _prop(ev, "discourse_order") or 0
+            for rule in rules:
+                matched = [kw for kw in rule["keywords"] if kw in desc]
+                if len(matched) < 1:
+                    continue
+                vkey = (rule["fact_id"],)
+                if vkey in seen:
+                    continue
+                seen.add(vkey)
+                violations.append(_make_violation(
+                    vtype=ContradictionType.TIMELINE,
+                    severity=Severity.MAJOR,
+                    description=(
+                        f"세계 규칙 위반 가능 — 규칙: '{rule['content'][:60]}' "
+                        f"vs 이벤트(story_order={so}): {desc[:60]}"
+                    ),
+                    confidence=0.6,
+                    evidence=[{
+                        "rule": rule["content"],
+                        "event": desc[:100],
+                        "matched_keywords": matched,
+                    }],
+                    needs_user_input=True,
+                    confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY,
+                    suggestion="세계 규칙과 이벤트 행동의 모순 여부를 확인하세요.",
+                ))
+
+        # "없이" 패턴: 이벤트에서 "X 없이" → X 관련 규칙/아이템 소유 사실이 있는 경우
+        without_re = re.compile(r'(\S+)\s*없이')
+        for ev in self._vertices_by_label("event"):
+            desc = str(_prop(ev, "description") or "")
+            so = _prop(ev, "story_order") or _prop(ev, "discourse_order") or 0
+            for m in without_re.finditer(desc):
+                missing_item = m.group(1)
+                # fact/세계규칙에서 해당 아이템이 필수이거나 존재하는지 확인
+                for fv in all_facts:
+                    fc = str(_prop(fv, "content") or "")
+                    # 부분 매칭: "카드 없이" → "보안 카드", "패스카드" 등
+                    item_in_fact = missing_item in fc or any(
+                        missing_item in w for w in fc.split()
+                    )
+                    if not item_in_fact:
+                        continue
+                    if re.search(r'반드시|필수|필요|만이|만 가|착용|열 수 있|소유', fc):
+                        vkey = ("without", missing_item, _prop(fv, "id"))
+                        if vkey in seen:
+                            break
+                        seen.add(vkey)
+                        violations.append(_make_violation(
+                            vtype=ContradictionType.TIMELINE,
+                            severity=Severity.MAJOR,
+                            description=(
+                                f"세계 규칙 위반 — '{missing_item}' 없이 행동: {desc[:60]} "
+                                f"(규칙: {fc[:50]})"
+                            ),
+                            confidence=0.7,
+                            evidence=[{
+                                "rule": fc,
+                                "event": desc[:100],
+                                "missing": missing_item,
+                            }],
+                            needs_user_input=True,
+                            confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY,
+                            suggestion="필수 장비/아이템 없이 행동하는 모순을 수정하세요.",
+                        ))
+                        break
+
+        return violations
+
     def find_all_violations(self) -> Dict[str, List[Dict[str, Any]]]:
-        """9가지 쿼리 통합 + Hard / Soft 분류"""
+        """10가지 쿼리 통합 + Hard / Soft 분류"""
         all_v = (
             self.find_knowledge_violations()
             + self.find_timeline_violations()
@@ -1054,6 +1255,8 @@ class _ViolationMixin:
             + self.find_deception_violations()
             + self.find_trait_event_violations()
             + self.find_fact_event_violations()
+            + self._find_timestamp_violations()
+            + self.find_world_rule_violations()
         )
         hard = [v for v in all_v if v.get("is_hard")]
         soft = [v for v in all_v if not v.get("is_hard")]
@@ -1603,7 +1806,7 @@ class GremlinGraphService(_ViolationMixin):
                         created["edges"].append(f"status-dead-{char_id}")
 
             # 3b. 사망 관련 Facts → HAS_STATUS dead 엣지 생성
-            _DEATH_KW = ["사망", "죽", "숨졌", "시체", "피살", "살해", "사망한 상태"]
+            _DEATH_KW = ["사망", "죽", "숨졌", "시체", "피살", "살해", "사망한 상태", "암살", "익사", "사고사", "전사"]
             for nf in normalized.facts:
                 content = nf.content
                 if not any(kw in content for kw in _DEATH_KW):
@@ -2609,7 +2812,7 @@ class InMemoryGraphService(_ViolationMixin):
 
         # 3b. 사망 관련 Facts → HAS_STATUS dead 엣지 생성
         # LLM이 death event 대신 fact로 추출하는 경우 대응 (예: "박영호는 사망한 상태로 발견됨")
-        _DEATH_KW = ["사망", "죽", "숨졌", "시체", "피살", "살해", "사망한 상태"]
+        _DEATH_KW = ["사망", "죽", "숨졌", "시체", "피살", "살해", "사망한 상태", "암살", "익사", "사고사", "전사"]
         for nf in normalized.facts:
             content = nf.content
             if not any(kw in content for kw in _DEATH_KW):
