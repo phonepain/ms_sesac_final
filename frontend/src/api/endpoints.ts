@@ -197,7 +197,17 @@ export const statsApi = {
 };
 
 // ==========================================
-// 7. AI 질의 API
+// 7. 전체 초기화 API
+// ==========================================
+
+export const resetApi = {
+  resetAll: () => fetchApi<{ status: string; message: string; graph_cleared: any; files_deleted: number }>(
+    '/reset', { method: 'POST' }
+  )
+};
+
+// ==========================================
+// 8. AI 질의 API
 // ==========================================
 
 export const aiApi = {
