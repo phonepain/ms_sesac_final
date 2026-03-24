@@ -350,30 +350,30 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-[#09090b] text-[#e4e4e7] overflow-hidden">
-      <Sidebar 
-        projects={projects} 
-        activeId={activeId} 
-        onSelect={onSelectProj} 
-        onNew={onNewProj} 
+    <div className="flex h-screen bg-[#fdfaf5] text-[#2c2416] overflow-hidden">
+      <Sidebar
+        projects={projects}
+        activeId={activeId}
+        onSelect={onSelectProj}
+        onNew={onNewProj}
       />
-      
+
       <div className="flex-1 flex flex-col min-w-0">
-        <Header 
-          activeProj={activeProj} 
-          isNew={isNew} 
-          stagedLength={staged.length} 
+        <Header
+          activeProj={activeProj}
+          isNew={isNew}
+          stagedLength={staged.length}
         />
-        
-        <main className="flex-1 overflow-auto p-5">
+
+        <main className="flex-1 overflow-auto p-6">
           {isNew && (
-            <NewProjectView 
-              files={nFiles} 
-              onAddFiles={onAddFiles} 
-              onRemoveFile={onRemoveFile} 
-              onBuildGraph={onBuildGraph} 
-              graphBuilt={nGB} 
-              onAnalyze={onNewAnalyze} 
+            <NewProjectView
+              files={nFiles}
+              onAddFiles={onAddFiles}
+              onRemoveFile={onRemoveFile}
+              onBuildGraph={onBuildGraph}
+              graphBuilt={nGB}
+              onAnalyze={onNewAnalyze}
             />
           )}
 
@@ -395,8 +395,9 @@ export default function App() {
           )}
 
           {!isNew && !activeProj && (
-            <div className="text-center py-[60px] text-[#3f3f46]">
-              <p>프로젝트를 선택하거나 새 프로젝트를 생성하세요</p>
+            <div className="text-center py-[80px] text-[#a89880]">
+              <div className="text-5xl mb-4">📖</div>
+              <p className="text-sm">작품을 선택하거나 새 작품을 분석해보세요</p>
             </div>
           )}
         </main>

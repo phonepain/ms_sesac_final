@@ -1,7 +1,6 @@
 import { useRef } from 'react';
 import { CAT_INFO } from '../../types';
 import type { Project } from '../../types';
-import { Db, Dw, Up2 } from '../common/Icons';
 
 interface SourceListProps {
   sources: Project['sources'];
@@ -34,30 +33,30 @@ function SourceItem({
   };
 
   return (
-    <div className="flex items-center gap-2 px-2 py-1.5 bg-[rgba(9,9,14,0.3)] rounded-md">
-      <span className="text-xs">{c?.i || "📄"}</span>
+    <div className="flex items-center gap-2.5 px-2.5 py-2 bg-[#f5efe6] rounded-lg mb-1">
+      <span className="text-base">{c?.i || "📄"}</span>
       <div className="flex-1 min-w-0">
-        <div className="text-[11px] text-[#e4e4e7] overflow-hidden text-ellipsis whitespace-nowrap">
+        <div className="text-xs font-medium text-[#2c2416] overflow-hidden text-ellipsis whitespace-nowrap">
           {s.n}
         </div>
-        <div className="text-[9px] text-[#52525b]">
-          {c?.l || '기타'} · 엔티티 {s.ent} · 사실 {s.fct}
+        <div className="text-[10px] text-[#a89880]">
+          {c?.l || '기타'} · 인물 {s.ent}명 · 사실 {s.fct}건
         </div>
       </div>
-      <div className="flex gap-1 shrink-0">
+      <div className="flex gap-1.5 shrink-0">
         <button
           onClick={handleDownload}
-          className="text-[#52525b] hover:text-[#34d399] transition-colors p-0.5"
-          title="다운로드"
+          title="원본 다운로드"
+          className="text-[10px] text-[#a89880] hover:text-[#c4622d] px-2 py-1 rounded border border-[#ede4d8] bg-white transition-colors"
         >
-          <Dw />
+          ↓
         </button>
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="text-[#52525b] hover:text-[#34d399] transition-colors p-0.5"
-          title="파일 업데이트"
+          title="새 파일로 업데이트"
+          className="text-[10px] text-[#a89880] hover:text-[#7c5cbf] px-2 py-1 rounded border border-[#ede4d8] bg-white transition-colors"
         >
-          <Up2 />
+          ↑ 업데이트
         </button>
         <input
           type="file"
@@ -71,6 +70,7 @@ function SourceItem({
           }}
         />
       </div>
+      <span className="text-[10px] text-[#2d7a56] font-semibold shrink-0">✓ 완료</span>
     </div>
   );
 }
@@ -79,12 +79,9 @@ export default function SourceList({ sources, onReupload }: SourceListProps) {
   if (!sources || sources.length === 0) return null;
 
   return (
-    <div className="bg-[rgba(39,39,42,0.1)] border border-[rgba(63,63,70,0.08)] rounded-[9px] p-3">
-      <div className="text-[10px] font-bold text-[#71717a] mb-2 flex items-center gap-1">
-        <Db />
-        등록된 소스 <span className="mono text-[#52525b]">{sources.length}</span>
-      </div>
-      <div className="flex flex-col gap-1">
+    <div className="bg-white border border-[#ede4d8] rounded-xl p-4" style={{ boxShadow: "0 2px 8px rgba(44,36,22,0.06)" }}>
+      <div className="text-xs font-semibold text-[#2c2416] mb-3">📂 등록된 파일</div>
+      <div className="flex flex-col">
         {sources.map(s => (
           <SourceItem key={s.id} s={s} onReupload={onReupload} />
         ))}
