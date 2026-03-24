@@ -119,30 +119,40 @@ class ExtractionService:
     # ── mock 보조 메서드 ────────────────────────────────────────
 
     def _extract_header_characters(self, text: str, chunk_id: str) -> List[Dict[str, object]]:
-        """settings 타입의 '=== 이름 ===' 헤더에서 캐릭터 추출.
+        """settings 타입의 캐릭터 헤더에서 이름 추출.
 
-        헤더 예: '=== 형사 A (이아름) ===' → 단일 대문자 'A' 우선,
-        없으면 한글 이름(2~4자).
+        두 가지 포맷 지원:
+        1. '=== 형사 A (이아름) ===' → 단일 대문자 'A' 우선, 없으면 한글 이름(2~4자)
+        2. '1. 강진우 (주인공, 형사)' 번호 목록 형식 → 한글 이름(2~4자)
         """
         results = []
         seen: set = set()
-        for match in re.finditer(r"===(.+?)===", text):
-            header = match.group(1).strip()
-            # 단일 대문자 식별자 우선 (A, B, C, D …)
-            letter = re.search(r"\b([A-Z])\b", header)
-            if letter:
-                name = letter.group(1)
-            else:
-                kr = re.search(r"([가-힣]{2,4})", header)
-                name = kr.group(1) if kr else None
+
+        def _add(name: str, role_hint: str = ""):
             if name and name not in seen:
                 seen.add(name)
                 results.append({
                     "name": name,
                     "possible_aliases": [],
-                    "role_hint": header,
+                    "role_hint": role_hint,
                     "source_chunk_id": chunk_id,
                 })
+
+        # 포맷 1: === 헤더 ===
+        for match in re.finditer(r"===(.+?)===", text):
+            header = match.group(1).strip()
+            letter = re.search(r"\b([A-Z])\b", header)
+            if letter:
+                _add(letter.group(1), header)
+            else:
+                kr = re.search(r"([가-힣]{2,4})", header)
+                if kr:
+                    _add(kr.group(1), header)
+
+        # 포맷 2: "N. 이름 (역할)" 번호 목록
+        for match in re.finditer(r"^\d+\.\s+([가-힣]{2,5})\s*[(\（]", text, re.MULTILINE):
+            _add(match.group(1), match.group(0).strip())
+
         return results
 
     def _extract_mock_traits_and_emotions(
@@ -176,11 +186,11 @@ class ExtractionService:
         traits: List[Dict[str, object]] = []
         emotions: List[Dict[str, object]] = []
 
-        # settings: 헤더 기준 블록 파싱
-        if source_type == "settings":
+        # 헤더(=== 캐릭터명 ===) 기준 블록 파싱 — settings뿐 아니라 scenario에 설정이 포함된 경우도 처리
+        if source_type in ("settings", "scenario", "worldview"):
             current_char: str | None = None
             for line in text.split("\n"):
-                # 헤더 감지
+                # 헤더 감지 — 포맷1: === 헤더 ===
                 hm = re.search(r"===(.+?)===", line)
                 if hm:
                     header = hm.group(1).strip()
@@ -192,10 +202,34 @@ class ExtractionService:
                         current_char = kr.group(1) if kr else None
                     continue
 
+                # 헤더 감지 — 포맷2: "N. 이름 (역할)" 번호 목록
+                nm = re.match(r"^\d+\.\s+([가-힣]{2,5})\s*[(\（]", line)
+                if nm:
+                    current_char = nm.group(1)
+                    continue
+
                 if not current_char:
                     continue
 
-                # trait 키워드 파싱
+                # "- 특성:" 블록에서 trait 파싱 (번호 목록 포맷)
+                trait_block = re.match(r"^[-\s]*특성\s*:\s*(.+)", line)
+                if trait_block:
+                    desc = trait_block.group(1)
+                    # "커피를 극도로 혐오" → key=커피, value=혐오
+                    for kw, key in [("커피", "커피"), ("결벽", "결벽증"), ("채식", "식습관"),
+                                    ("술", "음주"), ("혈액형", "혈액형")]:
+                        if kw in desc:
+                            val = "혐오" if "혐오" in desc else (
+                                  "결벽증" if "결벽" in desc else desc[:40])
+                            traits.append({
+                                "character_name": current_char,
+                                "key": key,
+                                "value": val,
+                                "category_hint": "personality",
+                                "source_chunk_id": chunk_id,
+                            })
+
+                # trait 키워드 파싱 (기존 key:value 포맷)
                 for key in TRAIT_KEYS:
                     m = re.search(rf"{key}\s*:\s*([가-힣A-Za-z0-9()\s]+)", line)
                     if m:
@@ -306,38 +340,104 @@ class ExtractionService:
         chunk_id: str,
         char_names: List[str],
     ) -> List[Dict[str, object]]:
-        """대화 대사 → mentions, 학습 동사 → learns."""
+        """대화 대사 → mentions, 학습 동사/맥락 → learns."""
         if source_type not in ("scenario", "settings"):
             return []
 
         results: List[Dict[str, object]] = []
+
+        # 서술형 학습 동사 (narrative)
         LEARN_VERBS = [
             "알았다", "알게됐다", "알게 됐다", "깨달았다",
             "확인했다", "발견했다", "들었다", "봤다", "알려줬다",
+            "알게되었다", "파악했다", "인지했다",
+        ]
+        # 대화 맥락 학습 키워드 — "(진술 검토 후)", "이제 확실해", "알고 있었어" 등
+        LEARN_CONTEXT_PATTERNS = [
+            r"\(.*?(?:진술|증언|확인|검토|발견).*?\)",   # 지문: (C의 진술 검토 후)
+            r"이제\s*(?:확실|알겠|알았|분명)",            # "이제 확실해", "이제 알겠어"
+            r"처음부터\s*알고",                            # "처음부터 알고 있었어"
+            r"(?:그래서|그러니까|결국)\s*범인",            # 결론 도출 대사
         ]
         STAGE_DIRS = {"무대", "지문", "해설", "자막", "나레이션"}
 
-        # mentions: 대사 한 줄 = "캐릭터: 내용"
+        # ── 대사 파싱 ────────────────────────────────────────────
+        # "화자: (지문) 실제 대사" 형식 처리
+        # 지문 부분은 학습 맥락 판단에, 실제 대사 부분은 fact_content로 사용
         dial_pat = re.compile(
-            r"^\s*([가-힣A-Za-z]{1,20})\s*:\s*(.{10,150})",
+            r"^\s*([가-힣A-Za-z]{1,20})\s*:\s*(.{5,200})",
             re.MULTILINE,
         )
-        for m in dial_pat.finditer(text):
-            speaker = m.group(1).strip()
-            content = m.group(2).strip()
-            if speaker in STAGE_DIRS or content.startswith("("):
+        lines = text.split("\n")
+        prev_line_is_learn_context = False
+        for line in lines:
+            stripped = line.strip()
+
+            # 독립 지문/나레이션 줄 ([...] 또는 순수 (...) 줄)
+            if (stripped.startswith("[") or
+                    (stripped.startswith("(") and not re.match(r"^\s*[가-힣A-Za-z]{1,20}\s*:", line))):
+                is_context = any(re.search(pat, stripped) for pat in LEARN_CONTEXT_PATTERNS)
+                prev_line_is_learn_context = is_context
                 continue
+
+            m = dial_pat.match(line)
+            if not m:
+                prev_line_is_learn_context = False
+                continue
+
+            speaker = m.group(1).strip()
+            raw_content = m.group(2).strip()
+            if speaker in STAGE_DIRS:
+                prev_line_is_learn_context = False
+                continue
+
+            # 줄 앞의 인라인 지문 "(지문) 실제 대사" 분리
+            # "(C의 진술 검토 후) 이제 확실해." → stage_dir="(C의 진술 검토 후)", content="이제 확실해."
+            inline_dir_match = re.match(r"^(\([^)]{1,50}\))\s*(.*)", raw_content, re.DOTALL)
+            if inline_dir_match:
+                inline_dir = inline_dir_match.group(1)
+                content = inline_dir_match.group(2).strip()
+                inline_is_learn = any(re.search(pat, inline_dir) for pat in LEARN_CONTEXT_PATTERNS)
+            else:
+                inline_dir = ""
+                content = raw_content
+                inline_is_learn = False
+
+            # fact_content가 너무 짧으면 스킵
+            if len(content) < 5:
+                prev_line_is_learn_context = False
+                continue
+
+            # 학습 여부 판단: 직전 독립 지문 OR 인라인 지문 OR 대사 자체 키워드
+            content_is_learn = any(re.search(pat, content) for pat in LEARN_CONTEXT_PATTERNS)
+            event_type = "learns" if (prev_line_is_learn_context or inline_is_learn or content_is_learn) else "mentions"
+
+            # learns일 때 fact_content 정규화:
+            # "이제 확실해. B가 범인이야." → 학습 맥락 접두 문장 제거 → "B가 범인이야."
+            # 이렇게 해야 기존 mentions fact("B가 범인이다")와 bi-gram 매칭 성공
+            fact_content = content
+            if event_type == "learns":
+                # 첫 번째 문장이 학습 맥락 키워드만 포함하면 제거
+                sentences = re.split(r"(?<=[.?!])\s+", content)
+                if len(sentences) > 1:
+                    first = sentences[0]
+                    if any(re.search(pat, first) for pat in LEARN_CONTEXT_PATTERNS):
+                        fact_content = " ".join(sentences[1:]).strip()
+                if len(fact_content) < 5:
+                    fact_content = content
+
             results.append({
                 "character_name": speaker,
-                "fact_content": content[:100],
-                "event_type": "mentions",
-                "method": "direct_speech",
+                "fact_content": fact_content[:100],
+                "event_type": event_type,
+                "method": "testimony" if event_type == "learns" else "direct_speech",
                 "via_character": None,
-                "dialogue_text": content[:100],
+                "dialogue_text": raw_content[:100],
                 "source_chunk_id": chunk_id,
             })
+            prev_line_is_learn_context = False
 
-        # learns: "캐릭터가 ~을 알았다/발견했다" 등
+        # ── 서술형 learns ("캐릭터가 ~알았다") ──────────────────
         for char_name in char_names[:5]:
             for verb in LEARN_VERBS:
                 for m in re.finditer(
@@ -354,7 +454,7 @@ class ExtractionService:
                         "source_chunk_id": chunk_id,
                     })
 
-        return results[:12]
+        return results[:16]
 
     def _extract_mock_item_events(
         self,
@@ -366,10 +466,11 @@ class ExtractionService:
         """소유/양도/분실 패턴 → POSSESSES / LOSES 엣지용 데이터."""
         results: List[Dict[str, object]] = []
 
-        # settings: "소유물: 아이템명" → possesses
-        if source_type == "settings":
+        # settings/scenario: "소유물: 아이템명" → possesses  (=== 헤더 === 및 번호 목록 포맷 모두 지원)
+        if source_type in ("settings", "scenario"):
             current_char: str | None = None
             for line in text.split("\n"):
+                # 헤더 포맷1: === 이름 ===
                 hm = re.search(r"===(.+?)===", line)
                 if hm:
                     header = hm.group(1)
@@ -379,15 +480,32 @@ class ExtractionService:
                         if re.search(r"([가-힣]{2,4})", header) else None
                     )
                     continue
-                owns = re.search(r"소유물\s*:\s*([가-힣A-Za-z0-9()\s]+)", line)
+                # 헤더 포맷2: "N. 이름 (역할)"
+                nm = re.match(r"^\d+\.\s+([가-힣]{2,5})\s*[(\（]", line)
+                if nm:
+                    current_char = nm.group(1)
+                    continue
+                # "- 소유물:" 또는 "소유물:"
+                owns = re.search(r"소유물\s*:\s*([가-힣A-Za-z0-9()\s'\"]+)", line)
                 if owns and current_char:
-                    item_text = re.split(r"[(\[,]", owns.group(1))[0].strip()
+                    item_text = re.split(r"[(\[,]", owns.group(1))[0].strip().strip("'\"")
                     results.append({
                         "character_name": current_char,
                         "item_name": item_text[:30],
                         "action": "possesses",
                         "source_chunk_id": chunk_id,
                     })
+                # "- 상태: 사망" → HAS_STATUS dead용 특수 item_event (action="loses" → 나중에 상태 추론)
+                status_m = re.search(r"상태\s*:\s*(.+)", line)
+                if status_m and current_char:
+                    status_val = status_m.group(1).strip()
+                    if any(kw in status_val for kw in ["사망", "죽", "dead", "사체"]):
+                        results.append({
+                            "character_name": current_char,
+                            "item_name": "__status_dead__",
+                            "action": "possesses",   # 특수 마커 — build_mock_result에서 status로 변환
+                            "source_chunk_id": chunk_id,
+                        })
 
         # scenario: 양도 패턴 "X이|가 Y을|를 Z에게|한테 건네/주었/양도"
         if source_type == "scenario":
@@ -439,8 +557,8 @@ class ExtractionService:
         # ── 캐릭터 추출 ─────────────────────────────────────────
         characters = self._guess_characters_from_narrative(text, chunk_id)
 
-        # settings 타입: === 헤더 === 기반 캐릭터도 병합
-        if source_type == "settings":
+        # settings/scenario 타입: === 헤더 === 기반 캐릭터도 병합
+        if source_type in ("settings", "scenario"):
             existing_names = {c["name"] for c in characters}
             for hc in self._extract_header_characters(text, chunk_id):
                 if hc["name"] not in existing_names:
@@ -498,7 +616,23 @@ class ExtractionService:
         knowledge_events = self._extract_mock_knowledge_events(
             text, source_type, chunk_id, char_names
         )
-        item_events = self._extract_mock_item_events(text, source_type, chunk_id, char_names)
+        item_events_raw = self._extract_mock_item_events(text, source_type, chunk_id, char_names)
+
+        # "__status_dead__" 마커 → RawEvent(death) + 실제 item_events 분리
+        item_events = []
+        for ie in item_events_raw:
+            if ie.get("item_name") == "__status_dead__":
+                # 사망 상태 → events에 death 이벤트 추가
+                raw_events.append({
+                    "description": f"{ie['character_name']} 사망",
+                    "characters_involved": [ie["character_name"]],
+                    "location_hint": None,
+                    "event_type": "death",
+                    "status_char": ie["character_name"],
+                    "source_chunk_id": chunk_id,
+                })
+            else:
+                item_events.append(ie)
 
         logger.debug(
             "mock_extraction_summary",

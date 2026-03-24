@@ -166,10 +166,11 @@ class _NormalizationCore:
             if key not in event_map:
                 event_map[key] = NormalizedEvent(
                     description=description,
-                    event_type="scene",
+                    event_type=r.event_type or "scene",
                     location=location,
                     characters_involved=list(r.characters_involved),
                     merged_from=[r],
+                    status_char=r.status_char,
                 )
                 continue
 

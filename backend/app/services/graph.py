@@ -68,8 +68,19 @@ def _prop(v: Dict, key: str) -> Any:
 # ─────────────────────────────────────────────────────────────
 
 def _fact_bigrams(text: str) -> set:
-    """텍스트를 bi-gram 집합으로 변환. 한국어/영어 공용."""
+    """텍스트를 정규화 후 bi-gram 집합으로 변환. 한국어/영어 공용.
+
+    어미 변화("범인이야" vs "범인이다")에 강건하도록:
+    1. 구두점 제거
+    2. 공통 한국어 어미/조사 제거 → 어간만 남김
+    3. 공백 정규화 후 문자 2-gram
+    """
+    import re as _re
     t = text.strip()
+    t = _re.sub(r'[.!?,。、·…]', ' ', t)
+    # 어미 정규화: "이야/이다/이에/이었/이고/이며" → 제거 (어간 보존)
+    t = _re.sub(r'(?<=[가-힣])(이야|이다|이에요|이었|이고|이며|이랑|야|다|해요|했다|해|ㅎ)', ' ', t)
+    t = _re.sub(r'\s+', ' ', t).strip()
     return {t[i:i+2] for i in range(len(t) - 1)} if len(t) >= 2 else {t}
 
 
@@ -134,6 +145,841 @@ def _make_violation(
         # Hard = confidence≥0.8 이고 사용자 확인 불필요
         "is_hard": confidence >= 0.8 and not needs_user_input,
     }
+
+
+# ─────────────────────────────────────────────────────────────
+# 모순 탐지 Mixin — GremlinGraphService / InMemoryGraphService 공용
+# _vertices_by_label / _edges_by_label / get_character /
+# find_character_by_name / get_trait / get_item 을 구현한 클래스에 믹스인
+# ─────────────────────────────────────────────────────────────
+
+class _ViolationMixin:
+    """9가지 모순 탐지 쿼리.
+
+    하위 클래스는 반드시 아래 메서드를 구현해야 합니다:
+      _vertices_by_label(label) -> List[Dict]
+      _edges_by_label(label)   -> List[Dict]
+      get_character(id)        -> Optional[Dict]
+      find_character_by_name(name) -> Optional[Dict]
+      get_trait(id)            -> Optional[Dict]
+      get_item(id)             -> Optional[Dict]
+    """
+
+    # ── 특성-이벤트 탐지 상수 ─────────────────────────────────
+    _PROHIBITIVE_MARKERS = [
+        "혐오", "절대", "하지 않", "않는다", "못하", "안 마", "마시지 않",
+        "먹지 않", "싫어", "거부", "금지", "불가",
+    ]
+    _PARTICLE_SUFFIXES = (
+        "에서", "에게", "로서", "하며", "이며", "이고", "까지", "부터",
+        "를", "을", "가", "이", "은", "는", "에", "로", "의", "도", "만", "와", "과", "며", "고",
+    )
+    _CONTENT_STOP = {
+        "하지", "않는", "못하", "않고", "않다", "않는다", "절대", "혐오",
+        "마시지", "먹지", "싫어", "거부", "한다", "하며", "이며",
+        "최소", "이후", "이상", "이하", "미만", "이내", "초과", "부터", "까지",
+        "차로", "걸어", "소요", "걸림",
+    }
+
+    def find_knowledge_violations(self) -> List[Dict[str, Any]]:
+        """1. 정보 비대칭 탐지.
+
+        (a) 동일 캐릭터: MENTIONS.story_order < LEARNS.story_order
+            — 자기가 알기 전에 이미 말하는 경우
+
+        (b) Cross-character: B가 A에게서 배운다(LEARNS, via_character=A)고 기록되었는데
+            A의 해당 사실 최초 인지 시점이 B의 LEARNS보다 늦은 경우
+            — 아직 모르는 사람에게서 배울 수 없음
+        """
+        violations = []
+        mentions = self._edges_by_label("MENTIONS")
+        learns = self._edges_by_label("LEARNS")
+
+        # 이름 → 캐릭터 ID 맵 (cross-character 탐지에 사용)
+        name_to_cid: Dict[str, str] = {}
+        for cv in self._vertices_by_label("character"):
+            name = _prop(cv, "name") or _prop(cv, "canonical_name") or ""
+            cid_ = _prop(cv, "id")
+            if name and cid_:
+                name_to_cid[name] = cid_
+
+        # (char_id, fact_id) → 해당 캐릭터의 LEARNS 최초 시점 (동일 캐릭터 비대칭에 사용)
+        learn_index: Dict[Tuple[str, str], float] = {}
+        for e in learns:
+            cid, fid, so = _prop(e, "from_id"), _prop(e, "to_id"), _prop(e, "story_order")
+            if cid and fid and so is not None:
+                key = (cid, fid)
+                so_f = float(so)
+                if key not in learn_index or so_f < learn_index[key]:
+                    learn_index[key] = so_f
+
+        # (char_id, fact_id) → 최초 인지 story_order (LEARNS + MENTIONS 포함, cross-character 탐지에 사용)
+        earliest_knowledge: Dict[Tuple[str, str], float] = {}
+        for e in learns + mentions:
+            cid, fid, so = _prop(e, "from_id"), _prop(e, "to_id"), _prop(e, "story_order")
+            if cid and fid and so is not None:
+                key = (cid, fid)
+                so_f = float(so)
+                if key not in earliest_knowledge or so_f < earliest_knowledge[key]:
+                    earliest_knowledge[key] = so_f
+
+        # (a) 동일 캐릭터 비대칭
+        for e in mentions:
+            cid, fid, m_so = _prop(e, "from_id"), _prop(e, "to_id"), _prop(e, "story_order")
+            if not (cid and fid and m_so is not None):
+                continue
+            m_so = float(m_so)
+            l_so = learn_index.get((cid, fid))
+            if l_so is not None and m_so < l_so:
+                char_name = (self.get_character(cid) or {}).get("name", cid)
+                violations.append(_make_violation(
+                    vtype=ContradictionType.ASYMMETRY,
+                    severity=Severity.CRITICAL,
+                    description=(
+                        f"캐릭터 '{char_name}'이(가) 사실을 알기 전(LEARNS story_order={l_so}) "
+                        f"이미 언급(MENTIONS story_order={m_so})"
+                    ),
+                    confidence=0.95,
+                    character_id=cid, character_name=char_name,
+                    evidence=[
+                        {"type": "MENTIONS", "story_order": m_so, "dialogue": _prop(e, "dialogue_text")},
+                        {"type": "LEARNS", "story_order": l_so},
+                    ],
+                    suggestion="MENTIONS 시점을 LEARNS 이후로 수정하거나 LEARNS 시점을 앞당기세요.",
+                ))
+
+        # (b) Cross-character 비대칭: B가 A에게서 배웠는데 A가 그 시점에 아직 몰랐던 경우
+        seen_cross: set = set()
+        for e in learns:
+            student_id = _prop(e, "from_id")
+            fact_id = _prop(e, "to_id")
+            student_so = _prop(e, "story_order")
+            via_char_name = _prop(e, "via_character")
+            if not (student_id and fact_id and student_so is not None and via_char_name):
+                continue
+            student_so = float(student_so)
+            teacher_id = name_to_cid.get(via_char_name)
+            if not teacher_id or teacher_id == student_id:
+                continue
+            teacher_earliest = earliest_knowledge.get((teacher_id, fact_id))
+            if teacher_earliest is None:
+                continue  # 교사의 지식 기록 없음 — 검증 불가
+            if teacher_earliest <= student_so:
+                continue  # 정상: 교사가 먼저 알고 있었음
+            vkey = (student_id, teacher_id, fact_id)
+            if vkey in seen_cross:
+                continue
+            seen_cross.add(vkey)
+            student_name = (self.get_character(student_id) or {}).get("name", student_id)
+            teacher_name = (self.get_character(teacher_id) or {}).get("name", teacher_id)
+            violations.append(_make_violation(
+                vtype=ContradictionType.ASYMMETRY,
+                severity=Severity.CRITICAL,
+                description=(
+                    f"'{student_name}'이(가) '{teacher_name}'에게서 사실을 배우지만"
+                    f"(story_order={student_so}), "
+                    f"'{teacher_name}'의 해당 사실 최초 인지는 더 늦음"
+                    f"(story_order={teacher_earliest})"
+                ),
+                confidence=0.85,
+                character_id=student_id, character_name=student_name,
+                evidence=[{
+                    "student": student_name,
+                    "teacher": teacher_name,
+                    "student_learns_at": student_so,
+                    "teacher_knows_at": teacher_earliest,
+                    "fact_id": fact_id,
+                }],
+                suggestion=(
+                    f"'{teacher_name}'이(가) 사실을 알기 전에 '{student_name}'에게 "
+                    "가르쳐줄 수 없습니다. 정보 전달 시점 또는 출처를 수정하세요."
+                ),
+            ))
+        return violations
+
+    def find_timeline_violations(self) -> List[Dict[str, Any]]:
+        """2. 타임라인: 사망 후 재등장, 동시 다중 위치"""
+        violations = []
+        has_status = self._edges_by_label("HAS_STATUS")
+        at_location = self._edges_by_label("AT_LOCATION")
+
+        death_index: Dict[str, float] = {}
+        for e in has_status:
+            if _prop(e, "status_type") == "dead":
+                cid, so = _prop(e, "from_id"), _prop(e, "story_order")
+                if cid and so is not None:
+                    death_index[cid] = float(so)
+
+        appearance_edges = at_location + self._edges_by_label("MENTIONS") + self._edges_by_label("LEARNS")
+        seen_violation: set = set()
+        for e in appearance_edges:
+            cid, so = _prop(e, "from_id"), _prop(e, "story_order")
+            if not (cid and so is not None):
+                continue
+            so = float(so)
+            death_so = death_index.get(cid)
+            if death_so is not None and so > death_so:
+                key = (cid, death_so)
+                if key in seen_violation:
+                    continue
+                seen_violation.add(key)
+                char_name = (self.get_character(cid) or {}).get("name", cid)
+                edge_label = _prop(e, "label") or "AT_LOCATION"
+                violations.append(_make_violation(
+                    vtype=ContradictionType.TIMELINE,
+                    severity=Severity.CRITICAL,
+                    description=f"캐릭터 '{char_name}'이(가) 사망(story_order={death_so}) 후 재등장(story_order={so})",
+                    confidence=0.95,
+                    character_id=cid, character_name=char_name,
+                    evidence=[{"death_at": death_so, "appears_at": so, "edge": edge_label}],
+                    suggestion="사망 이벤트 또는 이후 등장 시점을 수정하세요.",
+                ))
+
+        time_char_locs: Dict[Tuple[str, float], List[str]] = defaultdict(list)
+        for e in at_location:
+            cid, so, loc = _prop(e, "from_id"), _prop(e, "story_order"), _prop(e, "to_id")
+            if cid and so is not None and loc:
+                time_char_locs[(cid, float(so))].append(loc)
+        for (cid, so), locs in time_char_locs.items():
+            if len(set(locs)) > 1:
+                char_name = (self.get_character(cid) or {}).get("name", cid)
+                violations.append(_make_violation(
+                    vtype=ContradictionType.TIMELINE,
+                    severity=Severity.CRITICAL,
+                    description=f"캐릭터 '{char_name}'이(가) story_order={so}에 동시에 {len(locs)}개 장소 존재",
+                    confidence=0.98,
+                    character_id=cid, character_name=char_name,
+                    evidence=[{"locations": locs, "story_order": so}],
+                    suggestion="동시 위치 중 하나의 story_order를 조정하세요.",
+                ))
+
+        # "resurrection" event_type → 추출 모델이 사망한 캐릭터의 재등장을 감지한 것 → HARD 모순
+        for ev in self._vertices_by_label("event"):
+            ev_type = _prop(ev, "event_type")
+            ev_type_str = ev_type.value if hasattr(ev_type, "value") else str(ev_type)
+            if ev_type_str != "resurrection":
+                continue
+            raw_involved = ev.get("characters_involved") or []
+            if isinstance(raw_involved, str):
+                try:
+                    raw_involved = json.loads(raw_involved)
+                except Exception:
+                    raw_involved = [raw_involved] if raw_involved else []
+            elif not isinstance(raw_involved, list):
+                raw_involved = []
+            desc = _prop(ev, "description") or ""
+            so = _prop(ev, "story_order") or _prop(ev, "discourse_order") or 0
+            for char_name in dict.fromkeys(raw_involved):
+                char_vertex = self.find_character_by_name(char_name) or {}
+                cid = char_vertex.get("id", char_name)
+                violations.append(_make_violation(
+                    vtype=ContradictionType.TIMELINE,
+                    severity=Severity.CRITICAL,
+                    description=f"캐릭터 '{char_name}'이(가) 사망 후 재등장(story_order={so}): {desc[:80]}",
+                    confidence=0.92,
+                    character_id=cid, character_name=char_name,
+                    evidence=[{"resurrection_event": _prop(ev, "id"), "story_order": so, "description": desc}],
+                    suggestion="사망 시점 이후 해당 캐릭터의 등장 장면을 제거하거나 사망 시점을 조정하세요.",
+                ))
+            if not raw_involved:
+                violations.append(_make_violation(
+                    vtype=ContradictionType.TIMELINE,
+                    severity=Severity.CRITICAL,
+                    description=f"사망 후 재등장 이벤트 감지(story_order={so}): {desc[:80]}",
+                    confidence=0.85,
+                    character_id=None, character_name=None,
+                    evidence=[{"resurrection_event": _prop(ev, "id"), "story_order": so}],
+                    suggestion="사망 이벤트 또는 재등장 장면을 확인하세요.",
+                ))
+        return violations
+
+    def find_relationship_violations(self) -> List[Dict[str, Any]]:
+        """3. 관계 모순"""
+        violations = []
+        related = self._edges_by_label("RELATED_TO")
+        pair_index: Dict[frozenset, List[str]] = {}
+        for e in related:
+            a, b, rtype = _prop(e, "from_id"), _prop(e, "to_id"), _prop(e, "relationship_type")
+            if a and b and rtype:
+                pair_index.setdefault(frozenset([a, b]), []).append(rtype)
+
+        for pair, rtypes in pair_index.items():
+            pair_list = list(pair)
+            for i, rt1 in enumerate(rtypes):
+                for rt2 in rtypes[i + 1:]:
+                    try:
+                        r1, r2 = RelationshipType(rt1), RelationshipType(rt2)
+                    except ValueError:
+                        continue
+                    level = RELATIONSHIP_CONFLICT_MATRIX.get(frozenset([r1, r2]))
+                    if level == "critical":
+                        violations.append(_make_violation(
+                            vtype=ContradictionType.RELATIONSHIP,
+                            severity=Severity.CRITICAL,
+                            description=f"캐릭터 쌍의 관계 모순: {rt1} ↔ {rt2}",
+                            confidence=0.95,
+                            evidence=[{"pair": pair_list, "relationship_types": rtypes}],
+                            suggestion=f"관계 '{rt1}'과 '{rt2}' 중 하나를 수정하세요.",
+                        ))
+                    elif level == "warning":
+                        violations.append(_make_violation(
+                            vtype=ContradictionType.RELATIONSHIP,
+                            severity=Severity.MAJOR,
+                            description=f"캐릭터 쌍의 관계 경고: {rt1} ↔ {rt2}",
+                            confidence=0.6,
+                            evidence=[{"pair": pair_list, "relationship_types": rtypes}],
+                            needs_user_input=True,
+                            confirmation_type=ConfirmationType.RELATIONSHIP_AMBIGUITY,
+                        ))
+        return violations
+
+    def find_trait_violations(self) -> List[Dict[str, Any]]:
+        """4. 성격·설정 모순"""
+        violations = []
+        has_trait = self._edges_by_label("HAS_TRAIT")
+        char_trait_index: Dict[Tuple[str, str], List[Dict]] = {}
+        for e in has_trait:
+            cid, tid = _prop(e, "from_id"), _prop(e, "to_id")
+            trait = self.get_trait(tid) or {}
+            key, val = _prop(trait, "key"), _prop(trait, "value")
+            immutable = _prop(trait, "is_immutable") in (True, "True", "true", 1)
+            if cid and key:
+                char_trait_index.setdefault((cid, key), []).append(
+                    {"value": val, "is_immutable": immutable}
+                )
+
+        for (cid, trait_key), entries in char_trait_index.items():
+            values = [e["value"] for e in entries]
+            if len(set(str(v) for v in values)) > 1:
+                is_imm = any(e["is_immutable"] for e in entries)
+                char_name = (self.get_character(cid) or {}).get("name", cid)
+                violations.append(_make_violation(
+                    vtype=ContradictionType.TRAIT,
+                    severity=Severity.CRITICAL if is_imm else Severity.MAJOR,
+                    description=f"캐릭터 '{char_name}'의 특성 '{trait_key}': {values}",
+                    confidence=0.95 if is_imm else 0.6,
+                    character_id=cid, character_name=char_name,
+                    evidence=[{"trait_key": trait_key, "values": values}],
+                    needs_user_input=not is_imm,
+                    confirmation_type=ConfirmationType.INTENTIONAL_CHANGE if not is_imm else None,
+                    suggestion=f"'{trait_key}' 특성 값을 통일하거나 변화 이유를 명시하세요.",
+                ))
+        return violations
+
+    def find_emotion_violations(self) -> List[Dict[str, Any]]:
+        """5. 감정 일관성"""
+        violations = []
+        feels = self._edges_by_label("FEELS")
+        pair_emotions: Dict[Tuple[str, str], List[Dict]] = {}
+        for e in feels:
+            fid, tid = _prop(e, "from_id"), _prop(e, "to_id")
+            if fid and tid:
+                pair_emotions.setdefault((fid, tid), []).append(e)
+
+        OPPOSITES = {
+            frozenset(["love", "hate"]),
+            frozenset(["trust", "distrust"]),
+            frozenset(["admiration", "contempt"]),
+            frozenset(["gratitude", "resentment"]),
+        }
+        for (fid, tid), history in pair_emotions.items():
+            sorted_h = sorted(history, key=lambda x: float(_prop(x, "discourse_order") or 0))
+            for i in range(1, len(sorted_h)):
+                prev, curr = sorted_h[i - 1], sorted_h[i]
+                pair = frozenset([str(_prop(prev, "emotion")), str(_prop(curr, "emotion"))])
+                if pair in OPPOSITES and not _prop(curr, "trigger_event_id"):
+                    char_name = (self.get_character(fid) or {}).get("name", fid)
+                    violations.append(_make_violation(
+                        vtype=ContradictionType.EMOTION,
+                        severity=Severity.MAJOR,
+                        description=(
+                            f"캐릭터 '{char_name}'의 감정이 트리거 없이 "
+                            f"{_prop(prev, 'emotion')} → {_prop(curr, 'emotion')} 급변"
+                        ),
+                        confidence=0.6,
+                        character_id=fid, character_name=char_name,
+                        evidence=[{"prev": _prop(prev, "emotion"), "curr": _prop(curr, "emotion")}],
+                        needs_user_input=True,
+                        confirmation_type=ConfirmationType.EMOTION_SHIFT,
+                        suggestion="감정 변화를 유발한 이벤트를 명시하거나 감정 추이를 자연스럽게 조정하세요.",
+                    ))
+        return violations
+
+    def find_item_violations(self) -> List[Dict[str, Any]]:
+        """6. 소유물 추적"""
+        violations = []
+        possesses = self._edges_by_label("POSSESSES")
+        loses = self._edges_by_label("LOSES")
+
+        item_history: Dict[str, List[Dict]] = {}
+        for e in possesses:
+            iid = _prop(e, "to_id")
+            if iid:
+                item_history.setdefault(iid, []).append({
+                    "type": "possesses", "char_id": _prop(e, "from_id"),
+                    "story_order": _prop(e, "story_order"),
+                })
+        for e in loses:
+            iid = _prop(e, "to_id")
+            if iid:
+                item_history.setdefault(iid, []).append({
+                    "type": "loses", "char_id": _prop(e, "from_id"),
+                    "story_order": _prop(e, "story_order"),
+                })
+
+        for item_id, history in item_history.items():
+            item_name = (self.get_item(item_id) or {}).get("name", item_id)
+            sorted_h = [h for h in history if h.get("story_order") is not None]
+            sorted_h.sort(key=lambda x: float(x["story_order"]))
+
+            time_owners: Dict[float, List[str]] = defaultdict(list)
+            for h in sorted_h:
+                if h["type"] == "possesses":
+                    time_owners[float(h["story_order"])].append(h["char_id"])
+            for so, owners in time_owners.items():
+                if len(set(owners)) > 1:
+                    violations.append(_make_violation(
+                        vtype=ContradictionType.ITEM,
+                        severity=Severity.CRITICAL,
+                        description=f"아이템 '{item_name}'이 story_order={so}에 {len(owners)}명에게 동시 소유",
+                        confidence=0.95,
+                        evidence=[{"item_id": item_id, "story_order": so, "owners": owners}],
+                        suggestion="동시 소유 중 하나의 story_order를 조정하거나 소유권 이전을 추가하세요.",
+                    ))
+
+            last_loses: Dict[str, float] = {}
+            for h in sorted_h:
+                if h["type"] == "loses":
+                    last_loses[h["char_id"]] = float(h["story_order"])
+                elif h["type"] == "possesses":
+                    cid, so = h["char_id"], float(h["story_order"])
+                    lost_at = last_loses.get(cid)
+                    if lost_at is not None and so > lost_at:
+                        char_name = (self.get_character(cid) or {}).get("name", cid)
+                        violations.append(_make_violation(
+                            vtype=ContradictionType.ITEM,
+                            severity=Severity.MAJOR,
+                            description=(
+                                f"캐릭터 '{char_name}'이(가) '{item_name}' 분실(story_order={lost_at}) "
+                                f"후 재소유(story_order={so})"
+                            ),
+                            confidence=0.65,
+                            character_id=cid, character_name=char_name,
+                            evidence=[{"lost_at": lost_at, "repossessed_at": so}],
+                            needs_user_input=True,
+                            confirmation_type=ConfirmationType.ITEM_DISCREPANCY,
+                        ))
+        return violations
+
+    def find_deception_violations(self) -> List[Dict[str, Any]]:
+        """7. 거짓말·기만"""
+        violations = []
+        facts = {_prop(v, "id"): v for v in self._vertices_by_label("fact")}
+        learns = self._edges_by_label("LEARNS")
+        mentions = self._edges_by_label("MENTIONS")
+
+        false_fact_ids = {
+            fid for fid, fv in facts.items()
+            if _prop(fv, "is_true") in (False, "False", "false", 0)
+        }
+
+        believed_false: Dict[Tuple[str, str], float] = {}
+        for e in learns:
+            fid, cid = _prop(e, "to_id"), _prop(e, "from_id")
+            believed = _prop(e, "believed_true")
+            if believed is None:
+                believed = True
+            so = _prop(e, "story_order")
+            if fid in false_fact_ids and believed in (True, "True", "true", 1):
+                if cid and so is not None:
+                    believed_false[(cid, fid)] = float(so)
+
+        truth_learn: Dict[Tuple[str, str], float] = {}
+        for e in learns:
+            fid, cid = _prop(e, "to_id"), _prop(e, "from_id")
+            believed = _prop(e, "believed_true")
+            if believed is None:
+                believed = True
+            so = _prop(e, "story_order")
+            if fid not in false_fact_ids and believed in (True, "True", "true", 1):
+                if cid and so is not None:
+                    key = (cid, fid)
+                    if key not in truth_learn or float(so) < truth_learn[key]:
+                        truth_learn[key] = float(so)
+
+        for e in mentions:
+            cid, fid, so = _prop(e, "from_id"), _prop(e, "to_id"), _prop(e, "story_order")
+            if not (cid and fid and so is not None and fid in false_fact_ids):
+                continue
+            so = float(so)
+            truth_so = truth_learn.get((cid, fid))
+            if truth_so is not None and so > truth_so:
+                char_name = (self.get_character(cid) or {}).get("name", cid)
+                violations.append(_make_violation(
+                    vtype=ContradictionType.DECEPTION,
+                    severity=Severity.CRITICAL,
+                    description=(
+                        f"캐릭터 '{char_name}'이(가) 진실 인지(story_order={truth_so}) 후에도 "
+                        f"거짓 사실을 언급(story_order={so})"
+                    ),
+                    confidence=0.9,
+                    character_id=cid, character_name=char_name,
+                    dialogue=_prop(e, "dialogue_text"),
+                    evidence=[{"truth_learned_at": truth_so, "false_mention_at": so}],
+                    suggestion="진실 인지 후 거짓 정보 전달의 의도를 명시하거나 제거하세요.",
+                ))
+
+        for (cid, fid), so in believed_false.items():
+            char_name = (self.get_character(cid) or {}).get("name", cid)
+            violations.append(_make_violation(
+                vtype=ContradictionType.DECEPTION,
+                severity=Severity.MINOR,
+                description=f"캐릭터 '{char_name}'이(가) 거짓 사실을 진실로 학습(story_order={so})",
+                confidence=0.55,
+                character_id=cid, character_name=char_name,
+                evidence=[{"fact_id": fid, "believed_true_at": so}],
+                needs_user_input=True,
+                confirmation_type=ConfirmationType.UNRELIABLE_NARRATOR,
+            ))
+        return violations
+
+    def find_trait_event_violations(self) -> List[Dict[str, Any]]:
+        """8. 특성-이벤트 모순: 캐릭터의 금지/혐오 특성을 위반하는 행동이 이벤트에 등장"""
+        violations = []
+
+        # HAS_TRAIT 엣지에서 캐릭터별 부정 특성 수집
+        has_trait = self._edges_by_label("HAS_TRAIT")
+        char_neg_traits: Dict[str, List[Dict]] = {}
+        for e in has_trait:
+            cid, tid = _prop(e, "from_id"), _prop(e, "to_id")
+            trait = self.get_trait(tid) or {}
+            value = str(_prop(trait, "value") or "")
+            if not cid or not self._trait_is_prohibitive(value):
+                continue
+            keywords = self._extract_subject_keywords(value)
+            if not keywords:
+                continue
+            char_neg_traits.setdefault(cid, []).append({
+                "key": _prop(trait, "key"),
+                "value": value,
+                "keywords": keywords,
+                "is_immutable": _prop(trait, "is_immutable") in (True, "True", "true", 1),
+            })
+
+        # 성격/선호 관련 facts도 금지 특성으로 활용 (LLM이 trait 대신 fact로 추출하는 경우)
+        _TRAIT_LIKE_CATS = {"personality", "preference", "background", "personal", "habit"}
+        for fv in self._vertices_by_label("fact"):
+            cat = str(_prop(fv, "category") or "")
+            if not any(tc in cat for tc in _TRAIT_LIKE_CATS):
+                continue
+            content = str(_prop(fv, "content") or "")
+            if not self._trait_is_prohibitive(content):
+                continue
+            keywords = self._extract_subject_keywords(content)
+            if not keywords:
+                continue
+            # fact content에서 캐릭터 이름 추출 (첫 어절)
+            words = re.findall(r'[가-힣A-Za-z0-9]+', content)
+            if not words:
+                continue
+            char_name_hint = words[0]
+            # 나중에 이름→ID 매핑 시 처리하도록 임시 key 사용
+            char_neg_traits.setdefault(f"__fact__{char_name_hint}", []).append({
+                "key": cat,
+                "value": content,
+                "keywords": keywords,
+                "is_immutable": False,
+                "char_name_hint": char_name_hint,
+            })
+
+        if not char_neg_traits and not any(k.startswith("__fact__") for k in char_neg_traits):
+            return violations
+
+        # 이름 → ID 맵
+        name_to_id: Dict[str, str] = {}
+        for cv in self._vertices_by_label("character"):
+            name = _prop(cv, "name") or _prop(cv, "canonical_name") or ""
+            cid = _prop(cv, "id")
+            if name and cid:
+                name_to_id[name] = cid
+
+        seen: set = set()
+        for ev in self._vertices_by_label("event"):
+            desc = str(_prop(ev, "description") or "")
+            ev_id = _prop(ev, "id")
+            # _prop은 list를 받으면 첫 원소만 반환하므로 직접 접근
+            raw_ci = ev.get("characters_involved") or []
+            if isinstance(raw_ci, str):
+                try:
+                    raw_ci = json.loads(raw_ci)
+                except Exception:
+                    raw_ci = [raw_ci] if raw_ci else []
+            elif not isinstance(raw_ci, list):
+                raw_ci = []
+
+            involved_ids = [name_to_id[n] for n in raw_ci if n in name_to_id]
+
+            # ① HAS_TRAIT 기반 금지 특성 체크
+            for cid in involved_ids:
+                for trait in char_neg_traits.get(cid, []):
+                    for kw in trait["keywords"]:
+                        if kw not in desc:
+                            continue
+                        vkey = (cid, trait["key"], ev_id)
+                        if vkey in seen:
+                            break
+                        seen.add(vkey)
+                        char_name = (self.get_character(cid) or {}).get("name", cid)
+                        so = _prop(ev, "story_order") or _prop(ev, "discourse_order")
+                        is_imm = trait["is_immutable"]
+                        violations.append(_make_violation(
+                            vtype=ContradictionType.TRAIT,
+                            severity=Severity.CRITICAL if is_imm else Severity.MAJOR,
+                            description=(
+                                f"캐릭터 '{char_name}'의 특성 "
+                                f"'{trait['key']}: {trait['value']}'을(를) 위반하는 "
+                                f"행동 발생(story_order={so}): {desc[:80]}"
+                            ),
+                            confidence=0.85 if is_imm else 0.7,
+                            character_id=cid, character_name=char_name,
+                            evidence=[{
+                                "trait_key": trait["key"],
+                                "trait_value": trait["value"],
+                                "event_desc": desc[:100],
+                                "matched_keyword": kw,
+                            }],
+                            needs_user_input=not is_imm,
+                            confirmation_type=(
+                                ConfirmationType.INTENTIONAL_CHANGE if not is_imm else None
+                            ),
+                            suggestion=(
+                                f"'{trait['key']}' 특성과 모순되는 행동을 수정하거나 "
+                                "특성 변화 근거를 명시하세요."
+                            ),
+                        ))
+                        break
+
+            # ② personality facts 기반 금지 특성 체크
+            for fact_key, fact_traits in char_neg_traits.items():
+                if not fact_key.startswith("__fact__"):
+                    continue
+                char_name_hint = fact_key[len("__fact__"):]
+                cid = name_to_id.get(char_name_hint)
+                if not cid or cid not in involved_ids:
+                    continue
+                for trait in fact_traits:
+                    for kw in trait["keywords"]:
+                        if kw not in desc:
+                            continue
+                        vkey = (cid, trait["key"], ev_id)
+                        if vkey in seen:
+                            break
+                        seen.add(vkey)
+                        so = _prop(ev, "story_order") or _prop(ev, "discourse_order")
+                        violations.append(_make_violation(
+                            vtype=ContradictionType.TRAIT,
+                            severity=Severity.MAJOR,
+                            description=(
+                                f"캐릭터 '{char_name_hint}'의 특성 "
+                                f"'{trait['value'][:50]}'을(를) 위반하는 "
+                                f"행동 발생(story_order={so}): {desc[:80]}"
+                            ),
+                            confidence=0.7,
+                            character_id=cid, character_name=char_name_hint,
+                            evidence=[{
+                                "fact_value": trait["value"],
+                                "event_desc": desc[:100],
+                                "matched_keyword": kw,
+                            }],
+                            needs_user_input=True,
+                            confirmation_type=ConfirmationType.INTENTIONAL_CHANGE,
+                            suggestion=(
+                                f"특성과 모순되는 행동을 수정하거나 변화 근거를 명시하세요."
+                            ),
+                        ))
+                        break
+        return violations
+
+    def find_fact_event_violations(self) -> List[Dict[str, Any]]:
+        """9. 세계 규칙-이벤트 모순: 수치 제약 facts vs 이벤트/다른 facts 실제 행동"""
+        violations = []
+
+        # 모든 fact에서 수치 제약 추출 (카테고리 무관 — LLM이 worldbuilding/event_fact 등 다양하게 씀)
+        all_facts = self._vertices_by_label("fact")
+        constraints: List[Dict] = []
+        for fv in all_facts:
+            content = str(_prop(fv, "content") or "")
+            for c in self._extract_fact_constraints(content):
+                c["fact_content"] = content
+                c["fact_id"] = _prop(fv, "id")
+                c["context_keywords"] = self._extract_subject_keywords(content)
+                constraints.append(c)
+
+        if not constraints:
+            return violations
+
+        # 비교 대상: 이벤트 + 다른 facts (LLM이 "5분 만에" 등을 fact로 추출하는 경우)
+        candidate_texts: List[Tuple[str, str, Any]] = []  # (id, text, story_order)
+        for ev in self._vertices_by_label("event"):
+            candidate_texts.append((
+                str(_prop(ev, "id") or ""),
+                str(_prop(ev, "description") or ""),
+                _prop(ev, "story_order") or _prop(ev, "discourse_order") or 0,
+            ))
+        for fv in all_facts:
+            candidate_texts.append((
+                str(_prop(fv, "id") or ""),
+                str(_prop(fv, "content") or ""),
+                _prop(fv, "established_order") or 0,
+            ))
+
+        seen: set = set()
+        for cand_id, desc, so in candidate_texts:
+            ev_values = self._extract_event_numeric_values(desc)
+            if not ev_values:
+                continue
+
+            for constraint in constraints:
+                if cand_id == constraint.get("fact_id"):
+                    continue  # 같은 fact는 비교 안 함
+                ctx_kws = constraint.get("context_keywords", [])
+                if ctx_kws and not any(kw in desc for kw in ctx_kws):
+                    continue
+                for ev_val in ev_values:
+                    msg = self._check_numeric_violation(constraint, ev_val, desc, so)
+                    if not msg:
+                        continue
+                    vkey = (cand_id, constraint["type"], constraint["value"])
+                    if vkey in seen:
+                        continue
+                    seen.add(vkey)
+                    violations.append(_make_violation(
+                        vtype=ContradictionType.TIMELINE,
+                        severity=Severity.MAJOR,
+                        description=msg,
+                        confidence=0.75,
+                        evidence=[{
+                            "fact": constraint["fact_content"],
+                            "compared_text": desc[:100],
+                            "constraint": constraint,
+                            "event_value": ev_val,
+                        }],
+                        needs_user_input=True,
+                        confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY,
+                        suggestion=(
+                            "세계 규칙의 수치 제약과 이벤트 내용을 일치시키거나 "
+                            "예외 상황을 명시하세요."
+                        ),
+                    ))
+        return violations
+
+    # ── 내부 헬퍼 ────────────────────────────────────────────────
+
+    def _trait_is_prohibitive(self, value: str) -> bool:
+        return any(m in value for m in self._PROHIBITIVE_MARKERS)
+
+    def _extract_subject_keywords(self, text: str) -> List[str]:
+        """텍스트에서 의미 있는 명사 키워드 추출 (조사 제거)"""
+        words = re.findall(r'[가-힣A-Za-z0-9]+', text)
+        result: List[str] = []
+        seen_kw: set = set()
+        for word in words:
+            stripped = word
+            for p in sorted(self._PARTICLE_SUFFIXES, key=len, reverse=True):
+                if stripped.endswith(p) and len(stripped) > len(p) + 1:
+                    stripped = stripped[:-len(p)]
+                    break
+            if len(stripped) >= 2 and stripped not in self._CONTENT_STOP and stripped not in seen_kw:
+                seen_kw.add(stripped)
+                result.append(stripped)
+        return result[:5]
+
+    _LOCKOUT_WORDS = re.compile(r'봉쇄|차단|폐쇄|통제|출입금지|진입불가|제한|잠금|락다운|lockdown')
+
+    def _extract_fact_constraints(self, fact_content: str) -> List[Dict]:
+        """세계 규칙 fact에서 수치 제약 추출"""
+        constraints = []
+        for m in re.finditer(
+            r'(?:최소|최단|적어도)?\s*(\d+)\s*(분|시간|초)(?:\s*(?:이상|소요|걸림|이내))?',
+            fact_content,
+        ):
+            constraints.append({
+                "type": "min_duration",
+                "value": int(m.group(1)),
+                "unit": m.group(2),
+                "raw": m.group().strip(),
+            })
+        # 시각 통제: "N시 이후/부터" 패턴 + 같은 fact에 봉쇄/제한 계열 단어 존재
+        # "N시까지"(종료 시각)는 제외 — 이후/부터가 명시된 시작 시각만 추출
+        if self._LOCKOUT_WORDS.search(fact_content):
+            for m in re.finditer(r'(\d+)\s*시\s*(?:이후|부터)', fact_content):
+                constraints.append({
+                    "type": "lockout_after_hour",
+                    "value": int(m.group(1)),
+                    "unit": "시",
+                    "raw": m.group().strip(),
+                })
+        return constraints
+
+    def _extract_event_numeric_values(self, desc: str) -> List[Dict]:
+        """이벤트 설명에서 소요시간/시각 추출"""
+        values = []
+        for m in re.finditer(r'(\d+)\s*(분|시간|초)\s*(?:만에|후|내에|안에)', desc):
+            values.append({
+                "type": "duration_taken",
+                "value": int(m.group(1)),
+                "unit": m.group(2),
+                "raw": m.group().strip(),
+            })
+        for m in re.finditer(
+            r'(?:오전|오후|밤|새벽)?\s*(\d+)\s*시(?:\s*(?:에|쯤|경|정각))?', desc
+        ):
+            values.append({
+                "type": "clock_time",
+                "value": int(m.group(1)),
+                "unit": "시",
+                "raw": m.group().strip(),
+            })
+        return values
+
+    def _check_numeric_violation(
+        self, constraint: Dict, ev_val: Dict, desc: str, so: Any
+    ) -> Optional[str]:
+        """제약 vs 이벤트 수치 비교. 위반 시 설명 반환, 없으면 None."""
+        ctype, cval, unit = constraint["type"], constraint["value"], constraint["unit"]
+        evtype, evval, evunit = ev_val["type"], ev_val["value"], ev_val["unit"]
+
+        if ctype == "min_duration" and evtype == "duration_taken" and unit == evunit:
+            if evval < cval:
+                return (
+                    f"세계 규칙 위반 — 최소 {cval}{unit} 소요 구간을 "
+                    f"{evval}{evunit} 만에 이동(story_order={so}): {desc[:80]}"
+                )
+        if ctype == "lockout_after_hour" and evtype == "clock_time" and evunit == "시":
+            if evval >= cval:
+                return (
+                    f"세계 규칙 위반 — {cval}시 이후 봉쇄 구역에 "
+                    f"{evval}시 이동/진입(story_order={so}): {desc[:80]}"
+                )
+        return None
+
+    def find_all_violations(self) -> Dict[str, List[Dict[str, Any]]]:
+        """9가지 쿼리 통합 + Hard / Soft 분류"""
+        all_v = (
+            self.find_knowledge_violations()
+            + self.find_timeline_violations()
+            + self.find_relationship_violations()
+            + self.find_trait_violations()
+            + self.find_emotion_violations()
+            + self.find_item_violations()
+            + self.find_deception_violations()
+            + self.find_trait_event_violations()
+            + self.find_fact_event_violations()
+        )
+        hard = [v for v in all_v if v.get("is_hard")]
+        soft = [v for v in all_v if not v.get("is_hard")]
+        logger.info("find_all_violations complete", hard=len(hard), soft=len(soft), total=len(all_v))
+        return {"hard": hard, "soft": soft, "all": all_v}
 
 
 # ─────────────────────────────────────────────────────────────
@@ -204,7 +1050,7 @@ def create_gremlin_client(endpoint: str, key: str, database: str, container: str
 # GremlinGraphService  (Azure Cosmos DB)
 # ─────────────────────────────────────────────────────────────
 
-class GremlinGraphService:
+class GremlinGraphService(_ViolationMixin):
     """Azure Cosmos DB (Gremlin API) 기반 그래프 서비스.
 
     Cosmos DB Gremlin은 bytecode 미지원이므로 string-query + client.Client 사용.
@@ -365,6 +1211,13 @@ class GremlinGraphService:
         except Exception as e:
             logger.warning("Edge fetch failed", label=label, error=str(e))
             return []
+
+    # _ViolationMixin 인터페이스 — _fetch_* 메서드의 alias
+    def _vertices_by_label(self, label: str) -> List[Dict]:
+        return self._fetch_all(label)
+
+    def _edges_by_label(self, label: str) -> List[Dict]:
+        return self._fetch_edges_by_label(label)
 
     # ── Vertex CRUD (9종) ─────────────────────────────────────
 
@@ -757,6 +1610,7 @@ class GremlinGraphService:
                     "story_order": do,
                     "believed_true": True,
                     "method": ke.method or "unknown",
+                    "via_character": ke.via_character or "",
                     "dialogue_text": ke.dialogue_text or "",
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
@@ -856,362 +1710,6 @@ class GremlinGraphService:
                 ev["story_order"] = ev["discourse_order"]
             result.append(ev)
         return result
-
-    # ── 7가지 모순 탐지 쿼리 ──────────────────────────────────
-
-    def find_knowledge_violations(self) -> List[Dict[str, Any]]:
-        """1. 정보 비대칭: MENTIONS.story_order < LEARNS.story_order"""
-        violations = []
-        mentions = self._fetch_edges_by_label("MENTIONS")
-        learns = self._fetch_edges_by_label("LEARNS")
-
-        # (char_id, fact_id) → 최초 LEARNS story_order
-        learn_index: Dict[Tuple[str, str], float] = {}
-        for e in learns:
-            cid, fid, so = _prop(e, "from_id"), _prop(e, "to_id"), _prop(e, "story_order")
-            if cid and fid and so is not None:
-                key = (cid, fid)
-                if key not in learn_index or float(so) < learn_index[key]:
-                    learn_index[key] = float(so)
-
-        for e in mentions:
-            cid, fid, m_so = _prop(e, "from_id"), _prop(e, "to_id"), _prop(e, "story_order")
-            if not (cid and fid and m_so is not None):
-                continue
-            m_so = float(m_so)
-            l_so = learn_index.get((cid, fid))
-            if l_so is not None and m_so < l_so:
-                violations.append(_make_violation(
-                    vtype=ContradictionType.ASYMMETRY,
-                    severity=Severity.CRITICAL,
-                    description=(
-                        f"캐릭터({cid})가 사실({fid})을 알기 전(LEARNS story_order={l_so}) "
-                        f"이미 언급(MENTIONS story_order={m_so})"
-                    ),
-                    confidence=0.95,
-                    character_id=cid,
-                    evidence=[
-                        {"type": "MENTIONS", "story_order": m_so, "dialogue": _prop(e, "dialogue_text")},
-                        {"type": "LEARNS", "story_order": l_so},
-                    ],
-                    suggestion="MENTIONS 시점을 LEARNS 이후로 수정하거나, LEARNS 시점을 앞당기세요.",
-                ))
-        return violations
-
-    def find_timeline_violations(self) -> List[Dict[str, Any]]:
-        """2. 타임라인: 사망 후 재등장, 동시 다중 위치"""
-        violations = []
-        has_status = self._fetch_edges_by_label("HAS_STATUS")
-        at_location = self._fetch_edges_by_label("AT_LOCATION")
-
-        # 사망 인덱스: char_id → death story_order
-        death_index: Dict[str, float] = {}
-        for e in has_status:
-            if _prop(e, "status_type") == "dead":
-                cid, so = _prop(e, "from_id"), _prop(e, "story_order")
-                if cid and so is not None:
-                    death_index[cid] = float(so)
-
-        # 사망 후 위치 이동 체크
-        for e in at_location:
-            cid, so = _prop(e, "from_id"), _prop(e, "story_order")
-            if not (cid and so is not None):
-                continue
-            so = float(so)
-            death_so = death_index.get(cid)
-            if death_so is not None and so > death_so:
-                violations.append(_make_violation(
-                    vtype=ContradictionType.TIMELINE,
-                    severity=Severity.CRITICAL,
-                    description=f"캐릭터({cid})가 사망(story_order={death_so}) 후 위치 이동(story_order={so})",
-                    confidence=0.95,
-                    character_id=cid,
-                    evidence=[{"death_at": death_so, "appears_at": so}],
-                    suggestion="사망 이벤트 또는 이후 등장 시점을 수정하세요.",
-                ))
-
-        # 동시 다중 위치 체크
-        time_char_locs: Dict[Tuple[str, float], List[str]] = defaultdict(list)
-        for e in at_location:
-            cid, so, loc = _prop(e, "from_id"), _prop(e, "story_order"), _prop(e, "to_id")
-            if cid and so is not None and loc:
-                time_char_locs[(cid, float(so))].append(loc)
-        for (cid, so), locs in time_char_locs.items():
-            if len(set(locs)) > 1:
-                violations.append(_make_violation(
-                    vtype=ContradictionType.TIMELINE,
-                    severity=Severity.CRITICAL,
-                    description=f"캐릭터({cid})가 story_order={so}에 동시에 {len(locs)}개 장소 존재",
-                    confidence=0.98,
-                    character_id=cid,
-                    evidence=[{"locations": locs, "story_order": so}],
-                    suggestion="동시 위치 중 하나의 story_order를 조정하세요.",
-                ))
-        return violations
-
-    def find_relationship_violations(self) -> List[Dict[str, Any]]:
-        """3. 관계 모순: RELATIONSHIP_CONFLICT_MATRIX 기반"""
-        violations = []
-        related = self._fetch_edges_by_label("RELATED_TO")
-        pair_index: Dict[frozenset, List[str]] = {}
-        for e in related:
-            a, b, rtype = _prop(e, "from_id"), _prop(e, "to_id"), _prop(e, "relationship_type")
-            if a and b and rtype:
-                pair_index.setdefault(frozenset([a, b]), []).append(rtype)
-
-        for pair, rtypes in pair_index.items():
-            pair_list = list(pair)
-            for i, rt1 in enumerate(rtypes):
-                for rt2 in rtypes[i + 1:]:
-                    try:
-                        r1, r2 = RelationshipType(rt1), RelationshipType(rt2)
-                    except ValueError:
-                        continue
-                    level = RELATIONSHIP_CONFLICT_MATRIX.get(frozenset([r1, r2]))
-                    if level == "critical":
-                        violations.append(_make_violation(
-                            vtype=ContradictionType.RELATIONSHIP,
-                            severity=Severity.CRITICAL,
-                            description=f"캐릭터 쌍({pair_list})의 관계 모순: {rt1} ↔ {rt2}",
-                            confidence=0.95,
-                            evidence=[{"pair": pair_list, "relationship_types": rtypes}],
-                            suggestion=f"관계 유형 '{rt1}'과 '{rt2}' 중 하나를 수정하세요.",
-                        ))
-                    elif level == "warning":
-                        violations.append(_make_violation(
-                            vtype=ContradictionType.RELATIONSHIP,
-                            severity=Severity.MAJOR,
-                            description=f"캐릭터 쌍({pair_list})의 관계 경고: {rt1} ↔ {rt2}",
-                            confidence=0.6,
-                            evidence=[{"pair": pair_list, "relationship_types": rtypes}],
-                            needs_user_input=True,
-                            confirmation_type=ConfirmationType.RELATIONSHIP_AMBIGUITY,
-                        ))
-        return violations
-
-    def find_trait_violations(self) -> List[Dict[str, Any]]:
-        """4. 성격·설정 모순: 같은 key 다른 value"""
-        violations = []
-        has_trait = self._fetch_edges_by_label("HAS_TRAIT")
-        traits = {_prop(v, "id"): v for v in self._fetch_all("trait")}
-
-        char_trait_index: Dict[Tuple[str, str], List[Dict]] = {}
-        for e in has_trait:
-            cid, tid = _prop(e, "from_id"), _prop(e, "to_id")
-            trait = traits.get(tid, {})
-            key, val = _prop(trait, "key"), _prop(trait, "value")
-            immutable = _prop(trait, "is_immutable") in (True, "True", "true", 1)
-            if cid and key:
-                char_trait_index.setdefault((cid, key), []).append(
-                    {"value": val, "is_immutable": immutable}
-                )
-
-        for (cid, trait_key), entries in char_trait_index.items():
-            values = [e["value"] for e in entries]
-            if len(set(str(v) for v in values)) > 1:
-                is_imm = any(e["is_immutable"] for e in entries)
-                violations.append(_make_violation(
-                    vtype=ContradictionType.TRAIT,
-                    severity=Severity.CRITICAL if is_imm else Severity.MAJOR,
-                    description=f"캐릭터({cid})의 특성 '{trait_key}'에 상충 값: {values}",
-                    confidence=0.95 if is_imm else 0.6,
-                    character_id=cid,
-                    evidence=[{"trait_key": trait_key, "values": values}],
-                    needs_user_input=not is_imm,
-                    confirmation_type=ConfirmationType.INTENTIONAL_CHANGE if not is_imm else None,
-                    suggestion=f"'{trait_key}' 특성 값을 통일하거나 변화 이유를 명시하세요.",
-                ))
-        return violations
-
-    def find_emotion_violations(self) -> List[Dict[str, Any]]:
-        """5. 감정 일관성: trigger 없는 반대 감정으로의 급변"""
-        violations = []
-        feels = self._fetch_edges_by_label("FEELS")
-        pair_emotions: Dict[Tuple[str, str], List[Dict]] = {}
-        for e in feels:
-            fid, tid = _prop(e, "from_id"), _prop(e, "to_id")
-            if fid and tid:
-                pair_emotions.setdefault((fid, tid), []).append(e)
-
-        OPPOSITES = {
-            frozenset(["love", "hate"]),
-            frozenset(["trust", "distrust"]),
-            frozenset(["admiration", "contempt"]),
-            frozenset(["gratitude", "resentment"]),
-        }
-        for (fid, tid), history in pair_emotions.items():
-            sorted_h = sorted(history, key=lambda x: float(_prop(x, "discourse_order") or 0))
-            for i in range(1, len(sorted_h)):
-                prev, curr = sorted_h[i - 1], sorted_h[i]
-                pair = frozenset([str(_prop(prev, "emotion")), str(_prop(curr, "emotion"))])
-                if pair in OPPOSITES and not _prop(curr, "trigger_event_id"):
-                    violations.append(_make_violation(
-                        vtype=ContradictionType.EMOTION,
-                        severity=Severity.MAJOR,
-                        description=(
-                            f"캐릭터({fid})의 감정이 트리거 없이 "
-                            f"{_prop(prev, 'emotion')} → {_prop(curr, 'emotion')} 급변"
-                        ),
-                        confidence=0.6,
-                        character_id=fid,
-                        evidence=[{"prev": _prop(prev, "emotion"), "curr": _prop(curr, "emotion")}],
-                        needs_user_input=True,
-                        confirmation_type=ConfirmationType.EMOTION_SHIFT,
-                        suggestion="감정 변화를 유발한 이벤트를 명시하거나 감정 추이를 자연스럽게 조정하세요.",
-                    ))
-        return violations
-
-    def find_item_violations(self) -> List[Dict[str, Any]]:
-        """6. 소유물 추적: 동시 이중 소유, 분실 후 재소유"""
-        violations = []
-        possesses = self._fetch_edges_by_label("POSSESSES")
-        loses = self._fetch_edges_by_label("LOSES")
-
-        item_history: Dict[str, List[Dict]] = {}
-        for e in possesses:
-            iid = _prop(e, "to_id")
-            if iid:
-                item_history.setdefault(iid, []).append({
-                    "type": "possesses", "char_id": _prop(e, "from_id"),
-                    "story_order": _prop(e, "story_order"),
-                })
-        for e in loses:
-            iid = _prop(e, "to_id")
-            if iid:
-                item_history.setdefault(iid, []).append({
-                    "type": "loses", "char_id": _prop(e, "from_id"),
-                    "story_order": _prop(e, "story_order"),
-                })
-
-        for item_id, history in item_history.items():
-            sorted_h = [h for h in history if h.get("story_order") is not None]
-            sorted_h.sort(key=lambda x: float(x["story_order"]))
-
-            # 동시 이중 소유
-            time_owners: Dict[float, List[str]] = defaultdict(list)
-            for h in sorted_h:
-                if h["type"] == "possesses":
-                    time_owners[float(h["story_order"])].append(h["char_id"])
-            for so, owners in time_owners.items():
-                if len(set(owners)) > 1:
-                    violations.append(_make_violation(
-                        vtype=ContradictionType.ITEM,
-                        severity=Severity.CRITICAL,
-                        description=f"아이템({item_id})이 story_order={so}에 {len(owners)}명에게 동시 소유",
-                        confidence=0.95,
-                        evidence=[{"item_id": item_id, "story_order": so, "owners": owners}],
-                        suggestion="동시 소유 중 하나의 story_order를 조정하거나 소유권 이전을 추가하세요.",
-                    ))
-
-            # 분실 후 재소유
-            last_loses: Dict[str, float] = {}
-            for h in sorted_h:
-                if h["type"] == "loses":
-                    last_loses[h["char_id"]] = float(h["story_order"])
-                elif h["type"] == "possesses":
-                    cid, so = h["char_id"], float(h["story_order"])
-                    lost_at = last_loses.get(cid)
-                    if lost_at is not None and so > lost_at:
-                        violations.append(_make_violation(
-                            vtype=ContradictionType.ITEM,
-                            severity=Severity.MAJOR,
-                            description=(
-                                f"캐릭터({cid})가 아이템({item_id}) 분실(story_order={lost_at}) "
-                                f"후 재소유(story_order={so})"
-                            ),
-                            confidence=0.65,
-                            character_id=cid,
-                            evidence=[{"lost_at": lost_at, "repossessed_at": so}],
-                            needs_user_input=True,
-                            confirmation_type=ConfirmationType.ITEM_DISCREPANCY,
-                        ))
-        return violations
-
-    def find_deception_violations(self) -> List[Dict[str, Any]]:
-        """7. 거짓말·기만: is_true=False 사실 학습(believed_true=True), 진실 인지 후 거짓 발언"""
-        violations = []
-        facts = {_prop(v, "id"): v for v in self._fetch_all("fact")}
-        learns = self._fetch_edges_by_label("LEARNS")
-        mentions = self._fetch_edges_by_label("MENTIONS")
-
-        false_fact_ids = {
-            fid for fid, fv in facts.items()
-            if _prop(fv, "is_true") in (False, "False", "false", 0)
-        }
-
-        # 거짓 사실을 진실로 학습한 (char, fact) → story_order
-        believed_false: Dict[Tuple[str, str], float] = {}
-        for e in learns:
-            fid, cid = _prop(e, "to_id"), _prop(e, "from_id")
-            believed = _prop(e, "believed_true")
-            so = _prop(e, "story_order")
-            if fid in false_fact_ids and believed in (True, "True", "true", 1):
-                if cid and so is not None:
-                    believed_false[(cid, fid)] = float(so)
-
-        # 진실 학습 최소 story_order: (char, fact) → story_order
-        truth_learn: Dict[Tuple[str, str], float] = {}
-        for e in learns:
-            fid, cid = _prop(e, "to_id"), _prop(e, "from_id")
-            believed = _prop(e, "believed_true")
-            so = _prop(e, "story_order")
-            if fid not in false_fact_ids and believed in (True, "True", "true", 1):
-                if cid and so is not None:
-                    key = (cid, fid)
-                    if key not in truth_learn or float(so) < truth_learn[key]:
-                        truth_learn[key] = float(so)
-
-        # 진실 인지 후 거짓 사실을 언급한 경우
-        for e in mentions:
-            cid, fid, so = _prop(e, "from_id"), _prop(e, "to_id"), _prop(e, "story_order")
-            if not (cid and fid and so is not None and fid in false_fact_ids):
-                continue
-            so = float(so)
-            truth_so = truth_learn.get((cid, fid))
-            if truth_so is not None and so > truth_so:
-                violations.append(_make_violation(
-                    vtype=ContradictionType.DECEPTION,
-                    severity=Severity.CRITICAL,
-                    description=(
-                        f"캐릭터({cid})가 진실 인지(story_order={truth_so}) 후에도 "
-                        f"거짓 사실({fid})을 언급(story_order={so})"
-                    ),
-                    confidence=0.9,
-                    character_id=cid,
-                    dialogue=_prop(e, "dialogue_text"),
-                    evidence=[{"truth_learned_at": truth_so, "false_mention_at": so}],
-                    suggestion="진실 인지 후 거짓 정보 전달의 의도를 명시하거나 제거하세요.",
-                ))
-
-        # 거짓 사실을 believed_true=True로 학습한 케이스 자체 (Soft)
-        for (cid, fid), so in believed_false.items():
-            violations.append(_make_violation(
-                vtype=ContradictionType.DECEPTION,
-                severity=Severity.MINOR,
-                description=f"캐릭터({cid})가 거짓 사실({fid})을 진실로 학습(story_order={so})",
-                confidence=0.55,
-                character_id=cid,
-                evidence=[{"fact_id": fid, "believed_true_at": so}],
-                needs_user_input=True,
-                confirmation_type=ConfirmationType.UNRELIABLE_NARRATOR,
-            ))
-        return violations
-
-    def find_all_violations(self) -> Dict[str, List[Dict[str, Any]]]:
-        """7가지 쿼리 통합 + Hard / Soft 분류"""
-        all_v = (
-            self.find_knowledge_violations()
-            + self.find_timeline_violations()
-            + self.find_relationship_violations()
-            + self.find_trait_violations()
-            + self.find_emotion_violations()
-            + self.find_item_violations()
-            + self.find_deception_violations()
-        )
-        hard = [v for v in all_v if v.get("is_hard")]
-        soft = [v for v in all_v if not v.get("is_hard")]
-        logger.info("find_all_violations complete", hard=len(hard), soft=len(soft), total=len(all_v))
-        return {"hard": hard, "soft": soft, "all": all_v}
 
     # ── 임시 그래프 격리 ──────────────────────────────────────
 
@@ -1493,7 +1991,7 @@ class GremlinGraphService:
 # InMemoryGraphService  (테스트 / 로컬 개발)
 # ─────────────────────────────────────────────────────────────
 
-class InMemoryGraphService:
+class InMemoryGraphService(_ViolationMixin):
     """GremlinGraphService와 동일 인터페이스의 In-Memory 구현체."""
 
     def __init__(self, json_path: Optional[str] = None, storage_service: Optional[StorageService] = None):
@@ -1868,8 +2366,15 @@ class InMemoryGraphService:
             fact_content_to_id[nf.content] = fact_dict["id"]
 
         # 3. Event vertices (discourse_order/story_order 자동 부여)
+        # NormalizedEvent의 characters_involved를 raw_event_dicts에 포함
         raw_event_dicts = [
-            {"description": ne.description, "event_type": ne.event_type, "location": ne.location}
+            {
+                "description": ne.description,
+                "event_type": ne.event_type,
+                "location": ne.location,
+                "status_char": ne.status_char,
+                "characters_involved": ne.characters_involved,
+            }
             for ne in normalized.events
         ]
         for ev_data in self._assign_time_axes(raw_event_dicts):
@@ -1884,6 +2389,8 @@ class InMemoryGraphService:
                 source_location="",
             )
             event_dict = _vertex_to_dict(event)
+            # Event 모델에 없는 characters_involved를 dict에 직접 추가 (resurrection 탐지용)
+            event_dict["characters_involved"] = ev_data.get("characters_involved") or []
             self.add_event(event_dict)
             self.add_sourced_from(event_dict["id"], source_id, {
                 "source_id": source_id,
@@ -1891,6 +2398,71 @@ class InMemoryGraphService:
                 "created_at": event_dict["created_at"],
             })
             created["events"].append(event_dict["id"])
+
+            # death 이벤트 → HAS_STATUS dead 엣지 자동 생성 (타임라인 모순 탐지용)
+            # event_type=="death" 이거나 status_char가 설정된 경우 모두 처리 (LLM이 death 대신 다른 타입 쓸 수 있음)
+            _is_death = (
+                event_dict.get("event_type") == "death"
+                or (ev_data.get("status_char") and any(
+                    kw in event_dict.get("description", "")
+                    for kw in ["사망", "죽", "숨졌", "시체", "피살", "살해"]
+                ))
+            )
+            if _is_death:
+                status_char = ev_data.get("status_char")
+                char_id = None
+                if status_char:
+                    existing = self.find_character_by_name(status_char)
+                    char_id = existing["id"] if existing else None
+                if char_id:
+                    self.add_has_status(char_id, event_dict["id"], {
+                        "status_type": "dead",
+                        "status_value": "사망",
+                        "story_order": event_dict.get("story_order") or event_dict.get("discourse_order"),
+                        "source_id": source_id,
+                        "source_location": "",
+                        "created_at": event_dict["created_at"],
+                    })
+                    created["edges"].append(f"status-dead-{char_id}")
+
+        # 3b. 사망 관련 Facts → HAS_STATUS dead 엣지 생성
+        # LLM이 death event 대신 fact로 추출하는 경우 대응 (예: "박영호는 사망한 상태로 발견됨")
+        _DEATH_KW = ["사망", "죽", "숨졌", "시체", "피살", "살해", "사망한 상태"]
+        for nf in normalized.facts:
+            content = nf.content
+            if not any(kw in content for kw in _DEATH_KW):
+                continue
+            for nc in normalized.characters:
+                names_to_check = [nc.canonical_name] + list(nc.all_aliases)
+                if not any(n in content for n in names_to_check):
+                    continue
+                char_id_for_death = char_name_to_id.get(nc.canonical_name)
+                if not char_id_for_death:
+                    continue
+                do_death = self._get_next_discourse_order()
+                death_event = Event(
+                    source_id=source_id,
+                    discourse_order=do_death,
+                    story_order=do_death,
+                    is_linear=True,
+                    event_type=_safe_enum(EventType, "death", EventType.SCENE),
+                    description=content,
+                    location=None,
+                    source_location="",
+                )
+                death_dict = _vertex_to_dict(death_event)
+                death_dict["characters_involved"] = [nc.canonical_name]
+                self.add_event(death_dict)
+                self.add_has_status(char_id_for_death, death_dict["id"], {
+                    "status_type": "dead",
+                    "status_value": "사망",
+                    "story_order": do_death,
+                    "source_id": source_id,
+                    "source_location": "",
+                    "created_at": death_dict["created_at"],
+                })
+                created["edges"].append(f"status-dead-fact-{char_id_for_death}")
+                break  # 캐릭터당 1번만
 
         # 4. SourceConflict → UserConfirmation vertices
         for conflict in normalized.source_conflicts:
@@ -2002,6 +2574,7 @@ class InMemoryGraphService:
                 "story_order": do,
                 "believed_true": True,
                 "method": ke.method or "unknown",
+                "via_character": ke.via_character or "",
                 "dialogue_text": ke.dialogue_text or "",
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
@@ -2079,359 +2652,6 @@ class InMemoryGraphService:
         return created
 
     # ── 7가지 모순 탐지 쿼리 ──────────────────────────────────
-
-    def find_knowledge_violations(self) -> List[Dict[str, Any]]:
-        """1. 정보 비대칭"""
-        violations = []
-        mentions = self._edges_by_label("MENTIONS")
-        learns = self._edges_by_label("LEARNS")
-
-        learn_index: Dict[Tuple[str, str], float] = {}
-        for e in learns:
-            cid, fid, so = e.get("from_id"), e.get("to_id"), e.get("story_order")
-            if cid and fid and so is not None:
-                key = (cid, fid)
-                if key not in learn_index or float(so) < learn_index[key]:
-                    learn_index[key] = float(so)
-
-        for e in mentions:
-            cid, fid, m_so = e.get("from_id"), e.get("to_id"), e.get("story_order")
-            if not (cid and fid and m_so is not None):
-                continue
-            m_so = float(m_so)
-            l_so = learn_index.get((cid, fid))
-            if l_so is not None and m_so < l_so:
-                char_name = (self.get_character(cid) or {}).get("name", cid)
-                violations.append(_make_violation(
-                    vtype=ContradictionType.ASYMMETRY,
-                    severity=Severity.CRITICAL,
-                    description=(
-                        f"캐릭터 '{char_name}'이(가) 사실을 알기 전(LEARNS story_order={l_so}) "
-                        f"이미 언급(MENTIONS story_order={m_so})"
-                    ),
-                    confidence=0.95,
-                    character_id=cid, character_name=char_name,
-                    evidence=[
-                        {"type": "MENTIONS", "story_order": m_so, "dialogue": e.get("dialogue_text")},
-                        {"type": "LEARNS", "story_order": l_so},
-                    ],
-                    suggestion="MENTIONS 시점을 LEARNS 이후로 수정하거나 LEARNS 시점을 앞당기세요.",
-                ))
-        return violations
-
-    def find_timeline_violations(self) -> List[Dict[str, Any]]:
-        """2. 타임라인"""
-        violations = []
-        has_status = self._edges_by_label("HAS_STATUS")
-        at_location = self._edges_by_label("AT_LOCATION")
-
-        death_index: Dict[str, float] = {}
-        for e in has_status:
-            if e.get("status_type") == "dead":
-                cid, so = e.get("from_id"), e.get("story_order")
-                if cid and so is not None:
-                    death_index[cid] = float(so)
-
-        for e in at_location:
-            cid, so = e.get("from_id"), e.get("story_order")
-            if not (cid and so is not None):
-                continue
-            so = float(so)
-            death_so = death_index.get(cid)
-            if death_so is not None and so > death_so:
-                char_name = (self.get_character(cid) or {}).get("name", cid)
-                violations.append(_make_violation(
-                    vtype=ContradictionType.TIMELINE,
-                    severity=Severity.CRITICAL,
-                    description=f"캐릭터 '{char_name}'이(가) 사망(story_order={death_so}) 후 위치 이동(story_order={so})",
-                    confidence=0.95,
-                    character_id=cid, character_name=char_name,
-                    evidence=[{"death_at": death_so, "appears_at": so}],
-                    suggestion="사망 이벤트 또는 이후 등장 시점을 수정하세요.",
-                ))
-
-        time_char_locs: Dict[Tuple[str, float], List[str]] = defaultdict(list)
-        for e in at_location:
-            cid, so, loc = e.get("from_id"), e.get("story_order"), e.get("to_id")
-            if cid and so is not None and loc:
-                time_char_locs[(cid, float(so))].append(loc)
-        for (cid, so), locs in time_char_locs.items():
-            if len(set(locs)) > 1:
-                char_name = (self.get_character(cid) or {}).get("name", cid)
-                violations.append(_make_violation(
-                    vtype=ContradictionType.TIMELINE,
-                    severity=Severity.CRITICAL,
-                    description=f"캐릭터 '{char_name}'이(가) story_order={so}에 동시에 {len(locs)}개 장소 존재",
-                    confidence=0.98,
-                    character_id=cid, character_name=char_name,
-                    evidence=[{"locations": locs, "story_order": so}],
-                    suggestion="동시 위치 중 하나의 story_order를 조정하세요.",
-                ))
-        return violations
-
-    def find_relationship_violations(self) -> List[Dict[str, Any]]:
-        """3. 관계 모순"""
-        violations = []
-        related = self._edges_by_label("RELATED_TO")
-        pair_index: Dict[frozenset, List[str]] = {}
-        for e in related:
-            a, b, rtype = e.get("from_id"), e.get("to_id"), e.get("relationship_type")
-            if a and b and rtype:
-                pair_index.setdefault(frozenset([a, b]), []).append(rtype)
-
-        for pair, rtypes in pair_index.items():
-            pair_list = list(pair)
-            for i, rt1 in enumerate(rtypes):
-                for rt2 in rtypes[i + 1:]:
-                    try:
-                        r1, r2 = RelationshipType(rt1), RelationshipType(rt2)
-                    except ValueError:
-                        continue
-                    level = RELATIONSHIP_CONFLICT_MATRIX.get(frozenset([r1, r2]))
-                    if level == "critical":
-                        violations.append(_make_violation(
-                            vtype=ContradictionType.RELATIONSHIP,
-                            severity=Severity.CRITICAL,
-                            description=f"캐릭터 쌍의 관계 모순: {rt1} ↔ {rt2}",
-                            confidence=0.95,
-                            evidence=[{"pair": pair_list, "relationship_types": rtypes}],
-                            suggestion=f"관계 '{rt1}'과 '{rt2}' 중 하나를 수정하세요.",
-                        ))
-                    elif level == "warning":
-                        violations.append(_make_violation(
-                            vtype=ContradictionType.RELATIONSHIP,
-                            severity=Severity.MAJOR,
-                            description=f"캐릭터 쌍의 관계 경고: {rt1} ↔ {rt2}",
-                            confidence=0.6,
-                            evidence=[{"pair": pair_list, "relationship_types": rtypes}],
-                            needs_user_input=True,
-                            confirmation_type=ConfirmationType.RELATIONSHIP_AMBIGUITY,
-                        ))
-        return violations
-
-    def find_trait_violations(self) -> List[Dict[str, Any]]:
-        """4. 성격·설정 모순"""
-        violations = []
-        has_trait = self._edges_by_label("HAS_TRAIT")
-        char_trait_index: Dict[Tuple[str, str], List[Dict]] = {}
-        for e in has_trait:
-            cid, tid = e.get("from_id"), e.get("to_id")
-            trait = self.vertices.get(tid, {})
-            key, val = trait.get("key"), trait.get("value")
-            immutable = trait.get("is_immutable") in (True, "True", "true", 1)
-            if cid and key:
-                char_trait_index.setdefault((cid, key), []).append(
-                    {"value": val, "is_immutable": immutable}
-                )
-
-        for (cid, trait_key), entries in char_trait_index.items():
-            values = [e["value"] for e in entries]
-            if len(set(str(v) for v in values)) > 1:
-                is_imm = any(e["is_immutable"] for e in entries)
-                char_name = (self.get_character(cid) or {}).get("name", cid)
-                violations.append(_make_violation(
-                    vtype=ContradictionType.TRAIT,
-                    severity=Severity.CRITICAL if is_imm else Severity.MAJOR,
-                    description=f"캐릭터 '{char_name}'의 특성 '{trait_key}': {values}",
-                    confidence=0.95 if is_imm else 0.6,
-                    character_id=cid, character_name=char_name,
-                    evidence=[{"trait_key": trait_key, "values": values}],
-                    needs_user_input=not is_imm,
-                    confirmation_type=ConfirmationType.INTENTIONAL_CHANGE if not is_imm else None,
-                    suggestion=f"'{trait_key}' 특성 값을 통일하거나 변화 이유를 명시하세요.",
-                ))
-        return violations
-
-    def find_emotion_violations(self) -> List[Dict[str, Any]]:
-        """5. 감정 일관성"""
-        violations = []
-        feels = self._edges_by_label("FEELS")
-        pair_emotions: Dict[Tuple[str, str], List[Dict]] = {}
-        for e in feels:
-            fid, tid = e.get("from_id"), e.get("to_id")
-            if fid and tid:
-                pair_emotions.setdefault((fid, tid), []).append(e)
-
-        OPPOSITES = {
-            frozenset(["love", "hate"]),
-            frozenset(["trust", "distrust"]),
-            frozenset(["admiration", "contempt"]),
-            frozenset(["gratitude", "resentment"]),
-        }
-        for (fid, tid), history in pair_emotions.items():
-            sorted_h = sorted(history, key=lambda x: float(x.get("discourse_order") or 0))
-            for i in range(1, len(sorted_h)):
-                prev, curr = sorted_h[i - 1], sorted_h[i]
-                pair = frozenset([str(prev.get("emotion")), str(curr.get("emotion"))])
-                if pair in OPPOSITES and not curr.get("trigger_event_id"):
-                    char_name = (self.get_character(fid) or {}).get("name", fid)
-                    violations.append(_make_violation(
-                        vtype=ContradictionType.EMOTION,
-                        severity=Severity.MAJOR,
-                        description=(
-                            f"캐릭터 '{char_name}'의 감정이 트리거 없이 "
-                            f"{prev.get('emotion')} → {curr.get('emotion')} 급변"
-                        ),
-                        confidence=0.6,
-                        character_id=fid, character_name=char_name,
-                        evidence=[{"prev": prev.get("emotion"), "curr": curr.get("emotion")}],
-                        needs_user_input=True,
-                        confirmation_type=ConfirmationType.EMOTION_SHIFT,
-                        suggestion="감정 변화를 유발한 이벤트를 명시하거나 감정 추이를 자연스럽게 조정하세요.",
-                    ))
-        return violations
-
-    def find_item_violations(self) -> List[Dict[str, Any]]:
-        """6. 소유물 추적"""
-        violations = []
-        possesses = self._edges_by_label("POSSESSES")
-        loses = self._edges_by_label("LOSES")
-
-        item_history: Dict[str, List[Dict]] = {}
-        for e in possesses:
-            iid = e.get("to_id")
-            if iid:
-                item_history.setdefault(iid, []).append({
-                    "type": "possesses", "char_id": e.get("from_id"),
-                    "story_order": e.get("story_order"),
-                })
-        for e in loses:
-            iid = e.get("to_id")
-            if iid:
-                item_history.setdefault(iid, []).append({
-                    "type": "loses", "char_id": e.get("from_id"),
-                    "story_order": e.get("story_order"),
-                })
-
-        for item_id, history in item_history.items():
-            item_name = (self.get_item(item_id) or {}).get("name", item_id)
-            sorted_h = [h for h in history if h.get("story_order") is not None]
-            sorted_h.sort(key=lambda x: float(x["story_order"]))
-
-            # 동시 이중 소유
-            time_owners: Dict[float, List[str]] = defaultdict(list)
-            for h in sorted_h:
-                if h["type"] == "possesses":
-                    time_owners[float(h["story_order"])].append(h["char_id"])
-            for so, owners in time_owners.items():
-                if len(set(owners)) > 1:
-                    violations.append(_make_violation(
-                        vtype=ContradictionType.ITEM,
-                        severity=Severity.CRITICAL,
-                        description=f"아이템 '{item_name}'이 story_order={so}에 {len(owners)}명에게 동시 소유",
-                        confidence=0.95,
-                        evidence=[{"item_id": item_id, "story_order": so, "owners": owners}],
-                        suggestion="동시 소유 중 하나의 story_order를 조정하거나 소유권 이전을 추가하세요.",
-                    ))
-
-            # 분실 후 재소유
-            last_loses: Dict[str, float] = {}
-            for h in sorted_h:
-                if h["type"] == "loses":
-                    last_loses[h["char_id"]] = float(h["story_order"])
-                elif h["type"] == "possesses":
-                    cid, so = h["char_id"], float(h["story_order"])
-                    lost_at = last_loses.get(cid)
-                    if lost_at is not None and so > lost_at:
-                        char_name = (self.get_character(cid) or {}).get("name", cid)
-                        violations.append(_make_violation(
-                            vtype=ContradictionType.ITEM,
-                            severity=Severity.MAJOR,
-                            description=(
-                                f"캐릭터 '{char_name}'이(가) '{item_name}' 분실(story_order={lost_at}) "
-                                f"후 재소유(story_order={so})"
-                            ),
-                            confidence=0.65,
-                            character_id=cid, character_name=char_name,
-                            evidence=[{"lost_at": lost_at, "repossessed_at": so}],
-                            needs_user_input=True,
-                            confirmation_type=ConfirmationType.ITEM_DISCREPANCY,
-                        ))
-        return violations
-
-    def find_deception_violations(self) -> List[Dict[str, Any]]:
-        """7. 거짓말·기만"""
-        violations = []
-        facts = {v["id"]: v for v in self._vertices_by_label("fact")}
-        learns = self._edges_by_label("LEARNS")
-        mentions = self._edges_by_label("MENTIONS")
-
-        false_fact_ids = {
-            fid for fid, fv in facts.items()
-            if fv.get("is_true") in (False, "False", "false", 0)
-        }
-
-        believed_false: Dict[Tuple[str, str], float] = {}
-        for e in learns:
-            fid, cid = e.get("to_id"), e.get("from_id")
-            believed = e.get("believed_true", True)
-            so = e.get("story_order")
-            if fid in false_fact_ids and believed in (True, "True", "true", 1):
-                if cid and so is not None:
-                    believed_false[(cid, fid)] = float(so)
-
-        truth_learn: Dict[Tuple[str, str], float] = {}
-        for e in learns:
-            fid, cid = e.get("to_id"), e.get("from_id")
-            believed = e.get("believed_true", True)
-            so = e.get("story_order")
-            if fid not in false_fact_ids and believed in (True, "True", "true", 1):
-                if cid and so is not None:
-                    key = (cid, fid)
-                    if key not in truth_learn or float(so) < truth_learn[key]:
-                        truth_learn[key] = float(so)
-
-        for e in mentions:
-            cid, fid, so = e.get("from_id"), e.get("to_id"), e.get("story_order")
-            if not (cid and fid and so is not None and fid in false_fact_ids):
-                continue
-            so = float(so)
-            truth_so = truth_learn.get((cid, fid))
-            if truth_so is not None and so > truth_so:
-                char_name = (self.get_character(cid) or {}).get("name", cid)
-                violations.append(_make_violation(
-                    vtype=ContradictionType.DECEPTION,
-                    severity=Severity.CRITICAL,
-                    description=(
-                        f"캐릭터 '{char_name}'이(가) 진실 인지(story_order={truth_so}) 후에도 "
-                        f"거짓 사실을 언급(story_order={so})"
-                    ),
-                    confidence=0.9,
-                    character_id=cid, character_name=char_name,
-                    dialogue=e.get("dialogue_text"),
-                    evidence=[{"truth_learned_at": truth_so, "false_mention_at": so}],
-                    suggestion="진실 인지 후 거짓 정보 전달의 의도를 명시하거나 제거하세요.",
-                ))
-
-        for (cid, fid), so in believed_false.items():
-            char_name = (self.get_character(cid) or {}).get("name", cid)
-            violations.append(_make_violation(
-                vtype=ContradictionType.DECEPTION,
-                severity=Severity.MINOR,
-                description=f"캐릭터 '{char_name}'이(가) 거짓 사실을 진실로 학습(story_order={so})",
-                confidence=0.55,
-                character_id=cid, character_name=char_name,
-                evidence=[{"fact_id": fid, "believed_true_at": so}],
-                needs_user_input=True,
-                confirmation_type=ConfirmationType.UNRELIABLE_NARRATOR,
-            ))
-        return violations
-
-    def find_all_violations(self) -> Dict[str, List[Dict[str, Any]]]:
-        """7가지 쿼리 통합 + Hard / Soft 분류"""
-        all_v = (
-            self.find_knowledge_violations()
-            + self.find_timeline_violations()
-            + self.find_relationship_violations()
-            + self.find_trait_violations()
-            + self.find_emotion_violations()
-            + self.find_item_violations()
-            + self.find_deception_violations()
-        )
-        hard = [v for v in all_v if v.get("is_hard")]
-        soft = [v for v in all_v if not v.get("is_hard")]
-        logger.info("find_all_violations complete", hard=len(hard), soft=len(soft), total=len(all_v))
-        return {"hard": hard, "soft": soft, "all": all_v}
 
     def snapshot_graph(self, relevant_ids: Optional[List[str]] = None) -> "InMemoryGraphService":
         """자신의 딥카피 반환 (원본 불변 보장)"""

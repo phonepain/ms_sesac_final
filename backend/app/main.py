@@ -175,6 +175,12 @@ async def delete_source(source_id: str):
         except Exception as e:
             logger.warning("delete_source_file_failed", source_id=source_id, error=str(e))
 
+    search_svc = get_search_service()
+    try:
+        await search_svc.remove_source(source_id)
+    except Exception as e:
+        logger.warning("delete_source_index_failed", source_id=source_id, error=str(e))
+
     return {"status": "success", "message": f"Source {source_id} deleted."}
 
 @app.put("/api/sources/{source_id}")
