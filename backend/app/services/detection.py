@@ -142,6 +142,7 @@ class DetectionService:
             evidence=evidence,
             confidence=v.get("confidence", 0.0),
             suggestion=v.get("suggestion"),
+            alternative=v.get("alternative_interpretation"),
             needs_user_input=v.get("needs_user_input", False),
             user_question=v.get("user_question"),
         )
