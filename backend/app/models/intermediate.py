@@ -22,6 +22,8 @@ class RawEvent(BaseModel):
     characters_involved: List[str] = Field(default_factory=list)
     location_hint: Optional[str] = None
     source_chunk_id: Optional[str] = None
+    event_type: Optional[str] = None      # "death", "scene" 등
+    status_char: Optional[str] = None     # death 이벤트 시 해당 캐릭터 이름
 
 class RawTrait(BaseModel):
     character_name: str
@@ -103,6 +105,7 @@ class NormalizedEvent(BaseModel):
     location: Optional[str] = None
     characters_involved: List[str] = Field(default_factory=list)
     merged_from: List[RawEvent] = Field(default_factory=list)
+    status_char: Optional[str] = None     # death 이벤트 시 해당 캐릭터 이름
 
 class ConflictDescription(BaseModel):
     """딕셔너리(Dict) 대신 사용할 명시적 키-값 구조체"""
