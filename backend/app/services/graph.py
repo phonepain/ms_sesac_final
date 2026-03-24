@@ -736,42 +736,48 @@ class _ViolationMixin:
                 "is_immutable": _prop(trait, "is_immutable") in (True, "True", "true", 1),
             })
 
-        # 성격/선호 관련 facts도 금지 특성으로 활용 (LLM이 trait 대신 fact로 추출하는 경우)
-        _TRAIT_LIKE_CATS = {"personality", "preference", "background", "personal", "habit"}
-        for fv in self._vertices_by_label("fact"):
-            cat = str(_prop(fv, "category") or "")
-            if not any(tc in cat for tc in _TRAIT_LIKE_CATS):
-                continue
-            content = str(_prop(fv, "content") or "")
-            if not self._trait_is_prohibitive(content):
-                continue
-            keywords = self._extract_subject_keywords(content)
-            if not keywords:
-                continue
-            # fact content에서 캐릭터 이름 추출 (첫 어절)
-            words = re.findall(r'[가-힣A-Za-z0-9]+', content)
-            if not words:
-                continue
-            char_name_hint = words[0]
-            # 나중에 이름→ID 매핑 시 처리하도록 임시 key 사용
-            char_neg_traits.setdefault(f"__fact__{char_name_hint}", []).append({
-                "key": cat,
-                "value": content,
-                "keywords": keywords,
-                "is_immutable": False,
-                "char_name_hint": char_name_hint,
-            })
-
-        if not char_neg_traits and not any(k.startswith("__fact__") for k in char_neg_traits):
-            return violations
-
-        # 이름 → ID 맵
+        # 이름 → ID 맵 (fact 스캔 전에 구축)
         name_to_id: Dict[str, str] = {}
         for cv in self._vertices_by_label("character"):
             name = _prop(cv, "name") or _prop(cv, "canonical_name") or ""
             cid = _prop(cv, "id")
             if name and cid:
                 name_to_id[name] = cid
+
+        # facts에서도 금지 특성 추출 (LLM이 trait 대신 fact로 추출하는 경우)
+        # 카테고리 무관 — 캐릭터 이름 + 금지 마커가 있으면 추출
+        for fv in self._vertices_by_label("fact"):
+            content = str(_prop(fv, "content") or "")
+            if not self._trait_is_prohibitive(content):
+                continue
+            keywords = self._extract_subject_keywords(content)
+            if not keywords:
+                continue
+            # fact content에서 알려진 캐릭터 이름 매칭 (첫 어절 fallback)
+            matched_name = None
+            for cn in name_to_id:
+                if cn in content:
+                    matched_name = cn
+                    break
+            if not matched_name:
+                words = re.findall(r'[가-힣A-Za-z0-9]+', content)
+                matched_name = words[0] if words else None
+            if not matched_name:
+                continue
+            # 캐릭터 이름은 keyword에서 제외 (이름이 이벤트에 있다고 위반은 아님)
+            keywords = [kw for kw in keywords if kw not in name_to_id]
+            if not keywords:
+                continue
+            char_neg_traits.setdefault(f"__fact__{matched_name}", []).append({
+                "key": "fact",
+                "value": content,
+                "keywords": keywords,
+                "is_immutable": False,
+                "char_name_hint": matched_name,
+            })
+
+        if not char_neg_traits:
+            return violations
 
         seen: set = set()
         for ev in self._vertices_by_label("event"):
@@ -795,7 +801,9 @@ class _ViolationMixin:
                     for kw in trait["keywords"]:
                         if kw not in desc:
                             continue
-                        vkey = (cid, trait["key"], ev_id)
+                        # 같은 캐릭터 + 같은 키워드 위반은 1회만 보고
+                        # (trait/fact 양쪽에서 추출되어도 중복 방지)
+                        vkey = (cid, kw)
                         if vkey in seen:
                             break
                         seen.add(vkey)
@@ -841,7 +849,7 @@ class _ViolationMixin:
                     for kw in trait["keywords"]:
                         if kw not in desc:
                             continue
-                        vkey = (cid, trait["key"], ev_id)
+                        vkey = (cid, kw)
                         if vkey in seen:
                             break
                         seen.add(vkey)
@@ -919,7 +927,8 @@ class _ViolationMixin:
                     msg = self._check_numeric_violation(constraint, ev_val, desc, so)
                     if not msg:
                         continue
-                    vkey = (cand_id, constraint["type"], constraint["value"])
+                    # 동일 세계 규칙 위반은 1번만 보고 (constraint 기준 중복 제거)
+                    vkey = (constraint["fact_id"], constraint["type"], constraint["value"])
                     if vkey in seen:
                         continue
                     seen.add(vkey)
@@ -1988,6 +1997,19 @@ class GremlinGraphService(_ViolationMixin):
             raise
         return removed
 
+    def clear_all(self) -> Dict[str, int]:
+        """그래프의 모든 vertex와 edge를 삭제합니다."""
+        try:
+            e_cnt = self._submit_first("g.E().count()") or 0
+            v_cnt = self._submit_first("g.V().count()") or 0
+            self._submit("g.E().drop()")
+            self._submit("g.V().drop()")
+            logger.info("clear_all complete", vertices=int(v_cnt), edges=int(e_cnt))
+            return {"vertices": int(v_cnt), "edges": int(e_cnt)}
+        except Exception as e:
+            logger.error("clear_all failed", error=str(e))
+            raise
+
     # ── confirmation.py / version.py 연동 메서드 ──────────────────
 
     def _normalize_valueMap(self, v: dict) -> dict:
@@ -2879,6 +2901,15 @@ class InMemoryGraphService(_ViolationMixin):
         removed = {"vertices": orig_v - len(self.vertices), "edges": orig_e - len(self.edges)}
         self.log.info("remove_source complete", source_id=source_id, **removed)
         return removed
+
+    def clear_all(self) -> Dict[str, int]:
+        """그래프의 모든 vertex와 edge를 삭제합니다."""
+        v_cnt, e_cnt = len(self.vertices), len(self.edges)
+        self.vertices.clear()
+        self.edges.clear()
+        self._discourse_counter = 0.0
+        self.log.info("clear_all complete", vertices=v_cnt, edges=e_cnt)
+        return {"vertices": v_cnt, "edges": e_cnt}
 
     # ── confirmation.py / version.py 연동 메서드 ─────────────────
 
