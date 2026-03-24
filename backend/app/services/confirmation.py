@@ -15,6 +15,8 @@ confirmation.py — 계층 5: 사용자 확인 관리 서비스
 
 from __future__ import annotations
 
+import asyncio
+import functools
 import math
 import re
 import uuid
@@ -98,6 +100,16 @@ class ConfirmationService:
         self._search = search_service
         self._detection = detection_service
         self._log = logger.bind(service="ConfirmationService")
+
+    async def _run_graph(self, func, *args, **kwargs):
+        """동기 GraphService 메서드를 ThreadPoolExecutor에서 실행.
+        gremlin_python이 내부적으로 loop.run_until_complete()를 사용하므로
+        FastAPI asyncio 루프와 충돌하지 않도록 ThreadPoolExecutor로 분리한다.
+        """
+        loop = asyncio.get_event_loop()
+        if kwargs:
+            return await loop.run_in_executor(None, functools.partial(func, *args, **kwargs))
+        return await loop.run_in_executor(None, func, *args)
 
     # ──────────────────────────────────────────────────────────────
     # 1. 확인 생성
@@ -199,7 +211,8 @@ class ConfirmationService:
         """
         log = self._log.bind(action="list_pending")
         try:
-            raw_list: list[dict] = self._graph.query_vertices(
+            raw_list: list[dict] = await self._run_graph(
+                self._graph.query_vertices,
                 partition_key="confirmation",
                 filters={"status": "pending"},
             )
@@ -413,7 +426,8 @@ class ConfirmationService:
         now_iso = datetime.now(tz=timezone.utc).isoformat()
         for entity_id in confirmation.related_entity_ids:
             try:
-                self._graph.patch_vertex(
+                await self._run_graph(
+                    self._graph.patch_vertex,
                     vertex_id=entity_id,
                     partition_key="trait",
                     fields={"valid_until": now_iso},
@@ -459,7 +473,8 @@ class ConfirmationService:
             if entity_id == canonical_id:
                 continue
             try:
-                self._graph.patch_vertex(
+                await self._run_graph(
+                    self._graph.patch_vertex,
                     vertex_id=entity_id,
                     partition_key="source",
                     fields={"status": "inactive"},
@@ -489,7 +504,8 @@ class ConfirmationService:
 
         for entity_id in confirmation.related_entity_ids:
             try:
-                self._graph.patch_vertex(
+                await self._run_graph(
+                    self._graph.patch_vertex,
                     vertex_id=entity_id,
                     partition_key="event",
                     fields=fields,
@@ -598,7 +614,7 @@ class ConfirmationService:
             return
 
         try:
-            self._graph.rebuild_from_canonical_source(canonical_id)
+            await self._run_graph(self._graph.rebuild_from_canonical_source, canonical_id)
             log.info("graph_rebuilt_from_canonical", canonical_id=canonical_id)
         except Exception as exc:
             log.error("graph_rebuild_failed", error=str(exc))
@@ -618,7 +634,8 @@ class ConfirmationService:
 
         for entity_id in confirmation.related_entity_ids:
             try:
-                self._graph.resolve_trait_violation(
+                await self._run_graph(
+                    self._graph.resolve_trait_violation,
                     trait_id=entity_id,
                     confirmation_id=confirmation.id,
                 )
@@ -641,7 +658,7 @@ class ConfirmationService:
         error_message: str,
     ) -> None:
         try:
-            self._graph.upsert_vertex(confirmation)
+            await self._run_graph(self._graph.upsert_vertex, confirmation)
         except Exception as exc:
             log.error("confirmation_persist_failed", error=str(exc))
             raise ConfirmationError(f"{error_message}: {exc}") from exc
@@ -658,7 +675,8 @@ class ConfirmationService:
             그래프 조회 실패 시
         """
         try:
-            raw = self._graph.get_vertex(
+            raw = await self._run_graph(
+                self._graph.get_vertex,
                 vertex_id=confirmation_id,
                 partition_key="confirmation",
             )

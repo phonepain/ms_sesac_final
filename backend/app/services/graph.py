@@ -64,6 +64,44 @@ def _prop(v: Dict, key: str) -> Any:
 
 
 # ─────────────────────────────────────────────────────────────
+# Fact 유사도 매칭 (정보 비대칭 탐지용)
+# ─────────────────────────────────────────────────────────────
+
+def _fact_bigrams(text: str) -> set:
+    """텍스트를 bi-gram 집합으로 변환. 한국어/영어 공용."""
+    t = text.strip()
+    return {t[i:i+2] for i in range(len(t) - 1)} if len(t) >= 2 else {t}
+
+
+def _fact_similarity(a: str, b: str) -> float:
+    """bi-gram Jaccard 유사도. 0.0~1.0."""
+    bg_a = _fact_bigrams(a)
+    bg_b = _fact_bigrams(b)
+    if not bg_a or not bg_b:
+        return 0.0
+    union = bg_a | bg_b
+    return len(bg_a & bg_b) / len(union)
+
+
+def _find_similar_fact(
+    content: str,
+    fact_content_to_id: Dict[str, str],
+    threshold: float = 0.5,
+) -> Optional[str]:
+    """fact_content_to_id에서 content와 유사도 >= threshold인 기존 fact_id 반환.
+
+    "B가 범인이야"와 "B가 범인이다"처럼 어미만 다른 동일 사실을 같은 fact로 연결.
+    매칭 실패 시 None 반환 → 호출자가 새 fact vertex를 생성.
+    """
+    best_score, best_id = 0.0, None
+    for existing_content, fid in fact_content_to_id.items():
+        score = _fact_similarity(content, existing_content)
+        if score > best_score:
+            best_score, best_id = score, fid
+    return best_id if best_score >= threshold else None
+
+
+# ─────────────────────────────────────────────────────────────
 # 공통 위반 레코드 빌더
 # ─────────────────────────────────────────────────────────────
 
@@ -506,9 +544,18 @@ class GremlinGraphService:
                 self.add_source(src_dict)
             created["source"].append(source_id)
 
-            # 1. Character vertices — name→id 맵 구축
+            # 1. Character vertices — name→id 맵 구축 (기존 캐릭터 재사용)
             char_name_to_id: Dict[str, str] = {}
             for nc in normalized.characters:
+                # 이미 같은 이름의 캐릭터가 DB에 있으면 재사용 (중복 생성 방지)
+                existing = self.find_character_by_name(nc.canonical_name)
+                if existing:
+                    existing_id = existing["id"]
+                    char_name_to_id[nc.canonical_name] = existing_id
+                    for alias in nc.all_aliases:
+                        char_name_to_id[alias] = existing_id
+                    logger.debug("reuse_existing_character", name=nc.canonical_name, id=existing_id)
+                    continue
                 char = Character(
                     source_id=source_id,
                     name=nc.canonical_name,
@@ -538,8 +585,16 @@ class GremlinGraphService:
                 return None
 
             # 2. KnowledgeFact vertices (discourse_order 자동 부여) — content→id 맵 구축
-            fact_content_to_id: Dict[str, str] = {}
+            # 기존 fact도 content 기준으로 인덱싱해 중복 생성 방지
+            fact_content_to_id: Dict[str, str] = {
+                _prop(v, "content"): _prop(v, "id")
+                for v in self._fetch_all("fact")
+                if _prop(v, "content") and _prop(v, "id")
+            }
             for nf in normalized.facts:
+                if nf.content in fact_content_to_id:
+                    logger.debug("reuse_existing_fact", content=nf.content[:50])
+                    continue
                 do = self._get_next_discourse_order()
                 fact = KnowledgeFact(
                     source_id=source_id,
@@ -665,7 +720,18 @@ class GremlinGraphService:
                 char_id = _resolve_char(ke.character_name)
                 if not char_id:
                     continue
+                # 1) 정확히 일치하는 fact 검색
                 fact_id = fact_content_to_id.get(ke.fact_content)
+                # 2) 없으면 bi-gram 유사도로 기존 fact 매칭 (정보 비대칭 탐지 핵심)
+                if not fact_id:
+                    fact_id = _find_similar_fact(ke.fact_content, fact_content_to_id)
+                    if fact_id:
+                        logger.debug(
+                            "knowledge_fact_fuzzy_match",
+                            content=ke.fact_content[:50],
+                            matched_id=fact_id,
+                        )
+                # 3) 매칭 실패 → 새 fact vertex 생성
                 if not fact_id:
                     do = self._get_next_discourse_order()
                     fact = KnowledgeFact(
@@ -1730,9 +1796,17 @@ class InMemoryGraphService:
             self.add_source(src_dict)
         created["source"].append(source_id)
 
-        # 1. Character vertices — name→id 맵 구축
+        # 1. Character vertices — name→id 맵 구축 (기존 캐릭터 재사용)
         char_name_to_id: Dict[str, str] = {}
         for nc in normalized.characters:
+            # 이미 같은 이름의 캐릭터가 그래프에 있으면 재사용 (중복 생성 방지)
+            existing = self.find_character_by_name(nc.canonical_name)
+            if existing:
+                existing_id = existing["id"]
+                char_name_to_id[nc.canonical_name] = existing_id
+                for alias in nc.all_aliases:
+                    char_name_to_id[alias] = existing_id
+                continue
             char = Character(
                 source_id=source_id,
                 name=nc.canonical_name,
@@ -1763,8 +1837,15 @@ class InMemoryGraphService:
             return None
 
         # 2. KnowledgeFact vertices (discourse_order 자동 부여) — content→id 맵 구축
-        fact_content_to_id: Dict[str, str] = {}
+        # 기존 fact도 포함해 knowledge_events에서 중복 생성 방지
+        fact_content_to_id: Dict[str, str] = {
+            v.get("content"): v.get("id")
+            for v in self._vertices_by_label("fact")
+            if v.get("content") and v.get("id")
+        }
         for nf in normalized.facts:
+            if nf.content in fact_content_to_id:
+                continue
             do = self._get_next_discourse_order()
             fact = KnowledgeFact(
                 source_id=source_id,
@@ -1889,10 +1970,13 @@ class InMemoryGraphService:
             char_id = _resolve_char(ke.character_name)
             if not char_id:
                 continue
-            # 기존 fact 내용과 매칭
+            # 1) 정확히 일치하는 fact 검색
             fact_id = fact_content_to_id.get(ke.fact_content)
+            # 2) 없으면 bi-gram 유사도로 기존 fact 매칭 (정보 비대칭 탐지 핵심)
             if not fact_id:
-                # 새 fact vertex 생성
+                fact_id = _find_similar_fact(ke.fact_content, fact_content_to_id)
+            # 3) 매칭 실패 → 새 fact vertex 생성
+            if not fact_id:
                 do = self._get_next_discourse_order()
                 fact = KnowledgeFact(
                     source_id=source_id,
