@@ -133,6 +133,15 @@ async def upload_source(
         + len(normalization_result.facts)
         + len(normalization_result.events)
     )
+
+    # extracted_entities를 source vertex에 저장 → GET /api/sources 목록에서 표시 가능
+    await _run_graph(
+        graph.patch_vertex,
+        vertex_id=source_id,
+        partition_key="source",
+        fields={"extracted_entities": extracted_entities},
+    )
+
     logger.info(
         "source_uploaded",
         source_id=source_id,

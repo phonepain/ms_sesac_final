@@ -4,11 +4,13 @@ import { CAT_INFO } from '../../types';
 interface CategoryUploadProps {
   categoryKey: 'worldview' | 'settings' | 'scenario';
   files: Array<{id: string, name: string}>;
+  pendingFiles: Array<{id: string, name: string, file: File}>;
   onAddFiles: (category: 'worldview' | 'settings' | 'scenario', files: File[]) => void;
+  onRemovePending: (category: 'worldview' | 'settings' | 'scenario', id: string) => void;
   onRemoveFile: (category: 'worldview' | 'settings' | 'scenario', id: string) => void;
 }
 
-export default function CategoryUpload({ categoryKey, files, onAddFiles, onRemoveFile }: CategoryUploadProps) {
+export default function CategoryUpload({ categoryKey, files, pendingFiles, onAddFiles, onRemovePending, onRemoveFile }: CategoryUploadProps) {
   const cat = CAT_INFO[categoryKey];
   const inputRef = useRef<HTMLInputElement>(null);
   const [isOver, setIsOver] = useState(false);
@@ -56,21 +58,45 @@ export default function CategoryUpload({ categoryKey, files, onAddFiles, onRemov
         <p className="text-[#a89880] text-[9px] mt-0.5">.txt / .pdf</p>
       </div>
 
+      {/* 대기 중 파일 */}
+      {pendingFiles.length > 0 && (
+        <div className="mt-1.5 flex flex-col gap-1">
+          {pendingFiles.map(f => (
+            <div
+              key={f.id}
+              className="flex items-center justify-between px-2 py-1.5 rounded-md"
+              style={{ background: "rgba(196,124,26,0.08)", borderLeft: "3px solid #c47c1a" }}
+            >
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-[9px] font-bold text-[#c47c1a] shrink-0">대기</span>
+                <span className="text-[11px] text-[#2c2416] truncate">{f.name}</span>
+              </div>
+              <button
+                onClick={e => { e.stopPropagation(); onRemovePending(categoryKey, f.id); }}
+                className="text-[#a89880] hover:text-[#b83232] text-xs ml-1 shrink-0"
+              >✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 업로드 완료 파일 */}
       {files.length > 0 && (
         <div className="mt-1.5 flex flex-col gap-1">
           {files.map(f => (
             <div
               key={f.id}
-              className="flex items-center justify-between px-2 py-1.5 bg-[#f5efe6] rounded-md"
-              style={{ borderLeft: `3px solid ${cat.c}` }}
+              className="flex items-center justify-between px-2 py-1.5 rounded-md"
+              style={{ background: "rgba(45,122,86,0.08)", borderLeft: "3px solid #2d7a56" }}
             >
-              <span className="text-[11px] text-[#2c2416] truncate">{f.name}</span>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-[9px] font-bold text-[#2d7a56] shrink-0">완료</span>
+                <span className="text-[11px] text-[#2c2416] truncate">{f.name}</span>
+              </div>
               <button
                 onClick={e => { e.stopPropagation(); onRemoveFile(categoryKey, f.id); }}
-                className="text-[#a89880] hover:text-[#b83232] text-xs ml-1"
-              >
-                ✕
-              </button>
+                className="text-[#a89880] hover:text-[#b83232] text-xs ml-1 shrink-0"
+              >✕</button>
             </div>
           ))}
         </div>
