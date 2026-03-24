@@ -8,22 +8,9 @@ import type { CategoryKey } from './pages/NewProjectView';
 import ProjectDetailView from './pages/ProjectDetailView';
 
 import type { Project, StagedFix } from './types';
-import { sourceApi, graphApi, analyzeApi, versionApi, statsApi, confirmationApi, resetApi } from './api/endpoints';
+import { sourceApi, analyzeApi, versionApi, statsApi, confirmationApi, resetApi } from './api/endpoints';
 
 
-const BUILD_STEPS_WS: ProgressStep[] = [
-  { l: "세계관/설정집 파싱...", ms: 800 },
-  { l: "규칙·설정 추출...", ms: 2000 },
-  { l: "캐릭터·관계 매핑...", ms: 1500 },
-  { l: "GraphRAG(설정) 저장...", ms: 1200 }
-];
-
-const BUILD_STEPS_SC: ProgressStep[] = [
-  { l: "시나리오 파싱...", ms: 800 },
-  { l: "장면·대사 분석...", ms: 2000 },
-  { l: "이벤트·정보흐름 추출...", ms: 1800 },
-  { l: "GraphRAG(시나리오) 저장...", ms: 1200 }
-];
 
 const ANALYZE_STEPS: ProgressStep[] = [
   { l: "GraphRAG 지식 조회...", ms: 1000 },
@@ -51,6 +38,7 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isNew, setIsNew] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const [tab, setTab] = useState("overview");
   const [staged, setStaged] = useState<StagedFix[]>([]);
@@ -66,79 +54,86 @@ export default function App() {
   const [pendingFiles, setPendingFiles] = useState<Record<CategoryKey, Array<{id: string, name: string, file: File}>>>({
     worldview: [], settings: [], scenario: []
   });
-  const [nGB, setNGB] = useState({ ws: false, sc: false });
-
   const activeProj = projects.find(p => p.id === activeId);
 
   // --- 서버 데이터 초기 로드 ---
-  useEffect(() => {
-    const loadServerData = async () => {
-      const [sourcesRes, statsRes, versionsRes, confirmationsRes] = await Promise.allSettled([
-        sourceApi.list(),
-        statsApi.getKbStats(),
-        versionApi.listVersions(),
-        confirmationApi.list(),
-      ]);
+  const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> =>
+    Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
 
-      const sources: any[] = sourcesRes.status === 'fulfilled' ? sourcesRes.value : [];
-      const stats: any   = statsRes.status === 'fulfilled'   ? statsRes.value   : {};
-      const versions: any[] = versionsRes.status === 'fulfilled' ? versionsRes.value : [];
-      const confirmations: any[] = confirmationsRes.status === 'fulfilled' ? confirmationsRes.value : [];
+  const loadServerData = async (retries = 1): Promise<void> => {
+    const [sourcesRes, statsRes, versionsRes, confirmationsRes] = await Promise.allSettled([
+      withTimeout(sourceApi.list(), 7000),
+      withTimeout(statsApi.getKbStats(), 7000),
+      withTimeout(versionApi.listVersions(), 7000),
+      withTimeout(confirmationApi.list(), 7000),
+    ]);
 
-      if (sourcesRes.status === 'rejected') console.error('sources 로드 실패:', sourcesRes.reason);
-      if (statsRes.status === 'rejected')   console.error('stats 로드 실패:',   statsRes.reason);
+    const sources: any[] = sourcesRes.status === 'fulfilled' ? sourcesRes.value : [];
+    const stats: any   = statsRes.status === 'fulfilled'   ? statsRes.value   : {};
+    const versions: any[] = versionsRes.status === 'fulfilled' ? versionsRes.value : [];
+    const confirmations: any[] = confirmationsRes.status === 'fulfilled' ? confirmationsRes.value : [];
 
-      if (sources.length === 0) return;
+    if (sourcesRes.status === 'rejected') console.error('sources 로드 실패:', sourcesRes.reason);
+    if (statsRes.status === 'rejected')   console.error('stats 로드 실패:',   statsRes.reason);
 
-      const proj: Project = {
-        id: 'server',
-        name: sources[0]?.name?.split('_')[0] || '현재 프로젝트',
-        date: new Date().toISOString().slice(0, 10),
-        kb: {
-          characters: stats.characters   ?? 0,
-          facts:       stats.facts        ?? 0,
-          relationships: stats.relationships ?? 0,
-          events:      stats.events       ?? 0,
-          traits:      stats.traits       ?? 0,
-        },
-        sources: sources.map((s: any) => ({
-          id: s.id || s.source_id,
-          n: s.name,
-          cat: (s.source_type || s.type || 'worldview') as 'worldview' | 'settings' | 'scenario',
-          ent: s.extracted_entities || 0,
-          fct: 0,
-        })),
-        graphBuilt: {
-          ws: sources.some((s: any) => ['worldview', 'settings'].includes(s.source_type || s.type || '')),
-          sc: sources.some((s: any) => (s.source_type || s.type) === 'scenario'),
-        },
-        contradictions: confirmations.map((c: any) => ({
-          id: c.id,
-          sv: 'warning' as const,
-          tp: c.confirmation_type,
-          ch: '사용자 확인 필요',
-          ft: '',
-          dl: '',
-          ds: c.question || c.context_summary || '',
-          ev: (c.source_excerpts || []).map((e: any) => ({ sr: e.source_name || '', lc: e.source_location || '', tx: e.text || '' })),
-          cf: 0,
-          sg: c.context_summary || '',
-          al: null,
-        })),
-        versions: versions.map((v: any) => ({
-          id: v.id,
-          vr: v.version,
-          dt: v.date,
-          fx: v.fixes_count,
-          ds: v.description,
-        })),
-      };
+    // 실패하거나 빈 경우 재시도 (Gremlin 첫 연결 지연 대응)
+    if (sources.length === 0 && retries > 0) {
+      await new Promise(r => setTimeout(r, 1500));
+      return loadServerData(retries - 1);
+    }
 
-      setProjects([proj]);
-      setActiveId('server');
+    if (sources.length === 0) return;
+
+    const proj: Project = {
+      id: 'server',
+      name: sources[0]?.name?.split('_')[0] || '현재 프로젝트',
+      date: new Date().toISOString().slice(0, 10),
+      kb: {
+        characters: stats.characters   ?? 0,
+        facts:       stats.facts        ?? 0,
+        relationships: stats.relationships ?? 0,
+        events:      stats.events       ?? 0,
+        traits:      stats.traits       ?? 0,
+      },
+      sources: sources.map((s: any) => ({
+        id: s.id || s.source_id,
+        n: s.name,
+        cat: (s.source_type || s.type || 'worldview') as 'worldview' | 'settings' | 'scenario',
+        ent: s.extracted_entities || 0,
+        fct: 0,
+      })),
+      graphBuilt: {
+        ws: sources.some((s: any) => ['worldview', 'settings'].includes(s.source_type || s.type || '')),
+        sc: sources.some((s: any) => (s.source_type || s.type) === 'scenario'),
+      },
+      contradictions: confirmations.map((c: any) => ({
+        id: c.id,
+        sv: 'warning' as const,
+        tp: c.confirmation_type,
+        ch: '사용자 확인 필요',
+        ft: '',
+        dl: '',
+        ds: c.question || c.context_summary || '',
+        ev: (c.source_excerpts || []).map((e: any) => ({ sr: e.source_name || '', lc: e.source_location || '', tx: e.text || '' })),
+        cf: 0,
+        sg: c.context_summary || '',
+        al: null,
+      })),
+      versions: versions.map((v: any) => ({
+        id: v.id,
+        vr: v.version,
+        dt: v.date,
+        fx: v.fixes_count,
+        ds: v.description,
+      })),
     };
 
-    loadServerData();
+    setProjects([proj]);
+    setActiveId('server');
+  };
+
+  useEffect(() => {
+    loadServerData().finally(() => setInitialLoading(false));
   }, []);
 
   // --- Helpers ---
@@ -187,7 +182,6 @@ export default function App() {
       setIsNew(false);
       setNFiles({ worldview: [], settings: [], scenario: [] });
       setPendingFiles({ worldview: [], settings: [], scenario: [] });
-      setNGB({ ws: false, sc: false });
       setStaged([]);
     });
   };
@@ -200,7 +194,6 @@ export default function App() {
     setIsNew(true); setActiveId(null);
     setNFiles({ worldview: [], settings: [], scenario: [] });
     setPendingFiles({ worldview: [], settings: [], scenario: [] });
-    setNGB({ ws: false, sc: false });
     setTab("overview"); setStaged([]); setShowAi(false);
     setSidebarOpen(false);
   };
@@ -240,13 +233,6 @@ export default function App() {
     });
   };
 
-  const onBuildGraph = (_track: 'ws' | 'sc') => {
-    runProgress(BUILD_STEPS_WS, "지식베이스 구축 중", async () => {
-      await graphApi.build('ws');
-      setNGB({ ws: true, sc: true });
-    });
-  };
-
   const onNewAnalyze = () => {
     runProgress(ANALYZE_STEPS, "모순 탐지 분석 중", async () => {
       const res = await analyzeApi.scan();
@@ -257,10 +243,10 @@ export default function App() {
         name: `새 프로젝트 ${projects.length + 1}`,
         date: new Date().toISOString().slice(0, 10),
         kb: stats,
-        sources: Object.entries(nFiles).flatMap(([cat, fs]) => 
+        sources: Object.entries(nFiles).flatMap(([cat, fs]) =>
           fs.map(f => ({ id: f.id, n: f.name, cat: cat as 'worldview'|'settings'|'scenario', ent: 10, fct: 5 }))
         ),
-        graphBuilt: nGB,
+        graphBuilt: { ws: true, sc: true },
         contradictions: [
           ...res.contradictions.map((c: any) => ({
             id: c.id, sv: ({ critical: 'critical', major: 'warning', minor: 'info' } as Record<string, string>)[c.severity?.toLowerCase()] as any ?? 'info', tp: c.type, ch: c.character_name || 'System',
@@ -429,8 +415,6 @@ export default function App() {
               onRemovePending={onRemovePending}
               onRemoveFile={onRemoveFile}
               onConfirmUpload={onConfirmUpload}
-              onBuildGraph={onBuildGraph}
-              graphBuilt={nGB}
               onAnalyze={onNewAnalyze}
             />
           )}
@@ -454,8 +438,26 @@ export default function App() {
 
           {!isNew && !activeProj && (
             <div className="text-center py-[80px] text-[#a89880]">
-              <div className="text-5xl mb-4">📖</div>
-              <p className="text-sm">작품을 선택하거나 새 작품을 분석해보세요</p>
+              {initialLoading ? (
+                <>
+                  <div className="text-4xl mb-4 animate-pulse">⏳</div>
+                  <p className="text-sm">서버 데이터 불러오는 중...</p>
+                </>
+              ) : (
+                <>
+                  <div className="text-5xl mb-4">📖</div>
+                  <p className="text-sm mb-4">작품을 선택하거나 새 작품을 분석해보세요</p>
+                  <button
+                    onClick={() => {
+                      setInitialLoading(true);
+                      loadServerData().finally(() => setInitialLoading(false));
+                    }}
+                    className="text-xs text-[#a89880] hover:text-[#c4622d] underline transition-colors"
+                  >
+                    데이터 새로고침
+                  </button>
+                </>
+              )}
             </div>
           )}
         </main>

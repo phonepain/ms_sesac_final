@@ -6,7 +6,12 @@ import asyncio
 import time
 import sys
 import os
+import io
 import concurrent.futures
+
+# Windows 콘솔 UTF-8 강제
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 # .env 그대로 사용 (mock 오버라이드 없음)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

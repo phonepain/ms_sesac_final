@@ -11,6 +11,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 from gremlin_python.driver import client, serializer
+from gremlin_python.driver.aiohttp.transport import AiohttpTransport
 
 from app.config import settings
 from app.models.intermediate import NormalizationResult
@@ -205,6 +206,7 @@ class _ViolationMixin:
         "혐오", "절대", "하지 않", "않는다", "못하", "안 마", "마시지 않",
         "먹지 않", "싫어", "거부", "금지", "불가", "불능", "봉인",
         "할 수 없", "사용할 수 없", "수 없는", "참여하지 않",
+        "일절", "극혐", "입에 대지", "안 하", "안 함", "대지 않",
     ]
     _PARTICLE_SUFFIXES = (
         "에서", "에게", "로서", "하며", "이며", "이고", "까지", "부터",
@@ -449,6 +451,13 @@ class _ViolationMixin:
             for char_name in dict.fromkeys(raw_involved):
                 char_vertex = self.find_character_by_name(char_name) or {}
                 cid = char_vertex.get("id", char_name)
+                # 엣지 기반 탐지와 중복 방지
+                death_so_check = death_index.get(cid)
+                if death_so_check is not None:
+                    dup_key = (cid, death_so_check)
+                    if dup_key in seen_violation:
+                        continue
+                    seen_violation.add(dup_key)
                 violations.append(_make_violation(
                     vtype=ContradictionType.TIMELINE,
                     severity=Severity.CRITICAL,
@@ -510,6 +519,9 @@ class _ViolationMixin:
                         ))
         return violations
 
+    # 여러 value를 자연스럽게 가질 수 있는 복합 trait key → 값이 달라도 모순 아님
+    _MULTI_VALUE_TRAIT_KEYS = {"성격", "특기", "취미", "능력", "장점", "단점", "기술", "특성"}
+
     def find_trait_violations(self) -> List[Dict[str, Any]]:
         """4. 성격·설정 모순"""
         violations = []
@@ -526,6 +538,9 @@ class _ViolationMixin:
                 )
 
         for (cid, trait_key), entries in char_trait_index.items():
+            # 복합 key는 여러 값이 자연스러우므로 스킵
+            if trait_key in self._MULTI_VALUE_TRAIT_KEYS:
+                continue
             values = [e["value"] for e in entries]
             if len(set(str(v) for v in values)) > 1:
                 is_imm = any(e["is_immutable"] for e in entries)
@@ -1009,7 +1024,7 @@ class _ViolationMixin:
                 result.append(stripped)
         return result[:5]
 
-    _LOCKOUT_WORDS = re.compile(r'봉쇄|차단|폐쇄|통제|출입금지|진입불가|제한|잠금|락다운|lockdown')
+    _LOCKOUT_WORDS = re.compile(r'봉쇄|차단|폐쇄|통제|출입금지|진입불가|제한|잠금|락다운|lockdown|봉인')
 
     def _extract_fact_constraints(self, fact_content: str) -> List[Dict]:
         """세계 규칙 fact에서 수치 제약 추출"""
@@ -1293,18 +1308,45 @@ class _ViolationMixin:
             + self._find_timestamp_violations()
             + self.find_world_rule_violations()
         )
-        # 탐지기 간 중복 제거: 동일 description의 핵심 내용이 겹치면 첫 번째만 유지
+        # 탐지기 간 중복 제거
+        # hard를 먼저 처리 → 동일 위반이 hard/soft 양쪽에서 탐지될 때 hard가 남도록
+        raw_sorted = sorted(raw, key=lambda v: (0 if v.get("is_hard") else 1))
+
         all_v: List[Dict[str, Any]] = []
         seen_desc: set = set()
-        for v in raw:
+        # (type, character_id) → 이미 등록된 key_parts set 목록 (Jaccard dedup용)
+        seen_char_type_parts: Dict[Tuple, List[set]] = {}
+
+        for v in raw_sorted:
             desc = v.get("description", "")
-            # 핵심 키 추출: 숫자+단위 제거 후 주요 명사만 비교
             key_parts = re.findall(r'[가-힣]{2,}', desc)
-            dedup_key = (v.get("type", ""), tuple(sorted(set(key_parts))))
+            key_parts_set = set(key_parts)
+
+            # 1단계: 기존 exact dedup
+            dedup_key = (v.get("type", ""), tuple(sorted(key_parts_set)))
             if dedup_key in seen_desc:
                 continue
+
+            # 2단계: Jaccard 유사도 dedup (character_id가 있는 경우)
+            # 동일 (type, character_id) 조합에서 key_parts가 50% 이상 겹치면 중복으로 판단
+            char_id = v.get("character_id") or ""
+            if char_id:
+                ct_key = (str(v.get("type", "")), char_id)
+                prev_parts_list = seen_char_type_parts.get(ct_key, [])
+                is_dup = False
+                for prev_parts in prev_parts_list:
+                    union = key_parts_set | prev_parts
+                    inter = key_parts_set & prev_parts
+                    if union and len(inter) / len(union) > 0.5:
+                        is_dup = True
+                        break
+                if is_dup:
+                    continue
+                seen_char_type_parts.setdefault(ct_key, []).append(key_parts_set)
+
             seen_desc.add(dedup_key)
             all_v.append(v)
+
         hard = [v for v in all_v if v.get("is_hard")]
         soft = [v for v in all_v if not v.get("is_hard")]
         logger.info("find_all_violations complete", hard=len(hard), soft=len(soft), total=len(all_v))
@@ -1372,6 +1414,7 @@ def create_gremlin_client(endpoint: str, key: str, database: str, container: str
         username=username,
         password=key,
         message_serializer=serializer.GraphSONSerializersV2d0(),
+        transport_factory=lambda **kwargs: AiohttpTransport(heartbeat=20, **kwargs),
     )
 
 
@@ -1799,6 +1842,7 @@ class GremlinGraphService(_ViolationMixin):
                 fact_content_to_id[nf.content] = fact_dict["id"]
 
             # 3. Event vertices (discourse_order/story_order 자동 부여)
+            _DEATH_KW = ["사망", "죽", "숨졌", "시체", "피살", "살해", "사망한 상태", "암살", "익사", "사고사", "전사", "처형", "사형", "사망 처리", "사망 판정", "사망자 등록", "사사"]
             raw_event_dicts = [
                 {
                     "description": ne.description,
@@ -1835,7 +1879,7 @@ class GremlinGraphService(_ViolationMixin):
                     event_dict.get("event_type") == "death"
                     or (ev_data.get("status_char") and any(
                         kw in event_dict.get("description", "")
-                        for kw in ["사망", "죽", "숨졌", "시체", "피살", "살해"]
+                        for kw in _DEATH_KW
                     ))
                 )
                 if _is_death:
@@ -1853,7 +1897,6 @@ class GremlinGraphService(_ViolationMixin):
                         created["edges"].append(f"status-dead-{char_id}")
 
             # 3b. 사망 관련 Facts → HAS_STATUS dead 엣지 생성
-            _DEATH_KW = ["사망", "죽", "숨졌", "시체", "피살", "살해", "사망한 상태", "암살", "익사", "사고사", "전사", "처형", "사형", "사망 처리", "사망 판정", "사망자 등록", "사사"]
             for nf in normalized.facts:
                 content = nf.content
                 if not any(kw in content for kw in _DEATH_KW):
@@ -1924,10 +1967,13 @@ class GremlinGraphService(_ViolationMixin):
                 created["confirmations"].append(conf_dict["id"])
 
             # 5. Traits → Trait vertex + HAS_TRAIT edge
+            _IMMUTABLE_HINTS = ["절대", "극혐", "일절", "혐오", "불변", "태생", "선천", "혈액형", "입에 대지"]
             for rt in normalized.traits:
                 char_id = _resolve_char(rt.character_name)
                 if not char_id:
                     continue
+                combined = f"{rt.key} {rt.value}"
+                is_imm = any(h in combined for h in _IMMUTABLE_HINTS)
                 trait_data = {
                     "id": str(uuid.uuid4()),
                     "source_id": source_id,
@@ -1935,7 +1981,7 @@ class GremlinGraphService(_ViolationMixin):
                     "key": rt.key,
                     "value": rt.value,
                     "description": rt.value,
-                    "is_immutable": False,
+                    "is_immutable": is_imm,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "label": "trait",
                 }
@@ -2799,6 +2845,7 @@ class InMemoryGraphService(_ViolationMixin):
 
         # 3. Event vertices (discourse_order/story_order 자동 부여)
         # NormalizedEvent의 characters_involved를 raw_event_dicts에 포함
+        _DEATH_KW = ["사망", "죽", "숨졌", "시체", "피살", "살해", "사망한 상태", "암살", "익사", "사고사", "전사", "처형", "사형", "사망 처리", "사망 판정", "사망자 등록", "사사"]
         raw_event_dicts = [
             {
                 "description": ne.description,
@@ -2837,7 +2884,7 @@ class InMemoryGraphService(_ViolationMixin):
                 event_dict.get("event_type") == "death"
                 or (ev_data.get("status_char") and any(
                     kw in event_dict.get("description", "")
-                    for kw in ["사망", "죽", "숨졌", "시체", "피살", "살해"]
+                    for kw in _DEATH_KW
                 ))
             )
             if _is_death:
@@ -2859,7 +2906,6 @@ class InMemoryGraphService(_ViolationMixin):
 
         # 3b. 사망 관련 Facts → HAS_STATUS dead 엣지 생성
         # LLM이 death event 대신 fact로 추출하는 경우 대응 (예: "박영호는 사망한 상태로 발견됨")
-        _DEATH_KW = ["사망", "죽", "숨졌", "시체", "피살", "살해", "사망한 상태", "암살", "익사", "사고사", "전사", "처형", "사형", "사망 처리", "사망 판정", "사망자 등록", "사사"]
         for nf in normalized.facts:
             content = nf.content
             if not any(kw in content for kw in _DEATH_KW):
@@ -2929,10 +2975,13 @@ class InMemoryGraphService(_ViolationMixin):
             created["confirmations"].append(conf_dict["id"])
 
         # 5. Traits → Trait vertex + HAS_TRAIT edge
+        _IMMUTABLE_HINTS = ["절대", "극혐", "일절", "혐오", "불변", "태생", "선천", "혈액형", "입에 대지"]
         for rt in normalized.traits:
             char_id = _resolve_char(rt.character_name)
             if not char_id:
                 continue
+            combined = f"{rt.key} {rt.value}"
+            is_imm = any(h in combined for h in _IMMUTABLE_HINTS)
             trait_data = {
                 "id": str(uuid.uuid4()),
                 "source_id": source_id,
@@ -2940,7 +2989,7 @@ class InMemoryGraphService(_ViolationMixin):
                 "key": rt.key,
                 "value": rt.value,
                 "description": rt.value,
-                "is_immutable": False,
+                "is_immutable": is_imm,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "label": "trait",
             }
