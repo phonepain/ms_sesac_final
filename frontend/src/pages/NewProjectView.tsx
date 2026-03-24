@@ -28,7 +28,7 @@ export default function NewProjectView({
   const totalPending = Object.values(pendingFiles).reduce((s, arr) => s + arr.length, 0);
 
   return (
-    <div className="fade flex flex-col gap-5 w-full max-w-[700px] mx-auto">
+    <div className="fade flex flex-col gap-6 w-full max-w-[1400px] mx-auto">
       <div>
         <h2 className="serif text-[22px] font-bold text-[#2c2416] mb-1.5">새 작품 분석 시작하기</h2>
         <p className="text-[13px] text-[#6b5c47] leading-relaxed">
@@ -44,13 +44,13 @@ export default function NewProjectView({
             className="absolute top-2.5 right-2.5 text-[#a89880] hover:text-[#6b5c47] text-sm"
           >✕</button>
           <div className="text-xs font-semibold text-[#c47c1a] mb-2">💡 이렇게 하면 더 좋아요</div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
               { label: "시나리오만", items: ["🎬"], q: "기본", c: "#a89880" },
               { label: "설정집 포함", items: ["📋", "🎬"], q: "더 정확", c: "#c47c1a" },
               { label: "전체 포함", items: ["🌍", "📋", "🎬"], q: "가장 정확 ⭐", c: "#c4622d" }
             ].map(x => (
-              <div key={x.label} className="bg-white/60 rounded-lg p-2.5 text-center">
+              <div key={x.label} className="bg-white/60 rounded-lg p-4 text-center w-full">
                 <div className="text-[9px] font-bold mb-1" style={{ color: x.c }}>{x.q}</div>
                 <div className="text-[11px] font-semibold mb-1.5 text-[#2c2416]">{x.label}</div>
                 <div className="flex justify-center gap-1">
@@ -63,7 +63,7 @@ export default function NewProjectView({
       )}
 
       {/* 파일 업로드 그리드 */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         {(['worldview', 'settings', 'scenario'] as CategoryKey[]).map(k => (
           <CategoryUpload
             key={k}

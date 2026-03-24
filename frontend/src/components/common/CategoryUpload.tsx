@@ -25,7 +25,7 @@ export default function CategoryUpload({ categoryKey, files, pendingFiles, onAdd
   };
 
   return (
-    <div>
+    <div className="w-full">
       <div className="flex items-center gap-1.5 mb-1.5">
         <span className="text-lg">{cat.i}</span>
         <div>
