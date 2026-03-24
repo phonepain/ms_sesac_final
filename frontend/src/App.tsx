@@ -51,11 +51,12 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isNew, setIsNew] = useState(false);
-  
+
   const [tab, setTab] = useState("overview");
   const [staged, setStaged] = useState<StagedFix[]>([]);
   const [showAi, setShowAi] = useState(false);
-  
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   const [progress, setProgress] = useState<{ steps: ProgressStep[]; step: number; title: string } | null>(null);
 
   // New project state
@@ -169,6 +170,7 @@ export default function App() {
   // --- Handlers ---
   const onSelectProj = (id: string) => {
     setActiveId(id); setIsNew(false); setTab("overview"); setStaged([]); setShowAi(false);
+    setSidebarOpen(false);
   };
   
   const RESET_STEPS: ProgressStep[] = [
@@ -200,6 +202,7 @@ export default function App() {
     setPendingFiles({ worldview: [], settings: [], scenario: [] });
     setNGB({ ws: false, sc: false });
     setTab("overview"); setStaged([]); setShowAi(false);
+    setSidebarOpen(false);
   };
 
   // New Project View handlers
@@ -390,6 +393,14 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-[#fdfaf5] text-[#2c2416] overflow-hidden">
+      {/* 모바일 사이드바 backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       <Sidebar
         projects={projects}
         activeId={activeId}
@@ -397,6 +408,8 @@ export default function App() {
         onNew={onNewProj}
         onResetAll={onResetAll}
         onRenameProject={onRenameProject}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -404,6 +417,7 @@ export default function App() {
           activeProj={activeProj}
           isNew={isNew}
           stagedLength={staged.length}
+          onToggleSidebar={() => setSidebarOpen(o => !o)}
         />
 
         <main className="flex-1 overflow-hidden p-6">
