@@ -28,7 +28,7 @@ export default function NewProjectView({
   const totalPending = Object.values(pendingFiles).reduce((s, arr) => s + arr.length, 0);
 
   return (
-    <div className="fade flex flex-col gap-5 max-w-[700px]">
+    <div className="fade flex flex-col gap-5 w-full max-w-[700px] mx-auto">
       <div>
         <h2 className="serif text-[22px] font-bold text-[#2c2416] mb-1.5">새 작품 분석 시작하기</h2>
         <p className="text-[13px] text-[#6b5c47] leading-relaxed">
@@ -44,7 +44,7 @@ export default function NewProjectView({
             className="absolute top-2.5 right-2.5 text-[#a89880] hover:text-[#6b5c47] text-sm"
           >✕</button>
           <div className="text-xs font-semibold text-[#c47c1a] mb-2">💡 이렇게 하면 더 좋아요</div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {[
               { label: "시나리오만", items: ["🎬"], q: "기본", c: "#a89880" },
               { label: "설정집 포함", items: ["📋", "🎬"], q: "더 정확", c: "#c47c1a" },
@@ -63,7 +63,7 @@ export default function NewProjectView({
       )}
 
       {/* 파일 업로드 그리드 */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {(['worldview', 'settings', 'scenario'] as CategoryKey[]).map(k => (
           <CategoryUpload
             key={k}

@@ -51,3 +51,10 @@ body {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-thumb { background: #ede4d8; border-radius: 2px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+@media (max-width: 768px) {
+  html, body, #root { overflow: hidden; }
+}
