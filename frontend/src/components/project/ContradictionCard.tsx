@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Al, Cd, Cr, Qt, Gc, Rv } from '../common/Icons';
 import { SV_COLORS } from '../../types';
 import type { Contradiction, StagedFix, DecisionType } from '../../types';
 
@@ -17,8 +16,8 @@ export default function ContradictionCard({ item, isStaged, onStage, onUnstageFi
   const [intentSaved, setIntentSaved] = useState(false);
   const [fixedText, setFixedText] = useState(item.ot || '');
 
-  const sv = SV_COLORS[item.sv] || SV_COLORS.info;
-
+  // Fallback: sv가 없으면 info로 대체
+  const sv = SV_COLORS[item?.sv] ?? SV_COLORS.info;
   const processed = (dec === 'intentional' && intentSaved) || (dec === 'fix' && isStaged) || dec === 'deferred';
 
   const handleUndo = () => {
@@ -30,151 +29,228 @@ export default function ContradictionCard({ item, isStaged, onStage, onUnstageFi
     setFixedText(item.ot || '');
   };
 
-  const headerBadge = (() => {
+  // 데이터 없을 때 fallback
+  const charName   = item.ch  || '(캐릭터 미상)';
+  const typeLabel  = item.tp  || '';
+  const dialogue   = item.dl  || '';
+  const desc       = item.ds  || '(설명 없음)';
+  const suggestion = item.sg  || '';
+  const alt        = item.al  || '';
+  const origText   = item.ot  || '';
+  const evidence   = Array.isArray(item.ev) ? item.ev : [];
+  const confidence = typeof item.cf === 'number' ? item.cf : 0;
+
+  const statusBadge = (() => {
     if (dec === 'intentional' && intentSaved)
-      return <span className="text-[7px] bg-[rgba(16,185,129,0.12)] text-[#34d399] px-1 py-0.5 rounded-sm">의도된 설정</span>;
+      return <span className="text-[10px] bg-[rgba(45,122,86,0.1)] text-[#2d7a56] px-2 py-0.5 rounded-md font-semibold">✓ 의도된 설정으로 저장</span>;
     if (dec === 'fix' && !isStaged)
-      return <span className="text-[7px] bg-[rgba(245,158,11,0.1)] text-[#fbbf24] px-1 py-0.5 rounded-sm">수정 중</span>;
+      return <span className="text-[10px] bg-[#fef3db] text-[#c47c1a] px-2 py-0.5 rounded-md font-semibold">✏️ 수정 중</span>;
     if (dec === 'fix' && isStaged)
-      return <span className="text-[7px] bg-[rgba(16,185,129,0.1)] text-[#34d399] px-1 py-0.5 rounded-sm">수정 대기</span>;
+      return <span className="text-[10px] bg-[#e8f4ee] text-[#2d7a56] px-2 py-0.5 rounded-md font-semibold">✅ 수정 저장됨</span>;
     if (dec === 'deferred')
-      return <span className="text-[7px] bg-[rgba(63,63,70,0.3)] text-[#71717a] px-1 py-0.5 rounded-sm">보류</span>;
+      return <span className="text-[10px] bg-[#f5efe6] text-[#a89880] px-2 py-0.5 rounded-md">보류</span>;
     return (
       <span
-        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-[3px] text-[8px] font-bold tracking-wider uppercase text-white shrink-0"
-        style={{ background: sv.bg2 }}
+        className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-md text-white"
+        style={{ background: sv.bg2, flexShrink: 0 }}
       >
-        <Al /> {sv.l}
+        {sv.emoji} {sv.l}
       </span>
     );
   })();
 
   return (
+    /*
+     * [Layout Fix]
+     * - flex-shrink: 0  → 부모 flex 컨테이너가 카드를 압축하지 못하도록 방지
+     * - width: 100%     → 컬럼 너비를 꽉 채움
+     * - min-height: 48px → 빈 데이터여도 최소 높이 확보
+     * - overflow: visible (overflow-hidden 제거) → 높이 0 상태에서 내용 잘림 방지
+     */
     <div
-      className="rounded-xl border transition-all duration-200"
+      className="rounded-2xl border transition-all duration-200"
       style={{
-        borderColor: processed ? 'rgba(63,63,70,0.15)' : sv.bd,
-        background: processed ? 'rgba(39,39,42,0.05)' : sv.bg,
-        opacity: processed ? 0.6 : 1
+        flexShrink: 0,          /* ← 핵심: flex 압축 방지 */
+        width: '100%',
+        minHeight: 48,
+        borderColor: processed ? '#ede4d8' : sv.bd,
+        background:  processed ? '#fdfaf5' : sv.bg,
+        opacity: processed ? 0.65 : 1,
+        /* overflow: visible (기본값 유지 — hidden 쓰지 않음) */
       }}
     >
+      {/* ── 헤더 버튼 ── */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-start gap-1.5 p-2.5 text-left text-inherit transition-colors hover:bg-black/10 rounded-xl"
+        className="w-full flex items-start gap-2.5 px-4 py-3.5 text-left hover:brightness-95 transition-all rounded-2xl"
+        style={{ minHeight: 48 }}  /* 버튼 자체도 최소 높이 보장 */
       >
-        <div className="shrink-0 mt-0.5">{headerBadge}</div>
+        <div style={{ flexShrink: 0, marginTop: 2 }}>{statusBadge}</div>
 
-        <div className="flex-1">
-          <div className="flex items-center gap-1 flex-wrap mb-0.5">
-            <span className="font-semibold text-[11px]" style={{ color: processed ? '#52525b' : sv.tx }}>
-              {item.ch}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="flex items-center gap-1.5 flex-wrap mb-1">
+            <span className="font-semibold text-[13px]" style={{ color: processed ? '#a89880' : '#2c2416' }}>
+              {charName}
             </span>
-            <span className="text-[8px] bg-[rgba(39,39,42,0.4)] text-[#a1a1aa] px-1 py-0.5 rounded-sm">
-              {item.tp}
-            </span>
+            {typeLabel && (
+              <span className="text-[10px] bg-white/60 text-[#6b5c47] px-1.5 py-0.5 rounded border border-[#ede4d8]">
+                {typeLabel}
+              </span>
+            )}
           </div>
-          <p className="text-[#a1a1aa] text-[10px] mt-0.5 italic">{item.dl}</p>
+          {dialogue && (
+            <p className="text-[#6b5c47] text-[12px] italic leading-snug"
+               style={{ wordBreak: 'break-word' }}>
+              {dialogue}
+            </p>
+          )}
+          {isStaged && !processed && (
+            <span className="text-[10px] text-[#2d7a56] font-semibold mt-1 block">✅ 수정 대기 중</span>
+          )}
         </div>
 
-        <div className="text-[#52525b] shrink-0 mt-1">
-          {isOpen ? <Cd /> : <Cr />}
-        </div>
+        <span className="text-[#a89880] text-sm" style={{ flexShrink: 0, marginTop: 2 }}>
+          {isOpen ? '▲' : '▼'}
+        </span>
       </button>
 
+      {/* ── 펼쳐진 상세 내용 ── */}
       {isOpen && (
-        <div className="fade px-2.5 pb-2.5 flex flex-col gap-2">
-          <div className="bg-[rgba(9,9,14,0.3)] rounded-md p-2">
-            <div className="text-[9px] font-semibold text-[#71717a] mb-1">모순 설명</div>
-            <p className="text-[#e4e4e7] text-[11px] leading-relaxed break-keep">{item.ds}</p>
-          </div>
-
-          {item.ev.map((e, i) => (
-            <div key={i} className="bg-[rgba(39,39,42,0.2)] rounded-md p-2 flex gap-1.5">
-              <Qt />
-              <div className="flex-1">
-                <span className="mono text-[8px] text-[#34d399] tracking-tight">{e.sr}, {e.lc}</span>
-                <p className="text-[10px] text-[#d4d4d8] mt-0.5 leading-snug">{e.tx}</p>
-              </div>
+        <div
+          className="fade px-4 pb-4 flex flex-col gap-3"
+          style={{
+            /* height: auto (명시적으로 고정 height/max-height 없음) */
+            minHeight: 100,
+          }}
+        >
+          {/* 문제의 대사/장면 */}
+          {dialogue && (
+            <div className="bg-white/60 rounded-xl p-3" style={{ borderLeft: `3px solid ${sv.bg2}` }}>
+              <div className="text-[10px] font-semibold text-[#a89880] mb-1.5">📣 문제의 대사·장면</div>
+              <p className="text-[13px] italic text-[#2c2416] leading-relaxed" style={{ wordBreak: 'break-word' }}>
+                "{dialogue}"
+              </p>
             </div>
-          ))}
-
-          <div className="bg-[rgba(6,78,59,0.08)] rounded-md p-2 border border-[rgba(16,185,129,0.1)]">
-            <div className="text-[9px] font-semibold text-[#34d399] mb-0.5">수정 제안</div>
-            <p className="text-[#e4e4e7] text-[11px] leading-relaxed break-keep">{item.sg}</p>
-          </div>
-
-          {item.al && (
-            <p className="text-[#52525b] text-[9px] italic break-keep">{item.al}</p>
           )}
 
-          <div className="flex items-center justify-between mt-1">
-            <span className="text-[9px] text-[#52525b]">확신도</span>
-            <div className="flex items-center gap-1.5">
-              <div className="w-[60px] h-[3px] bg-[#27272a] rounded-sm overflow-hidden">
+          {/* 왜 모순인가 */}
+          <div>
+            <div className="text-[10px] font-semibold text-[#a89880] mb-1.5">🔍 왜 모순인가요?</div>
+            <p className="text-[12px] text-[#6b5c47] leading-[1.8]" style={{ wordBreak: 'break-word' }}>
+              {desc}
+            </p>
+          </div>
+
+          {/* 근거 */}
+          {evidence.length > 0 ? (
+            evidence.map((e, i) => (
+              <div key={i} className="bg-white/50 rounded-lg px-3 py-2">
+                <div className="text-[10px] text-[#c4622d] font-semibold mb-1">
+                  📄 {e.sr || '출처 미상'}{e.lc ? ` — ${e.lc}` : ''}
+                </div>
+                <p className="text-[11px] text-[#6b5c47] leading-snug" style={{ wordBreak: 'break-word' }}>
+                  {e.tx || '(내용 없음)'}
+                </p>
+              </div>
+            ))
+          ) : (
+            <div className="text-[10px] text-[#a89880] italic">근거 데이터 없음</div>
+          )}
+
+          {/* 수정 제안 */}
+          {suggestion ? (
+            <div className="bg-[#e8f4ee] border border-[rgba(45,122,86,0.15)] rounded-xl p-3">
+              <div className="text-[10px] font-semibold text-[#2d7a56] mb-1.5">✏️ 수정 제안</div>
+              <p className="text-[12px] text-[#2c2416] leading-relaxed" style={{ wordBreak: 'break-word' }}>
+                {suggestion}
+              </p>
+            </div>
+          ) : null}
+
+          {/* 대안 해석 */}
+          {alt && (
+            <p className="text-[11px] text-[#a89880] italic" style={{ wordBreak: 'break-word' }}>
+              💡 {alt}
+            </p>
+          )}
+
+          {/* 확신도 */}
+          {confidence > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-[#a89880]" style={{ flexShrink: 0 }}>분석 확신도</span>
+              <div className="flex-1 h-1.5 bg-[#ede4d8] rounded-full overflow-hidden" style={{ minWidth: 60 }}>
                 <div
-                  className="h-full rounded-sm"
+                  className="h-full rounded-full transition-all"
                   style={{
-                    width: `${item.cf * 100}%`,
-                    background: item.cf >= 0.8 ? '#f87171' : item.cf >= 0.6 ? '#fbbf24' : '#38bdf8'
+                    width: `${confidence * 100}%`,
+                    background: confidence >= 0.8 ? '#b83232' : confidence >= 0.6 ? '#c47c1a' : '#2d7a56',
                   }}
                 />
               </div>
-              <span className="mono text-[#d4d4d8] text-[9px]">{Math.round(item.cf * 100)}%</span>
+              <span className="mono text-[10px] text-[#6b5c47] font-semibold" style={{ flexShrink: 0 }}>
+                {Math.round(confidence * 100)}%
+              </span>
             </div>
-          </div>
+          )}
 
-          {/* Decision area */}
-          <div className="border-t border-[rgba(63,63,70,0.06)] pt-2 mt-1.5">
+          {/* ── 처리 영역 ── */}
+          <div className="border-t border-[rgba(44,36,22,0.06)] pt-3">
 
-            {/* No decision yet */}
+            {/* 미결정 — 3가지 선택 */}
             {dec === null && (
-              <div className="flex gap-1.5 flex-wrap">
+              <div className="flex gap-2 flex-wrap">
                 <button
                   onClick={() => setDec('intentional')}
-                  className="text-[9px] text-[#a78bfa] px-2 py-1 rounded-md border border-[rgba(139,92,246,0.2)] bg-[rgba(139,92,246,0.05)] hover:bg-[rgba(139,92,246,0.1)] transition-colors"
+                  className="flex-1 py-2.5 px-3 rounded-lg border border-[rgba(124,92,191,0.25)] bg-[rgba(124,92,191,0.06)] text-[#7c5cbf] text-[11px] font-semibold hover:bg-[rgba(124,92,191,0.12)] transition-colors"
+                  style={{ minWidth: 80 }}
                 >
-                  의도된 설정
+                  💡 의도된 설정
                 </button>
                 <button
                   onClick={() => setDec('fix')}
-                  className="text-[9px] text-[#34d399] px-2 py-1 rounded-md border border-[rgba(16,185,129,0.2)] bg-[rgba(16,185,129,0.04)] hover:bg-[rgba(16,185,129,0.08)] transition-colors"
+                  className="flex-1 py-2.5 px-3 rounded-lg border border-[#ede4d8] bg-white text-[#6b5c47] text-[11px] font-semibold hover:border-[#c4622d] hover:text-[#c4622d] transition-colors"
+                  style={{ minWidth: 80 }}
                 >
-                  모순 확인 → 수정
+                  ✏️ 직접 수정하기
                 </button>
                 <button
                   onClick={() => setDec('deferred')}
-                  className="text-[9px] text-[#71717a] px-2 py-1 rounded-md border border-[rgba(63,63,70,0.2)] hover:bg-[rgba(63,63,70,0.15)] transition-colors"
+                  className="px-3 py-2.5 rounded-lg border border-[#ede4d8] bg-white text-[#a89880] text-[11px] hover:bg-[#f5efe6] transition-colors"
                 >
                   보류
                 </button>
               </div>
             )}
 
-            {/* Intentional path */}
+            {/* 의도된 설정 — 메모 입력 */}
             {dec === 'intentional' && !intentSaved && (
-              <div className="fade flex flex-col gap-1.5">
+              <div className="fade flex flex-col gap-2">
+                <div className="text-[10px] font-semibold text-[#a89880]">
+                  💬 이 부분이 의도된 이유를 알려주세요 (선택)
+                </div>
                 <textarea
                   value={intentNote}
                   onChange={e => setIntentNote(e.target.value)}
                   rows={2}
-                  placeholder="이유 메모 (선택 사항)..."
-                  className="w-full bg-[rgba(39,39,42,0.3)] border border-[rgba(139,92,246,0.3)] rounded-md px-2 py-1.5 text-[11px] text-[#e4e4e7] outline-none resize-none focus:border-[#a78bfa]/50"
+                  placeholder="예: 회상 장면, 복선, 캐릭터의 의도적 거짓말..."
+                  className="w-full bg-white border border-[#ede4d8] rounded-lg px-3 py-2 text-[12px] text-[#2c2416] outline-none resize-none focus:border-[#7c5cbf]"
+                  style={{ minHeight: 56 }}
                 />
-                <div className="flex gap-1.5 justify-end">
+                <div className="flex gap-2 justify-end">
                   <button
                     onClick={handleUndo}
-                    className="flex items-center gap-0.5 text-[9px] text-[#71717a] hover:text-white px-2 py-1 rounded border border-[rgba(63,63,70,0.2)] hover:bg-[#3f3f46]/50 transition-colors"
+                    className="text-[11px] text-[#a89880] px-3 py-1.5 rounded-lg border border-[#ede4d8] bg-white hover:bg-[#f5efe6] transition-colors"
                   >
-                    <Rv /> 결정 취소
+                    취소
                   </button>
                   <button
                     onClick={() => {
-                      onStage({ id: item.id, ch: item.ch, tp: item.tp, isIntentional: true, intentNote });
+                      onStage({ id: item.id, ch: charName, tp: typeLabel, isIntentional: true, intentNote });
                       setIntentSaved(true);
                     }}
-                    className="flex items-center gap-1 text-[9px] font-semibold text-white bg-gradient-to-r from-[#6d28d9] to-[#7c3aed] hover:opacity-90 px-2.5 py-1 rounded transition-all"
+                    className="text-[11px] font-bold text-white bg-[#7c5cbf] px-4 py-1.5 rounded-lg hover:bg-[#6a4da8] transition-colors"
                   >
-                    <Gc /> Commit
+                    저장하기
                   </button>
                 </div>
               </div>
@@ -182,38 +258,39 @@ export default function ContradictionCard({ item, isStaged, onStage, onUnstageFi
 
             {dec === 'intentional' && intentSaved && (
               <div className="fade flex items-center justify-between">
-                <span className="text-[9px] text-[#34d399]">스테이징 완료</span>
+                <span className="text-[11px] text-[#2d7a56]">✅ 의도된 설정으로 저장됨</span>
                 <button
                   onClick={handleUndo}
-                  className="flex items-center gap-0.5 text-[9px] text-[#71717a] hover:text-white px-2 py-1 rounded border border-[rgba(63,63,70,0.2)] hover:bg-[#3f3f46]/50 transition-colors"
+                  className="text-[10px] text-[#a89880] px-2.5 py-1 rounded border border-[#ede4d8] bg-white hover:bg-[#f5efe6] transition-colors"
                 >
-                  <Rv /> 스테이징 취소
+                  취소
                 </button>
               </div>
             )}
 
-            {/* Fix path */}
+            {/* 수정 모드 */}
             {dec === 'fix' && !isStaged && (
-              <div className="fade">
+              <div className="fade flex flex-col gap-2">
+                <div className="text-[10px] font-semibold text-[#a89880]">✍️ 수정할 내용을 입력하세요</div>
                 <textarea
                   value={fixedText}
                   onChange={e => setFixedText(e.target.value)}
-                  rows={2}
-                  className="w-full bg-[rgba(39,39,42,0.3)] border border-[rgba(16,185,129,0.3)] rounded-md px-2 py-1.5 text-[11px] text-[#e4e4e7] outline-none resize-none focus:border-[#10b981]/50"
-                  placeholder="수정할 원고 내용을 입력하세요..."
+                  rows={3}
+                  className="w-full bg-white border border-[#ede4d8] rounded-lg px-3 py-2 text-[12px] text-[#2c2416] outline-none resize-none focus:border-[#c4622d] leading-relaxed"
+                  style={{ minHeight: 72 }}
                 />
-                <div className="flex gap-1.5 mt-1.5 justify-end">
+                <div className="flex gap-2 justify-end">
                   <button
                     onClick={handleUndo}
-                    className="flex items-center gap-0.5 text-[9px] text-[#71717a] hover:text-white px-2 py-1 rounded border border-[rgba(63,63,70,0.2)] hover:bg-[#3f3f46]/50 transition-colors"
+                    className="text-[11px] text-[#a89880] px-3 py-1.5 rounded-lg border border-[#ede4d8] bg-white hover:bg-[#f5efe6] transition-colors"
                   >
-                    <Rv /> 결정 취소
+                    취소
                   </button>
                   <button
-                    onClick={() => onStage({ id: item.id, ch: item.ch, tp: item.tp, ot: item.ot, fixedText })}
-                    className="flex items-center gap-1 text-[9px] font-semibold text-white bg-gradient-to-r from-[#059669] to-[#0d9488] hover:opacity-90 px-2.5 py-1 rounded shadow-sm shadow-[#10b981]/20 transition-all"
+                    onClick={() => onStage({ id: item.id, ch: charName, tp: typeLabel, ot: origText, fixedText })}
+                    className="text-[11px] font-bold text-white bg-[#2d7a56] px-4 py-1.5 rounded-lg hover:bg-[#255f44] transition-colors"
                   >
-                    <Gc /> Commit
+                    ✓ 수정 저장하기
                   </button>
                 </div>
               </div>
@@ -221,25 +298,25 @@ export default function ContradictionCard({ item, isStaged, onStage, onUnstageFi
 
             {dec === 'fix' && isStaged && (
               <div className="fade flex items-center justify-between">
-                <span className="text-[9px] text-[#34d399]">스테이징 완료</span>
+                <span className="text-[11px] text-[#2d7a56]">✅ 수정 대기 중</span>
                 <button
                   onClick={handleUndo}
-                  className="flex items-center gap-0.5 text-[9px] text-[#71717a] hover:text-white px-2 py-1 rounded border border-[rgba(63,63,70,0.2)] hover:bg-[#3f3f46]/50 transition-colors"
+                  className="text-[10px] text-[#a89880] px-2.5 py-1 rounded border border-[#ede4d8] bg-white hover:bg-[#f5efe6] transition-colors"
                 >
-                  <Rv /> 스테이징 취소
+                  취소
                 </button>
               </div>
             )}
 
-            {/* Deferred path */}
+            {/* 보류 */}
             {dec === 'deferred' && (
-              <div className="fade flex items-center justify-between">
-                <span className="text-[9px] text-[#71717a]">보류 처리됨</span>
+              <div className="fade flex items-center justify-between bg-[#f5efe6] rounded-lg px-3 py-2">
+                <span className="text-[11px] text-[#a89880]">보류 처리됨</span>
                 <button
                   onClick={handleUndo}
-                  className="flex items-center gap-0.5 text-[9px] text-[#71717a] hover:text-white px-2 py-1 rounded border border-[rgba(63,63,70,0.2)] hover:bg-[#3f3f46]/50 transition-colors"
+                  className="text-[10px] text-[#a89880] px-2.5 py-1 rounded border border-[#ede4d8] bg-white hover:bg-[#f5efe6] transition-colors"
                 >
-                  <Rv /> 취소
+                  취소
                 </button>
               </div>
             )}

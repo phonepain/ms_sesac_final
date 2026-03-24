@@ -1,5 +1,4 @@
 import type { Project } from '../../types';
-import { Gr, Db, Ln, Zp, Ed } from '../common/Icons';
 
 interface KbStatsProps {
   stats: Project['kb'];
@@ -7,29 +6,24 @@ interface KbStatsProps {
 
 export default function KbStats({ stats }: KbStatsProps) {
   const items = [
-    { l: "캐릭터", v: stats.characters, c: "#34d399", ic: <Gr /> },
-    { l: "사실", v: stats.facts, c: "#38bdf8", ic: <Db /> },
-    { l: "관계", v: stats.relationships, c: "#fbbf24", ic: <Ln /> },
-    { l: "이벤트", v: stats.events, c: "#fb7185", ic: <Zp /> },
-    { l: "특성", v: stats.traits, c: "#a78bfa", ic: <Ed /> }
+    { l: "등장인물", v: stats.characters, icon: "👥", c: "#c4622d" },
+    { l: "주요 사실", v: stats.facts,      icon: "📝", c: "#c47c1a" },
+    { l: "인물 관계", v: stats.relationships, icon: "🔗", c: "#2d7a56" },
+    { l: "주요 사건", v: stats.events,     icon: "🎬", c: "#7c5cbf" },
+    { l: "특성",      v: stats.traits,     icon: "✨", c: "#2d6a9f" },
   ];
 
   return (
-    <div className="grid grid-cols-5 gap-1.5">
+    <div className="grid grid-cols-5 gap-2">
       {items.map(x => (
-        <div 
-          key={x.l} 
-          className="bg-[rgba(39,39,42,0.2)] border border-[rgba(63,63,70,0.1)] rounded-lg p-2.5 text-center"
+        <div
+          key={x.l}
+          className="bg-white border border-[#ede4d8] rounded-xl py-3 px-2 text-center"
+          style={{ boxShadow: "0 2px 8px rgba(44,36,22,0.06)" }}
         >
-          <div className="opacity-70 mb-[1px] flex justify-center" style={{ color: x.c }}>
-            {x.ic}
-          </div>
-          <div className="mono text-lg font-bold" style={{ color: x.c }}>
-            {x.v}
-          </div>
-          <div className="text-[#52525b] text-[9px]">
-            {x.l}
-          </div>
+          <div className="text-xl mb-1">{x.icon}</div>
+          <div className="text-[22px] font-bold serif" style={{ color: x.c }}>{x.v}</div>
+          <div className="text-[#a89880] text-[10px] mt-0.5">{x.l}</div>
         </div>
       ))}
     </div>

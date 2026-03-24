@@ -6,7 +6,6 @@ import SourceList from '../components/project/SourceList';
 import AiChatPanel from '../components/project/AiChatPanel';
 import StagedFixes from '../components/project/StagedFixes';
 import ContradictionCard from '../components/project/ContradictionCard';
-import { AI, Se, Up2, Bk, Df } from '../components/common/Icons';
 
 interface ProjectDetailViewProps {
   proj: Project;
@@ -66,41 +65,48 @@ export default function ProjectDetailView({
     }
   };
 
+  const filterLabels: Record<string, string> = {
+    all: '전체',
+    critical: `🔴 ${SV_COLORS.critical.l}`,
+    warning: `🟡 ${SV_COLORS.warning.l}`,
+    info: `🟢 ${SV_COLORS.info.l}`,
+  };
+
   return (
-    <div className="fade flex flex-col gap-3.5 h-full">
-      {/* Header */}
+    <div className="fade flex flex-col gap-4 h-full">
+      {/* 프로젝트 헤더 */}
       <div className="flex items-center justify-between shrink-0">
         <div>
-          <h2 className="text-[17px] font-black text-white">{proj.name}</h2>
-          <p className="text-[#52525b] text-[10px]">{proj.date}</p>
+          <h2 className="serif text-xl font-bold text-[#2c2416]">{proj.name}</h2>
+          <p className="text-[#a89880] text-[11px] mt-0.5">{proj.date} 분석</p>
         </div>
-
         <button
           onClick={() => setShowAi(!showAi)}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-[9px] text-xs font-semibold text-white transition-all duration-200 ${
+          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-[10px] text-[12px] font-bold transition-all duration-200 ${
             showAi
-              ? 'bg-gradient-to-br from-[#059669] to-[#0d9488] border-none shadow-[0_4px_16px_rgba(16,185,129,0.3)]'
-              : 'bg-gradient-to-br from-[rgba(16,185,129,0.15)] to-[rgba(13,148,136,0.15)] border border-[rgba(16,185,129,0.3)] shadow-[0_2px_8px_rgba(16,185,129,0.1)]'
+              ? 'bg-[#c4622d] text-white border-none shadow-[0_4px_16px_rgba(196,98,45,0.3)]'
+              : 'bg-white text-[#c4622d] border border-[#c4622d] hover:bg-[#fdeee6]'
           }`}
+          style={{ boxShadow: showAi ? undefined : "0 2px 10px rgba(196,98,45,0.15)" }}
         >
-          <AI /> {showAi ? "AI 질의 닫기" : "AI 질의"}
+          🤖 {showAi ? "AI 질문 닫기" : "AI에게 질문하기"}
         </button>
       </div>
 
-      {/* Tabs */}
+      {/* 탭 네비게이션 */}
       <div className="flex gap-1 shrink-0">
         {[
-          { k: "overview", l: "개요" },
-          { k: "contradictions", l: `모순 ${contradictions.length > 0 ? contradictions.length : ""}` },
-          { k: "versions", l: "버전" }
+          { k: "overview", l: "📊 개요" },
+          { k: "contradictions", l: `⚠️ 모순${contradictions.length > 0 ? ` (${contradictions.length}건)` : ''}` },
+          { k: "versions", l: "📝 수정 이력" }
         ].map(t => (
           <button
             key={t.k}
             onClick={() => setTab(t.k)}
-            className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-colors ${
+            className={`px-3.5 py-1.5 rounded-lg text-[12px] font-semibold transition-all ${
               tab === t.k
-                ? "bg-[rgba(16,185,129,0.08)] border border-[rgba(16,185,129,0.12)] text-[#34d399]"
-                : "bg-transparent border border-transparent text-[#71717a] hover:bg-[rgba(39,39,42,0.4)]"
+                ? "bg-[#fdeee6] border border-[rgba(196,98,45,0.2)] text-[#c4622d]"
+                : "bg-transparent border border-transparent text-[#a89880] hover:bg-[#f5efe6]"
             }`}
           >
             {t.l}
@@ -108,10 +114,16 @@ export default function ProjectDetailView({
         ))}
       </div>
 
-      {/* Main Content Area */}
-      <div className={`flex-1 overflow-auto grid gap-3.5 pb-20 ${showAi ? "grid-cols-[1fr_380px]" : "grid-cols-1"}`}>
-        <div className="overflow-auto flex flex-col gap-3 pr-2 scrollbar-thin">
+      {/* 메인 콘텐츠
+          [Layout Fix]
+          - 바깥 div: overflow-auto는 그리드 전체에만 적용 (카드 잘림 방지)
+          - 안쪽 컬럼: overflow-y-auto + flex flex-col
+            → ContradictionCard에 flex-shrink:0 이 있으므로 카드가 압축되지 않음
+      */}
+      <div className={`flex-1 overflow-auto grid gap-4 pb-20 ${showAi ? "grid-cols-[1fr_360px]" : "grid-cols-1"}`}>
+        <div className="overflow-y-auto flex flex-col gap-3 pr-1" style={{ minHeight: 0 }}>
 
+          {/* 개요 탭 */}
           {tab === "overview" && (
             <>
               <KbStats stats={proj.kb} />
@@ -120,19 +132,29 @@ export default function ProjectDetailView({
               {contradictions.length === 0 ? (
                 <button
                   onClick={onAnalyze}
-                  className="w-full py-3 rounded-[9px] font-semibold text-xs flex items-center justify-center gap-1.5 bg-gradient-to-r from-[#059669] to-[#0d9488] text-white hover:opacity-90 transition-opacity"
+                  className="w-full py-3.5 rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 text-white transition-all hover:-translate-y-0.5"
+                  style={{
+                    background: "#c4622d",
+                    boxShadow: "0 4px 20px rgba(196,98,45,0.25)"
+                  }}
                 >
-                  <Se /> 모순 탐지 시작
+                  🔍 모순 탐지 시작하기
                 </button>
               ) : (
-                <div className="bg-[rgba(239,68,68,0.04)] border border-[rgba(239,68,68,0.12)] rounded-[9px] p-3 flex items-center justify-between">
+                <div
+                  className="bg-[#fdeaea] border border-[rgba(184,50,50,0.2)] rounded-xl p-4 flex items-center justify-between"
+                >
                   <div>
-                    <span className="text-xs font-bold text-[#f87171]">{contradictions.length}건의 모순</span>
-                    <span className="text-[10px] text-[#52525b] ml-1.5">발견됨</span>
+                    <div className="text-[13px] font-bold text-[#b83232]">
+                      {contradictions.length}건의 모순이 발견됐어요
+                    </div>
+                    <div className="text-[11px] text-[#a89880] mt-1">
+                      {counts.critical}건 중요, {counts.warning}건 확인 필요
+                    </div>
                   </div>
                   <button
                     onClick={() => setTab("contradictions")}
-                    className="text-[11px] font-bold text-[#f87171] px-3 py-1.5 rounded-md border border-[rgba(239,68,68,0.2)] hover:bg-[rgba(239,68,68,0.1)] transition-colors"
+                    className="text-[12px] font-semibold text-[#b83232] px-4 py-2 rounded-lg border border-[rgba(184,50,50,0.25)] bg-white hover:bg-[#fdeaea] transition-colors"
                   >
                     결과 보기 →
                   </button>
@@ -141,6 +163,7 @@ export default function ProjectDetailView({
             </>
           )}
 
+          {/* 모순 탭 */}
           {tab === "contradictions" && (
             <>
               <StagedFixes
@@ -150,24 +173,26 @@ export default function ProjectDetailView({
                 onClear={onClearStaged}
               />
 
-              <div className="flex gap-1 flex-wrap mb-1">
+              {/* 필터 */}
+              <div className="flex gap-1.5 flex-wrap mb-1">
                 {(['all', 'critical', 'warning', 'info'] as const).map(f => {
                   const isActive = filter === f;
                   const sv = f === 'all' ? null : SV_COLORS[f];
-
                   return (
                     <button
                       key={f}
                       onClick={() => setFilter(f)}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-all ${
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
                         isActive
-                          ? (f === 'all' ? 'bg-[#3f3f46] text-white' : '')
-                          : 'bg-[rgba(39,39,42,0.2)] text-[#52525b] hover:bg-[rgba(39,39,42,0.4)] border border-transparent'
+                          ? (f === 'all' ? 'bg-white border border-[#ede4d8] text-[#2c2416]' : '')
+                          : 'bg-[#f5efe6] text-[#a89880] border border-transparent hover:bg-white hover:border-[#ede4d8]'
                       }`}
-                      style={isActive && f !== 'all' ? { backgroundColor: sv?.bg, color: sv?.tx, borderColor: sv?.bd } : {}}
+                      style={isActive && f !== 'all' ? {
+                        background: sv?.bg, color: sv?.tx, borderColor: sv?.bd
+                      } : {}}
                     >
-                      {f === 'all' ? '전체' : sv?.l}
-                      <span className="mono text-[7px] bg-[rgba(9,9,14,0.25)] px-1 py-0.5 rounded-sm">
+                      {filterLabels[f]}
+                      <span className="mono text-[8px] bg-white/60 px-1 py-0.5 rounded">
                         {counts[f]}
                       </span>
                     </button>
@@ -186,19 +211,23 @@ export default function ProjectDetailView({
               ))}
 
               {filtered.length === 0 && (
-                <div className="text-center py-8 text-[#3f3f46] text-[11px]">모순이 없습니다</div>
+                <div className="text-center py-12 text-[#a89880]">
+                  <div className="text-4xl mb-3">✨</div>
+                  <div className="text-[13px]">선택한 조건의 모순이 없어요!</div>
+                </div>
               )}
             </>
           )}
 
+          {/* 버전 탭 */}
           {tab === "versions" && (
             <>
-              {/* 파일로 새 버전 만들기 */}
               <button
                 onClick={() => versionFileRef.current?.click()}
-                className="flex items-center gap-1.5 text-[10px] text-[#a1a1aa] hover:text-white px-3 py-2 rounded-[9px] border border-[rgba(63,63,70,0.15)] hover:border-[rgba(16,185,129,0.3)] hover:bg-[rgba(16,185,129,0.04)] transition-colors w-full justify-center"
+                className="flex items-center gap-1.5 text-[11px] text-[#a89880] hover:text-[#c4622d] px-4 py-2.5 rounded-xl border border-[#ede4d8] bg-white hover:border-[rgba(196,98,45,0.3)] hover:bg-[#fdeee6] transition-colors w-full justify-center"
+                style={{ boxShadow: "0 2px 8px rgba(44,36,22,0.06)" }}
               >
-                <Up2 /> 파일로 새 버전 만들기
+                📁 파일로 새 버전 만들기
               </button>
               <input
                 type="file"
@@ -212,76 +241,80 @@ export default function ProjectDetailView({
                 }}
               />
 
-              <div className="pl-5 relative">
-                <div className="absolute left-1.5 top-1.5 bottom-1.5 w-[2px] bg-[rgba(63,63,70,0.2)] rounded-sm" />
+              {/* 버전 타임라인 */}
+              <div className="pl-6 relative">
+                <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-[#ede4d8] rounded-sm" />
 
                 {versions.map((v, i) => {
                   const panel = versionPanels[v.id];
                   const prevId = versions[i + 1]?.id;
 
                   return (
-                    <div key={v.id} className="relative mb-3">
-                      <div className={`absolute -left-[17px] top-1 w-[9px] h-[9px] rounded-full border-2 ${
+                    <div key={v.id} className="relative mb-3.5">
+                      <div className={`absolute -left-[19px] top-1.5 w-2.5 h-2.5 rounded-full border-2 ${
                         i === 0
-                          ? 'bg-[#10b981] border-[rgba(16,185,129,0.25)]'
-                          : 'bg-[#3f3f46] border-[#27272a]'
+                          ? 'bg-[#c4622d] border-[rgba(196,98,45,0.25)]'
+                          : 'bg-[#ede4d8] border-white'
                       }`} />
 
-                      <div className={`rounded-xl p-2.5 border ${
-                        i === 0
-                          ? 'bg-[rgba(16,185,129,0.03)] border-[rgba(16,185,129,0.1)]'
-                          : 'bg-[rgba(39,39,42,0.08)] border-[rgba(63,63,70,0.06)]'
-                      }`}>
-                        <div className="flex items-center justify-between mb-1">
+                      <div
+                        className={`rounded-xl p-3 border ${
+                          i === 0
+                            ? 'bg-white border-[rgba(196,98,45,0.2)]'
+                            : 'bg-white border-[#ede4d8]'
+                        }`}
+                        style={{ boxShadow: "0 2px 8px rgba(44,36,22,0.06)" }}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
                           <div className="flex items-center gap-1.5">
-                            <span className={`mono text-[11px] font-bold ${i === 0 ? 'text-[#34d399]' : 'text-[#a1a1aa]'}`}>
+                            <span className={`mono text-[12px] font-bold ${i === 0 ? 'text-[#c4622d]' : 'text-[#6b5c47]'}`}>
                               {v.vr}
                             </span>
                             {i === 0 && (
-                              <span className="text-[7px] bg-[rgba(16,185,129,0.08)] text-[#34d399] px-1 py-0.5 rounded-sm">최신</span>
+                              <span className="text-[9px] bg-[#fdeee6] text-[#c4622d] px-1.5 py-0.5 rounded">최신</span>
                             )}
                             {v.fx > 0 && (
-                              <span className="text-[7px] bg-[rgba(245,158,11,0.06)] text-[#fbbf24] px-1 py-0.5 rounded-sm">
-                                {v.fx}수정
+                              <span className="text-[9px] bg-[#fef3db] text-[#c47c1a] px-1.5 py-0.5 rounded">
+                                {v.fx}건 수정
                               </span>
                             )}
                             {v.src && (
-                              <span className="text-[7px] bg-[rgba(39,39,42,0.4)] text-[#71717a] px-1 py-0.5 rounded-sm">
+                              <span className="text-[9px] bg-[#f5efe6] text-[#a89880] px-1.5 py-0.5 rounded">
                                 {v.src}
                               </span>
                             )}
                           </div>
-                          <span className="text-[9px] text-[#52525b]">{v.dt}</span>
+                          <span className="text-[10px] text-[#a89880]">{v.dt}</span>
                         </div>
-                        <p className="text-[10px] text-[#d4d4d8] leading-relaxed break-keep">{v.ds}</p>
+                        <p className="text-[11px] text-[#6b5c47] leading-relaxed break-keep">{v.ds}</p>
 
-                        <div className="flex gap-1 mt-1.5">
+                        <div className="flex gap-1.5 mt-2">
                           <button
                             onClick={() => toggleVersionPanel(v.id, 'content')}
-                            className={`flex items-center gap-0.5 text-[8px] px-1.5 py-0.5 rounded-[3px] border transition-colors ${
+                            className={`text-[10px] px-2 py-1 rounded border transition-colors ${
                               panel?.type === 'content'
-                                ? 'text-[#34d399] border-[rgba(16,185,129,0.3)] bg-[rgba(16,185,129,0.06)]'
-                                : 'text-[#52525b] border-[rgba(63,63,70,0.1)] hover:text-[#e4e4e7] hover:border-[#52525b]'
+                                ? 'text-[#c4622d] border-[rgba(196,98,45,0.3)] bg-[#fdeee6]'
+                                : 'text-[#a89880] border-[#ede4d8] hover:text-[#2c2416] hover:border-[#a89880]'
                             }`}
                           >
-                            <Bk /> 원고 보기
+                            원고 보기
                           </button>
                           {i < versions.length - 1 && (
                             <button
                               onClick={() => toggleVersionPanel(v.id, 'diff', prevId)}
-                              className={`flex items-center gap-0.5 text-[8px] px-1.5 py-0.5 rounded-[3px] border transition-colors ${
+                              className={`text-[10px] px-2 py-1 rounded border transition-colors ${
                                 panel?.type === 'diff'
-                                  ? 'text-[#34d399] border-[rgba(16,185,129,0.3)] bg-[rgba(16,185,129,0.06)]'
-                                  : 'text-[#52525b] border-[rgba(63,63,70,0.1)] hover:text-[#e4e4e7] hover:border-[#52525b]'
+                                  ? 'text-[#c4622d] border-[rgba(196,98,45,0.3)] bg-[#fdeee6]'
+                                  : 'text-[#a89880] border-[#ede4d8] hover:text-[#2c2416] hover:border-[#a89880]'
                               }`}
                             >
-                              <Df /> 비교
+                              이전 버전과 비교
                             </button>
                           )}
                         </div>
 
                         {panel && (
-                          <div className="mt-2 bg-[rgba(9,9,14,0.3)] rounded-md p-2 text-[10px] font-mono text-[#d4d4d8] whitespace-pre-wrap max-h-[200px] overflow-auto">
+                          <div className="mt-2.5 bg-[#f5efe6] rounded-lg p-2.5 text-[10px] font-mono text-[#6b5c47] whitespace-pre-wrap max-h-[200px] overflow-auto">
                             {panel.data || '(내용 없음)'}
                           </div>
                         )}
@@ -289,6 +322,10 @@ export default function ProjectDetailView({
                     </div>
                   );
                 })}
+
+                {versions.length === 0 && (
+                  <div className="text-center py-8 text-[#a89880] text-[12px]">수정 이력이 없습니다</div>
+                )}
               </div>
             </>
           )}

@@ -1,5 +1,4 @@
 import type { Project } from '../../types';
-import { Gc } from '../common/Icons';
 
 interface HeaderProps {
   activeProj: Project | undefined;
@@ -9,17 +8,18 @@ interface HeaderProps {
 
 export default function Header({ activeProj, isNew, stagedLength }: HeaderProps) {
   return (
-    <header className="h-[46px] border-b border-[rgba(63,63,70,0.15)] bg-[rgba(9,9,11,0.8)] backdrop-blur-md flex items-center justify-between px-5 shrink-0">
-      <span className="text-[11px] text-[#52525b]">
-        {isNew ? "새 프로젝트 생성" : activeProj?.name || ""}
+    <header className="h-12 border-b border-[#ede4d8] bg-[#fff8f0] flex items-center justify-between px-6 shrink-0">
+      <span className="text-xs text-[#a89880]">
+        {isNew ? "새 작품 분석" : activeProj?.name || ""}
       </span>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2">
         {stagedLength > 0 && (
-          <span className="text-[9px] text-[#34d399] flex items-center gap-0.5">
-            <Gc /> {stagedLength}건 스테이징
+          <span className="text-[11px] text-[#2d7a56] font-semibold">
+            ✅ {stagedLength}건 수정 대기 중
           </span>
         )}
-        <div className="pulse w-1.5 h-1.5 rounded-full bg-[#10b981]" />
+        <div className="pulse w-1.5 h-1.5 rounded-full bg-[#2d7a56]" />
+        <span className="text-[10px] text-[#a89880]">연결됨</span>
       </div>
     </header>
   );
