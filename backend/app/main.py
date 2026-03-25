@@ -140,50 +140,92 @@ async def upload_source(
     )
     # 3) Extract → Normalize → Materialize → Search 인덱싱
     # (Source vertex는 materialize() 내부에서 적재하므로 별도 add_source 불필요)
-    extraction_svc = ExtractionService()
-    extraction_results = await extraction_svc.extract_from_chunks(
-        ingest_result.chunks, source_type
-    )
+    from app.models.api import PipelineError
+    pipeline_errors: list[PipelineError] = []
+    blocked_chunks: list[str] = []
+    extracted_entities = 0
 
-    blocked_chunks = [r.source_chunk_id for r in extraction_results if r.content_filter_blocked]
+    # 계층1: Extraction
+    extraction_results = []
+    try:
+        extraction_svc = ExtractionService()
+        extraction_results = await extraction_svc.extract_from_chunks(
+            ingest_result.chunks, source_type
+        )
+        blocked_chunks = [r.source_chunk_id for r in extraction_results if r.content_filter_blocked]
+    except Exception as e:
+        logger.error("upload_extraction_failed", source_id=source_id, error=str(e))
+        pipeline_errors.append(PipelineError(
+            layer="extraction", message=f"추출 실패: {e}", recoverable=False,
+        ))
 
-    normalization_svc = NormalizationService()
-    normalization_result = await normalization_svc.normalize(extraction_results)
+    # 계층2: Normalization
+    normalization_result = None
+    if extraction_results:
+        try:
+            normalization_svc = NormalizationService()
+            normalization_result = await normalization_svc.normalize(extraction_results)
+        except Exception as e:
+            logger.error("upload_normalization_failed", source_id=source_id, error=str(e))
+            pipeline_errors.append(PipelineError(
+                layer="normalization", message=f"정규화 실패: {e}", recoverable=False,
+            ))
 
-    await _run_graph(graph.materialize, normalization_result, source_vertex)
+    # 계층3: Materialize
+    if normalization_result:
+        try:
+            await _run_graph(graph.materialize, normalization_result, source_vertex)
+            extracted_entities = (
+                len(normalization_result.characters)
+                + len(normalization_result.facts)
+                + len(normalization_result.events)
+            )
+        except Exception as e:
+            logger.error("upload_materialize_failed", source_id=source_id, error=str(e))
+            pipeline_errors.append(PipelineError(
+                layer="materialize", message=f"그래프 적재 실패: {e}", recoverable=False,
+            ))
 
+    # Search 인덱싱
     search_svc = get_search_service()
-    await search_svc.index_chunks(source_id=source_id, chunks=ingest_result.chunks)
-
-    extracted_entities = (
-        len(normalization_result.characters)
-        + len(normalization_result.facts)
-        + len(normalization_result.events)
-    )
+    try:
+        await search_svc.index_chunks(source_id=source_id, chunks=ingest_result.chunks)
+    except Exception as e:
+        logger.error("upload_search_index_failed", source_id=source_id, error=str(e))
+        pipeline_errors.append(PipelineError(
+            layer="search", message=f"검색 인덱싱 실패: {e}", recoverable=True,
+        ))
 
     # extracted_entities를 source vertex에 저장 → GET /api/sources 목록에서 표시 가능
-    await _run_graph(
-        graph.patch_vertex,
-        vertex_id=source_id,
-        partition_key="source",
-        fields={"extracted_entities": extracted_entities},
-    )
+    if extracted_entities > 0:
+        await _run_graph(
+            graph.patch_vertex,
+            vertex_id=source_id,
+            partition_key="source",
+            fields={"extracted_entities": extracted_entities},
+        )
 
     status = "processed"
+    if pipeline_errors and not any(e.layer == "search" and e.recoverable for e in pipeline_errors):
+        # 복구 불가 오류가 있으면 failed
+        if any(not e.recoverable for e in pipeline_errors):
+            status = "failed"
     if blocked_chunks:
-        status = "partial"
-        logger.warning(
-            "source_uploaded_partial",
-            source_id=source_id,
-            blocked_chunks=len(blocked_chunks),
-            total_chunks=len(ingest_result.chunks),
-        )
-    else:
+        status = "partial" if status == "processed" else status
+
+    if status in ("processed", "partial"):
         logger.info(
             "source_uploaded",
             source_id=source_id,
             file_path=ingest_result.file_path,
             extracted_entities=extracted_entities,
+            errors=len(pipeline_errors),
+        )
+    else:
+        logger.warning(
+            "source_upload_incomplete",
+            source_id=source_id,
+            errors=len(pipeline_errors),
         )
 
     return IngestResponse(
@@ -194,6 +236,7 @@ async def upload_source(
         stats={"chunks": len(ingest_result.chunks), "blocked": len(blocked_chunks)},
         extracted_entities=extracted_entities,
         content_filter_blocked_chunks=blocked_chunks,
+        pipeline_errors=pipeline_errors,
     )
 
 @app.get("/api/sources")
@@ -280,42 +323,73 @@ async def reupload_source(
         logger.warning("reupload_remove_index_failed", source_id=source_id, error=str(e))
 
     # Extract → Normalize → Materialize → Index
-    extraction_svc = ExtractionService()
-    extraction_results = await extraction_svc.extract_from_chunks(
-        ingest_result.chunks, source_type
-    )
+    from app.models.api import PipelineError
+    pipeline_errors: list[PipelineError] = []
+    blocked_chunks: list[str] = []
+    extracted_entities = 0
 
-    blocked_chunks = [r.source_chunk_id for r in extraction_results if r.content_filter_blocked]
+    extraction_results = []
+    try:
+        extraction_svc = ExtractionService()
+        extraction_results = await extraction_svc.extract_from_chunks(
+            ingest_result.chunks, source_type
+        )
+        blocked_chunks = [r.source_chunk_id for r in extraction_results if r.content_filter_blocked]
+    except Exception as e:
+        logger.error("reupload_extraction_failed", source_id=source_id, error=str(e))
+        pipeline_errors.append(PipelineError(
+            layer="extraction", message=f"추출 실패: {e}", recoverable=False,
+        ))
 
-    normalization_svc = NormalizationService()
-    normalization_result = await normalization_svc.normalize(extraction_results)
+    normalization_result = None
+    if extraction_results:
+        try:
+            normalization_svc = NormalizationService()
+            normalization_result = await normalization_svc.normalize(extraction_results)
+        except Exception as e:
+            logger.error("reupload_normalization_failed", source_id=source_id, error=str(e))
+            pipeline_errors.append(PipelineError(
+                layer="normalization", message=f"정규화 실패: {e}", recoverable=False,
+            ))
 
-    source_obj = Source(
-        source_id=source_id,
-        source_type=SourceType(source_type),
-        name=filename,
-        file_path=ingest_result.file_path,
-    )
-    await _run_graph(graph.materialize, normalization_result, source_obj)
+    if normalization_result:
+        try:
+            source_obj = Source(
+                source_id=source_id,
+                source_type=SourceType(source_type),
+                name=filename,
+                file_path=ingest_result.file_path,
+            )
+            await _run_graph(graph.materialize, normalization_result, source_obj)
+            extracted_entities = (
+                len(normalization_result.characters)
+                + len(normalization_result.facts)
+                + len(normalization_result.events)
+            )
+        except Exception as e:
+            logger.error("reupload_materialize_failed", source_id=source_id, error=str(e))
+            pipeline_errors.append(PipelineError(
+                layer="materialize", message=f"그래프 적재 실패: {e}", recoverable=False,
+            ))
 
-    await search_svc.index_chunks(source_id=source_id, chunks=ingest_result.chunks)
-
-    extracted_entities = (
-        len(normalization_result.characters)
-        + len(normalization_result.facts)
-        + len(normalization_result.events)
-    )
+    try:
+        await search_svc.index_chunks(source_id=source_id, chunks=ingest_result.chunks)
+    except Exception as e:
+        logger.error("reupload_search_index_failed", source_id=source_id, error=str(e))
+        pipeline_errors.append(PipelineError(
+            layer="search", message=f"검색 인덱싱 실패: {e}", recoverable=True,
+        ))
 
     status = "reuploaded"
-    if blocked_chunks:
+    if any(not e.recoverable for e in pipeline_errors):
+        status = "failed"
+    elif blocked_chunks:
         status = "reuploaded_partial"
-        logger.warning(
-            "source_reuploaded_partial",
-            source_id=source_id,
-            blocked_chunks=len(blocked_chunks),
-        )
+
+    if status != "failed":
+        logger.info("source_reuploaded", source_id=source_id, file_path=ingest_result.file_path, errors=len(pipeline_errors))
     else:
-        logger.info("source_reuploaded", source_id=source_id, file_path=ingest_result.file_path)
+        logger.warning("source_reupload_incomplete", source_id=source_id, errors=len(pipeline_errors))
 
     return IngestResponse(
         source_id=source_id,
@@ -325,6 +399,7 @@ async def reupload_source(
         stats={"chunks": len(ingest_result.chunks), "blocked": len(blocked_chunks)},
         extracted_entities=extracted_entities,
         content_filter_blocked_chunks=blocked_chunks,
+        pipeline_errors=pipeline_errors,
     )
 
 @app.get("/api/sources/{source_id}/download")

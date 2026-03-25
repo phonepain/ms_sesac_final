@@ -27,39 +27,77 @@ class AgentState(TypedDict):
     violations: Dict        # find_all_violations() 결과
     result: Optional[AnalysisResponse]
     error: Optional[str]
+    pipeline_errors: List[Dict]  # [{"layer": str, "message": str, "recoverable": bool}]
 
 
 # ── 노드 함수 (각 계층) ──────────────────────────────────────
 
+def _add_error(state: AgentState, layer: str, message: str, recoverable: bool) -> List[Dict]:
+    """pipeline_errors 리스트에 오류 추가 (immutable 반환)."""
+    errors = list(state.get("pipeline_errors") or [])
+    errors.append({"layer": layer, "message": message, "recoverable": recoverable})
+    return errors
+
+
 async def _extract(state: AgentState) -> AgentState:
     """계층 1: 텍스트 → RawEntity (청킹 후 배치 처리)"""
     logger.info("langgraph_node", node="extract")
-    ingest = IngestService()
-    chunks = ingest.chunk_text(
-        text=state["manuscript"].content,
-        source_id="agent-manuscript",
-        source_name=state["manuscript"].title,
-    )
-    logger.info("agent_chunks", total=len(chunks))
-    svc = ExtractionService()
-    raws = await svc.extract_from_chunks(chunks, source_type="scenario")
-    return {**state, "raw_extraction": raws}
+    try:
+        ingest = IngestService()
+        chunks = ingest.chunk_text(
+            text=state["manuscript"].content,
+            source_id="agent-manuscript",
+            source_name=state["manuscript"].title,
+        )
+        logger.info("agent_chunks", total=len(chunks))
+        svc = ExtractionService()
+        raws = await svc.extract_from_chunks(chunks, source_type="scenario")
+        return {**state, "raw_extraction": raws}
+    except Exception as e:
+        logger.error("extract_failed", error=str(e))
+        return {
+            **state,
+            "raw_extraction": [],
+            "pipeline_errors": _add_error(state, "extraction", f"추출 실패: {e}", False),
+        }
 
 
 async def _normalize(state: AgentState) -> AgentState:
     """계층 2: RawEntity → NormalizedEntity"""
     logger.info("langgraph_node", node="normalize")
-    svc = NormalizationService()
-    normalized = await svc.normalize(extractions=state["raw_extraction"])
-    return {**state, "normalized": normalized}
+    if not state.get("raw_extraction"):
+        return {
+            **state,
+            "normalized": None,
+            "pipeline_errors": _add_error(state, "normalization", "추출 결과가 없어 정규화를 건너뜁니다", True),
+        }
+    try:
+        svc = NormalizationService()
+        normalized = await svc.normalize(extractions=state["raw_extraction"])
+        return {**state, "normalized": normalized}
+    except Exception as e:
+        logger.error("normalize_failed", error=str(e))
+        return {
+            **state,
+            "normalized": None,
+            "pipeline_errors": _add_error(state, "normalization", f"정규화 실패: {e}", False),
+        }
 
 
 def _snapshot(state: AgentState) -> AgentState:
     """계층 3 준비: canonical graph → In-Memory 스냅샷 복제 (canonical 보호)."""
     logger.info("langgraph_node", node="snapshot")
-    canonical = get_graph_service()
-    snapshot = canonical.snapshot_graph()
-    return {**state, "snapshot": snapshot}
+    try:
+        canonical = get_graph_service()
+        snapshot = canonical.snapshot_graph()
+        return {**state, "snapshot": snapshot}
+    except Exception as e:
+        logger.error("snapshot_failed", error=str(e))
+        return {
+            **state,
+            "snapshot": None,
+            "pipeline_errors": _add_error(state, "snapshot", f"스냅샷 생성 실패: {e}", False),
+        }
 
 
 def _materialize(state: AgentState) -> AgentState:
@@ -68,7 +106,18 @@ def _materialize(state: AgentState) -> AgentState:
     snapshot: InMemoryGraphService = state["snapshot"]
     normalized = state["normalized"]
 
-    if normalized and snapshot:
+    if not snapshot:
+        return {
+            **state,
+            "pipeline_errors": _add_error(state, "materialize", "스냅샷이 없어 적재를 건너뜁니다", True),
+        }
+    if not normalized:
+        return {
+            **state,
+            "pipeline_errors": _add_error(state, "materialize", "정규화 결과가 없어 적재를 건너뜁니다", True),
+        }
+
+    try:
         source = Source(
             source_id="snapshot",
             source_type=SourceType.MANUSCRIPT,
@@ -76,6 +125,12 @@ def _materialize(state: AgentState) -> AgentState:
             file_path="",
         )
         snapshot.materialize(normalized, source)
+    except Exception as e:
+        logger.error("materialize_failed", error=str(e))
+        return {
+            **state,
+            "pipeline_errors": _add_error(state, "materialize", f"그래프 적재 실패: {e}", False),
+        }
 
     return state  # snapshot 객체 자체가 변경됨 (mutable)
 
@@ -84,19 +139,38 @@ def _detect(state: AgentState) -> AgentState:
     """계층 4: 스냅샷에서 7가지 모순 탐지"""
     logger.info("langgraph_node", node="detect")
     snapshot: InMemoryGraphService = state["snapshot"]
-    violations = snapshot.find_all_violations()
-    logger.info(
-        "detect_complete",
-        hard=len(violations.get("hard", [])),
-        soft=len(violations.get("soft", [])),
-    )
-    return {**state, "violations": violations}
+    if not snapshot:
+        return {
+            **state,
+            "violations": {},
+            "pipeline_errors": _add_error(state, "detect", "스냅샷이 없어 탐지를 건너뜁니다", True),
+        }
+    try:
+        violations = snapshot.find_all_violations()
+        logger.info(
+            "detect_complete",
+            hard=len(violations.get("hard", [])),
+            soft=len(violations.get("soft", [])),
+        )
+        return {**state, "violations": violations}
+    except Exception as e:
+        logger.error("detect_failed", error=str(e))
+        return {
+            **state,
+            "violations": {},
+            "pipeline_errors": _add_error(state, "detect", f"모순 탐지 실패: {e}", False),
+        }
 
 
 async def _respond(state: AgentState) -> AgentState:
     """계층 4: violations → AnalysisResponse + 스냅샷 폐기 (canonical 보호 완료)"""
     logger.info("langgraph_node", node="respond")
     violations = state["violations"]
+    errors = state.get("pipeline_errors") or []
+
+    # pipeline_errors → PipelineError 변환
+    from app.models.api import PipelineError
+    pe_list = [PipelineError(**e) for e in errors]
 
     # [approve]: 모순이 전혀 없으면 빈 결과 즉시 반환
     if not violations.get("hard") and not violations.get("soft"):
@@ -104,6 +178,7 @@ async def _respond(state: AgentState) -> AgentState:
         return {**state, "snapshot": None, "result": AnalysisResponse(
             contradictions=[], confirmations=[], total=0,
             llm_cost=get_tracker().summary(),
+            pipeline_errors=pe_list,
         )}
 
     svc = DetectionService()
@@ -121,6 +196,9 @@ async def _respond(state: AgentState) -> AgentState:
         for conf in result.confirmations:
             canonical.upsert_vertex(conf)
         logger.info("confirmations_persisted", count=len(result.confirmations))
+
+    # 파이프라인 오류를 result에 합류
+    result.pipeline_errors = pe_list
 
     # 스냅샷 폐기: canonical graph는 한 번도 건드리지 않았음
     return {**state, "snapshot": None, "result": result}
@@ -169,6 +247,7 @@ class ContiCheckAgent:
             "violations": {},
             "result": None,
             "error": None,
+            "pipeline_errors": [],
         }
 
         final = await self._graph.ainvoke(initial)
