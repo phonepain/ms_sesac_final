@@ -31,6 +31,12 @@ class DocumentChunk(BaseModel):
     content: str
     location: ChunkLocation
 
+class PipelineError(BaseModel):
+    """파이프라인 단계별 오류 정보"""
+    layer: str              # "extraction", "normalization", "materialize", "search", "detect" 등
+    message: str            # 오류 메시지
+    recoverable: bool       # True이면 해당 단계를 건너뛰고 계속 진행됨
+
 class IngestResponse(BaseModel):
     source_id: str
     source_name: str
@@ -39,6 +45,7 @@ class IngestResponse(BaseModel):
     stats: dict[str, Any]
     extracted_entities: int
     content_filter_blocked_chunks: List[str] = Field(default_factory=list)
+    pipeline_errors: List[PipelineError] = Field(default_factory=list)
 
 # ==========================================
 # Analysis & Detection Models
@@ -79,6 +86,7 @@ class AnalysisResponse(BaseModel):
     soft_count: int = 0
     processing_time_ms: int = 0
     llm_cost: Optional[dict] = None
+    pipeline_errors: List[PipelineError] = Field(default_factory=list)
 
     @classmethod
     def from_contradictions(cls, contradictions: List[ContradictionReport], confirmations: List[UserConfirmation], processing_time_ms: int = 0) -> 'AnalysisResponse':
@@ -132,6 +140,7 @@ class VersionInfo(BaseModel):
     description: str
     snapshot_path: str = ""
     src: str = ""  # 소스 파일명 (프론트엔드 버전 카드 배지용)
+    pipeline_errors: List[PipelineError] = Field(default_factory=list)
 
 class ErrorResponse(BaseModel):
     detail: str
