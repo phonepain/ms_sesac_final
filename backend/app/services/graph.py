@@ -1000,6 +1000,7 @@ class _ViolationMixin:
                         continue
                     seen.add(vkey)
                     # 수치 비교가 수학적으로 명확한 경우 Hard 승격
+                    # min_duration (이동) → Hard, min_duration_general (비이동) → Soft
                     is_definite = (
                         (constraint["type"] == "min_duration"
                          and ev_val["type"] == "duration_taken"
@@ -1052,18 +1053,57 @@ class _ViolationMixin:
         return result[:5]
 
     _LOCKOUT_WORDS = re.compile(r'봉쇄|차단|폐쇄|통제|출입금지|진입불가|제한|잠금|락다운|lockdown|봉인')
+    _MOVEMENT_WORDS = re.compile(
+        r'이동|소요|거리|경로|도착|출발|왕복|편도|걸어|차로|도보|운전|비행|항해'
+        r'|구간|노선|통로|접근|진입|탈출|횡단|통과|수송|운반|운송|배달'
+    )
+    _NON_MOVEMENT_WORDS = re.compile(
+        r'약물|약효|투여|진정제|마취|기억|의식|사망|치료|효과|회복|발현'
+        r'|독|해독|감염|잠복|발작|수술|치유|중독|복용|증상|판정|부작용'
+        r'|충전|냉각|재시동|부팅|워밍업|준비|세팅|셋업|작동|가동'
+    )
+
+    # 시각 표현: "N시 M분" — M분이 duration이 아님
+    _CLOCK_TIME_RE = re.compile(r'\d+\s*시\s*(\d+)\s*분')
 
     def _extract_fact_constraints(self, fact_content: str) -> List[Dict]:
-        """세계 규칙 fact에서 수치 제약 추출"""
+        """세계 규칙 fact에서 수치 제약 추출.
+
+        '최소/최단/적어도 N분 이상/소요/걸림' 형태의 duration 제약만 추출.
+        시각 표현('22시 18분')의 '분'은 제외.
+        """
         constraints = []
+        # 시각 표현의 '분' 위치를 미리 수집 (제외 대상)
+        clock_minute_positions: set = set()
+        for cm in self._CLOCK_TIME_RE.finditer(fact_content):
+            clock_minute_positions.add(cm.start(1))  # '분' 앞 숫자 시작 위치
+
+        # duration 제약 추출 — 반드시 '최소/최단/적어도' 또는 '이상/소요/걸림/걸린다' 수식어 필요
         for m in re.finditer(
-            r'(?:최소|최단|적어도)?\s*(\d+)\s*(분|시간|초)(?:\s*(?:이상|소요|걸림|이내))?',
+            r'(?:최소|최단|적어도)\s*(\d+)\s*(분|시간|초)(?:\s*(?:이상|소요|걸림|이내))?'
+            r'|(\d+)\s*(분|시간|초)\s*(?:이상|소요|걸림|걸린다|이내)',
             fact_content,
         ):
+            # 시각 표현의 분인지 확인
+            num_str = m.group(1) or m.group(3)
+            unit = m.group(2) or m.group(4)
+            num_start = m.start(1) if m.group(1) else m.start(3)
+            if num_start in clock_minute_positions:
+                continue  # 시각 표현이므로 스킵
+
+            value = int(num_str)
+            # 이동/경로 관련 fact만 min_duration으로 분류
+            # 약물/기억/사망 등 비이동 시간 규칙은 min_duration_general로 분류
+            is_movement = bool(self._MOVEMENT_WORDS.search(fact_content))
+            is_non_movement = bool(self._NON_MOVEMENT_WORDS.search(fact_content))
+            if is_non_movement and not is_movement:
+                ctype = "min_duration_general"
+            else:
+                ctype = "min_duration"
             constraints.append({
-                "type": "min_duration",
-                "value": int(m.group(1)),
-                "unit": m.group(2),
+                "type": ctype,
+                "value": value,
+                "unit": unit,
                 "raw": m.group().strip(),
             })
         # 시각 통제: "N시 이후/부터" 패턴 + 같은 fact에 봉쇄/제한 계열 단어 존재
@@ -1111,6 +1151,12 @@ class _ViolationMixin:
                 return (
                     f"세계 규칙 위반 — 최소 {cval}{unit} 소요 구간을 "
                     f"{evval}{evunit} 만에 이동(story_order={so}): {desc[:80]}"
+                )
+        if ctype == "min_duration_general" and evtype == "duration_taken" and unit == evunit:
+            if evval < cval:
+                return (
+                    f"세계 규칙 위반 — 최소 {cval}{unit} 필요한 과정이 "
+                    f"{evval}{evunit} 만에 완료(story_order={so}): {desc[:80]}"
                 )
         if ctype == "lockout_after_hour" and evtype == "clock_time" and evunit == "시":
             if evval >= cval:
