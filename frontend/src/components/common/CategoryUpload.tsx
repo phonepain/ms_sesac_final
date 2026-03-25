@@ -15,12 +15,16 @@ export default function CategoryUpload({ categoryKey, files, pendingFiles, onAdd
   const inputRef = useRef<HTMLInputElement>(null);
   const [isOver, setIsOver] = useState(false);
 
+  const isValidFile = (f: File) => /\.(txt|pdf)$/i.test(f.name);
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const droppedFiles = Array.from(e.dataTransfer.files).filter(f => f.name.match(/\.(txt|pdf)$/i));
-      if (droppedFiles.length > 0) onAddFiles(categoryKey, droppedFiles);
+      const all = Array.from(e.dataTransfer.files);
+      const valid = all.filter(isValidFile);
+      if (valid.length < all.length) alert('txt 또는 pdf 파일만 업로드 가능합니다');
+      if (valid.length > 0) onAddFiles(categoryKey, valid);
     }
   };
 
@@ -48,7 +52,10 @@ export default function CategoryUpload({ categoryKey, files, pendingFiles, onAdd
           className="hidden"
           onChange={e => {
             if (e.target.files) {
-              onAddFiles(categoryKey, Array.from(e.target.files));
+              const all = Array.from(e.target.files);
+              const valid = all.filter(isValidFile);
+              if (valid.length < all.length) alert('txt 또는 pdf 파일만 업로드 가능합니다');
+              if (valid.length > 0) onAddFiles(categoryKey, valid);
               e.target.value = '';
             }
           }}
