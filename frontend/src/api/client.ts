@@ -3,7 +3,7 @@
  * Base URL and common fetch wrappers for communicating with the FastAPI backend.
  */
 
-const BASE_URL = 'http://127.0.0.1:8000/api';
+export const BASE_URL = 'http://127.0.0.1:8000/api';
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string>;
