@@ -145,6 +145,8 @@ async def upload_source(
         ingest_result.chunks, source_type
     )
 
+    blocked_chunks = [r.source_chunk_id for r in extraction_results if r.content_filter_blocked]
+
     normalization_svc = NormalizationService()
     normalization_result = await normalization_svc.normalize(extraction_results)
 
@@ -167,20 +169,31 @@ async def upload_source(
         fields={"extracted_entities": extracted_entities},
     )
 
-    logger.info(
-        "source_uploaded",
-        source_id=source_id,
-        file_path=ingest_result.file_path,
-        extracted_entities=extracted_entities,
-    )
+    status = "processed"
+    if blocked_chunks:
+        status = "partial"
+        logger.warning(
+            "source_uploaded_partial",
+            source_id=source_id,
+            blocked_chunks=len(blocked_chunks),
+            total_chunks=len(ingest_result.chunks),
+        )
+    else:
+        logger.info(
+            "source_uploaded",
+            source_id=source_id,
+            file_path=ingest_result.file_path,
+            extracted_entities=extracted_entities,
+        )
 
     return IngestResponse(
         source_id=source_id,
         source_name=filename,
         file_path=ingest_result.file_path,
-        status="processed",
-        stats={"chunks": len(ingest_result.chunks)},
+        status=status,
+        stats={"chunks": len(ingest_result.chunks), "blocked": len(blocked_chunks)},
         extracted_entities=extracted_entities,
+        content_filter_blocked_chunks=blocked_chunks,
     )
 
 @app.get("/api/sources")
@@ -272,6 +285,8 @@ async def reupload_source(
         ingest_result.chunks, source_type
     )
 
+    blocked_chunks = [r.source_chunk_id for r in extraction_results if r.content_filter_blocked]
+
     normalization_svc = NormalizationService()
     normalization_result = await normalization_svc.normalize(extraction_results)
 
@@ -290,15 +305,26 @@ async def reupload_source(
         + len(normalization_result.facts)
         + len(normalization_result.events)
     )
-    logger.info("source_reuploaded", source_id=source_id, file_path=ingest_result.file_path)
+
+    status = "reuploaded"
+    if blocked_chunks:
+        status = "reuploaded_partial"
+        logger.warning(
+            "source_reuploaded_partial",
+            source_id=source_id,
+            blocked_chunks=len(blocked_chunks),
+        )
+    else:
+        logger.info("source_reuploaded", source_id=source_id, file_path=ingest_result.file_path)
 
     return IngestResponse(
         source_id=source_id,
         source_name=filename,
         file_path=ingest_result.file_path,
-        status="reuploaded",
-        stats={"chunks": len(ingest_result.chunks)},
+        status=status,
+        stats={"chunks": len(ingest_result.chunks), "blocked": len(blocked_chunks)},
         extracted_entities=extracted_entities,
+        content_filter_blocked_chunks=blocked_chunks,
     )
 
 @app.get("/api/sources/{source_id}/download")
@@ -410,6 +436,7 @@ class StageFixRequest(BaseModel):
     fixed_text: Optional[str] = ""
     is_intentional: bool = False
     intent_note: str = ""
+    chunk_id: Optional[str] = ""
 
 @app.delete("/api/fixes/stage/{contradiction_id}")
 async def unstage_fix(contradiction_id: str):
@@ -432,6 +459,7 @@ async def stage_fix(req: StageFixRequest):
             fixed_text=req.fixed_text or "",
             is_intentional=req.is_intentional,
             intent_note=req.intent_note,
+            chunk_id=req.chunk_id or "",
         )
         return {"status": "staged", "contradiction_id": fix.contradiction_id, "staged_at": fix.staged_at.isoformat(), "is_intentional": fix.is_intentional}
     except Exception as e:

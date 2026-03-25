@@ -275,6 +275,7 @@ export default function App() {
             ft: c.location || '정보', dl: c.dialogue || '', ds: c.description,
             ev: (c.evidence || []).map((e: any) => ({ sr: e.source_name, lc: e.source_location, tx: e.text })),
             cf: c.confidence, sg: c.suggestion || '', al: c.alternative || null, ot: c.original_text || '',
+            chunkId: c.chunk_id || '', chunkContent: c.chunk_content || '',
           })),
           ...(res.confirmations || []).map((c: any) => ({
             id: c.id, sv: 'warning' as any, tp: CONFIRMATION_TYPE_LABELS[c.confirmation_type] ?? c.confirmation_type, ch: '사용자 확인 필요',
@@ -313,6 +314,8 @@ export default function App() {
           sg: c.suggestion || '',
           al: c.alternative || null,
           ot: c.original_text || '',
+          chunkId: c.chunk_id || '',
+          chunkContent: c.chunk_content || '',
         })),
         ...(res.confirmations || []).map((c: any) => ({
           id: c.id,
@@ -341,7 +344,7 @@ export default function App() {
       if (fx.isIntentional) {
         await versionApi.stageIntentional(fx.id, fx.intentNote || "");
       } else {
-        await versionApi.stageFix(fx.id, fx.ot || "", fx.fixedText || "");
+        await versionApi.stageFix(fx.id, fx.ot || "", fx.fixedText || "", fx.chunkId || "");
       }
     } catch (e) {
       console.error(e);

@@ -164,6 +164,8 @@ def _make_violation(
     confirmation_type: Optional[ConfirmationType] = None,
     dialogue: Optional[str] = None,
     suggestion: Optional[str] = None,
+    original_text: Optional[str] = None,
+    chunk_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     return {
         "id": str(uuid.uuid4()),
@@ -178,6 +180,8 @@ def _make_violation(
         "confirmation_type": confirmation_type,
         "dialogue": dialogue,
         "suggestion": suggestion,
+        "original_text": original_text,
+        "chunk_id": chunk_id,
         # Hard = confidence≥0.8 이고 사용자 확인 불필요
         "is_hard": confidence >= 0.8 and not needs_user_input,
     }
@@ -983,19 +987,29 @@ class _ViolationMixin:
                     if vkey in seen:
                         continue
                     seen.add(vkey)
+                    # 수치 비교가 수학적으로 명확한 경우 Hard 승격
+                    is_definite = (
+                        (constraint["type"] == "min_duration"
+                         and ev_val["type"] == "duration_taken"
+                         and ev_val["value"] < constraint["value"])
+                        or
+                        (constraint["type"] == "lockout_after_hour"
+                         and ev_val["type"] == "clock_time"
+                         and ev_val["value"] >= constraint["value"])
+                    )
                     violations.append(_make_violation(
                         vtype=ContradictionType.TIMELINE,
-                        severity=Severity.MAJOR,
+                        severity=Severity.CRITICAL if is_definite else Severity.MAJOR,
                         description=msg,
-                        confidence=0.75,
+                        confidence=0.95 if is_definite else 0.75,
                         evidence=[{
                             "fact": constraint["fact_content"],
                             "compared_text": desc[:100],
                             "constraint": constraint,
                             "event_value": ev_val,
                         }],
-                        needs_user_input=True,
-                        confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY,
+                        needs_user_input=not is_definite,
+                        confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY if not is_definite else None,
                         suggestion=(
                             "세계 규칙의 수치 제약과 이벤트 내용을 일치시키거나 "
                             "예외 상황을 명시하세요."
@@ -1163,14 +1177,16 @@ class _ViolationMixin:
                 if vkey in seen:
                     continue
                 seen.add(vkey)
+                # 타임스탬프 차이가 제약보다 확실히 작으면 Hard
+                is_definite = diff < cval
                 violations.append(_make_violation(
                     vtype=ContradictionType.TIMELINE,
-                    severity=Severity.MAJOR,
+                    severity=Severity.CRITICAL if is_definite else Severity.MAJOR,
                     description=(
                         f"세계 규칙 위반 — 최소 {constraint['value']}{constraint['unit']} 소요 구간을 "
                         f"{diff}분 만에 이동(story_order={curr['so']}): {curr['desc'][:60]}"
                     ),
-                    confidence=0.75,
+                    confidence=0.95 if is_definite else 0.75,
                     evidence=[{
                         "fact": constraint["fact_content"],
                         "prev_event": prev["desc"][:60],
@@ -1178,120 +1194,17 @@ class _ViolationMixin:
                         "time_diff_min": diff,
                         "required_min": cval,
                     }],
-                    needs_user_input=True,
-                    confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY,
+                    needs_user_input=not is_definite,
+                    confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY if not is_definite else None,
                     suggestion="이동 시간 또는 장면 시각을 수정하세요.",
                 ))
         return violations
 
-    # ── 세계 규칙 금지 사항 vs 이벤트 ─────────────────────────────
-
-    _WORLD_PROHIBITION_MARKERS = re.compile(
-        r'불가능|봉인|금지|반드시|필수|할 수 없|사용할 수 없'
-    )
+    # ── 세계 규칙 위반 탐지 (LLM 기반으로 이관됨) ─────────────────
 
     def find_world_rule_violations(self) -> List[Dict[str, Any]]:
-        """10. 세계 규칙 금지/필수 사항 vs 이벤트 행동 교차 검증."""
-        violations = []
-        all_facts = self._vertices_by_label("fact")
-
-        # 금지/필수 규칙 수집 (캐릭터 이름이 아닌 세계 규칙)
-        name_to_id: Dict[str, str] = {}
-        for cv in self._vertices_by_label("character"):
-            name = _prop(cv, "name") or _prop(cv, "canonical_name") or ""
-            if name:
-                name_to_id[name] = _prop(cv, "id")
-
-        rules: List[Dict] = []
-        for fv in all_facts:
-            content = str(_prop(fv, "content") or "")
-            if not self._WORLD_PROHIBITION_MARKERS.search(content):
-                continue
-            keywords = self._extract_subject_keywords(content)
-            # 캐릭터 이름 제거
-            keywords = [kw for kw in keywords if kw not in name_to_id]
-            if len(keywords) < 2:
-                continue
-            rules.append({
-                "content": content,
-                "keywords": keywords,
-                "fact_id": _prop(fv, "id"),
-            })
-
-        if not rules:
-            return violations
-
-        seen: set = set()
-        for ev in self._vertices_by_label("event"):
-            desc = str(_prop(ev, "description") or "")
-            so = _prop(ev, "story_order") or _prop(ev, "discourse_order") or 0
-            for rule in rules:
-                matched = [kw for kw in rule["keywords"] if kw in desc]
-                if len(matched) < 1:
-                    continue
-                vkey = (rule["fact_id"],)
-                if vkey in seen:
-                    continue
-                seen.add(vkey)
-                violations.append(_make_violation(
-                    vtype=ContradictionType.TIMELINE,
-                    severity=Severity.MAJOR,
-                    description=(
-                        f"세계 규칙 위반 가능 — 규칙: '{rule['content'][:60]}' "
-                        f"vs 이벤트(story_order={so}): {desc[:60]}"
-                    ),
-                    confidence=0.6,
-                    evidence=[{
-                        "rule": rule["content"],
-                        "event": desc[:100],
-                        "matched_keywords": matched,
-                    }],
-                    needs_user_input=True,
-                    confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY,
-                    suggestion="세계 규칙과 이벤트 행동의 모순 여부를 확인하세요.",
-                ))
-
-        # "없이" 패턴: 이벤트에서 "X 없이" → X 관련 규칙/아이템 소유 사실이 있는 경우
-        without_re = re.compile(r'(\S+)\s*없이')
-        for ev in self._vertices_by_label("event"):
-            desc = str(_prop(ev, "description") or "")
-            so = _prop(ev, "story_order") or _prop(ev, "discourse_order") or 0
-            for m in without_re.finditer(desc):
-                missing_item = m.group(1)
-                # fact/세계규칙에서 해당 아이템이 필수이거나 존재하는지 확인
-                for fv in all_facts:
-                    fc = str(_prop(fv, "content") or "")
-                    # 부분 매칭: "카드 없이" → "보안 카드", "패스카드" 등
-                    item_in_fact = missing_item in fc or any(
-                        missing_item in w for w in fc.split()
-                    )
-                    if not item_in_fact:
-                        continue
-                    if re.search(r'반드시|필수|필요|만이|만 가|착용|열 수 있|소유', fc):
-                        vkey = ("without", missing_item, _prop(fv, "id"))
-                        if vkey in seen:
-                            break
-                        seen.add(vkey)
-                        violations.append(_make_violation(
-                            vtype=ContradictionType.TIMELINE,
-                            severity=Severity.MAJOR,
-                            description=(
-                                f"세계 규칙 위반 — '{missing_item}' 없이 행동: {desc[:60]} "
-                                f"(규칙: {fc[:50]})"
-                            ),
-                            confidence=0.7,
-                            evidence=[{
-                                "rule": fc,
-                                "event": desc[:100],
-                                "missing": missing_item,
-                            }],
-                            needs_user_input=True,
-                            confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY,
-                            suggestion="필수 장비/아이템 없이 행동하는 모순을 수정하세요.",
-                        ))
-                        break
-
-        return violations
+        """detection.py _check_world_rules_with_llm()으로 이관됨. 빈 리스트 반환."""
+        return []
 
     def find_all_violations(self) -> Dict[str, List[Dict[str, Any]]]:
         """11가지 쿼리 통합 + Hard / Soft 분류 + 탐지기 간 중복 제거"""
@@ -1306,7 +1219,6 @@ class _ViolationMixin:
             + self.find_trait_event_violations()
             + self.find_fact_event_violations()
             + self._find_timestamp_violations()
-            + self.find_world_rule_violations()
         )
         # 탐지기 간 중복 제거
         # hard를 먼저 처리 → 동일 위반이 hard/soft 양쪽에서 탐지될 때 hard가 남도록
@@ -1316,11 +1228,27 @@ class _ViolationMixin:
         seen_desc: set = set()
         # (type, character_id) → 이미 등록된 key_parts set 목록 (Jaccard dedup용)
         seen_char_type_parts: Dict[Tuple, List[set]] = {}
+        # evidence 내 fact_id 기반 cross-type dedup (세계 규칙 탐지기 간 중복 제거)
+        seen_fact_ids: set = set()
 
         for v in raw_sorted:
             desc = v.get("description", "")
             key_parts = re.findall(r'[가-힣]{2,}', desc)
             key_parts_set = set(key_parts)
+
+            # 0단계: evidence 내 fact_id 기반 cross-type dedup
+            # 동일 fact 기반 세계 규칙 위반이 여러 탐지기에서 잡힐 때 Hard 우선 유지
+            evidence_list = v.get("evidence") or []
+            fact_id = None
+            for ev_item in evidence_list:
+                if isinstance(ev_item, dict):
+                    fact_id = ev_item.get("fact_id") or ev_item.get("fact")
+                    if fact_id:
+                        break
+            if fact_id and fact_id in seen_fact_ids:
+                continue
+            if fact_id:
+                seen_fact_ids.add(fact_id)
 
             # 1단계: 기존 exact dedup
             dedup_key = (v.get("type", ""), tuple(sorted(key_parts_set)))
@@ -1789,6 +1717,9 @@ class GremlinGraphService(_ViolationMixin):
                     description=nc.description,
                 )
                 char_dict = _vertex_to_dict(char)
+                # chunk_id 기록: merged_from의 첫 번째 source_chunk_id
+                if nc.merged_from:
+                    char_dict["chunk_id"] = nc.merged_from[0].source_chunk_id or ""
                 self.add_character(char_dict)
                 self.add_sourced_from(char_dict["id"], source_id, {
                     "source_id": source_id,
@@ -1832,6 +1763,9 @@ class GremlinGraphService(_ViolationMixin):
                     source_location="",
                 )
                 fact_dict = _vertex_to_dict(fact)
+                # chunk_id 기록
+                if nf.merged_from:
+                    fact_dict["chunk_id"] = nf.merged_from[0].source_chunk_id or ""
                 self.add_fact(fact_dict)
                 self.add_sourced_from(fact_dict["id"], source_id, {
                     "source_id": source_id,
@@ -1850,6 +1784,7 @@ class GremlinGraphService(_ViolationMixin):
                     "location": ne.location,
                     "status_char": ne.status_char,
                     "characters_involved": ne.characters_involved,
+                    "chunk_id": ne.merged_from[0].source_chunk_id if ne.merged_from else "",
                 }
                 for ne in normalized.events
             ]
@@ -1866,6 +1801,7 @@ class GremlinGraphService(_ViolationMixin):
                 )
                 event_dict = _vertex_to_dict(event)
                 event_dict["characters_involved"] = ev_data.get("characters_involved") or []
+                event_dict["chunk_id"] = ev_data.get("chunk_id") or ""
                 self.add_event(event_dict)
                 self.add_sourced_from(event_dict["id"], source_id, {
                     "source_id": source_id,
@@ -2791,6 +2727,9 @@ class InMemoryGraphService(_ViolationMixin):
                 description=nc.description,
             )
             char_dict = _vertex_to_dict(char)
+            # chunk_id 기록: merged_from의 첫 번째 source_chunk_id
+            if nc.merged_from:
+                char_dict["chunk_id"] = nc.merged_from[0].source_chunk_id or ""
             self.add_character(char_dict)
             self.add_sourced_from(char_dict["id"], source_id, {
                 "source_id": source_id,
@@ -2834,6 +2773,9 @@ class InMemoryGraphService(_ViolationMixin):
                 source_location="",
             )
             fact_dict = _vertex_to_dict(fact)
+            # chunk_id 기록
+            if nf.merged_from:
+                fact_dict["chunk_id"] = nf.merged_from[0].source_chunk_id or ""
             self.add_fact(fact_dict)
             self.add_sourced_from(fact_dict["id"], source_id, {
                 "source_id": source_id,
@@ -2853,6 +2795,7 @@ class InMemoryGraphService(_ViolationMixin):
                 "location": ne.location,
                 "status_char": ne.status_char,
                 "characters_involved": ne.characters_involved,
+                "chunk_id": ne.merged_from[0].source_chunk_id if ne.merged_from else "",
             }
             for ne in normalized.events
         ]
@@ -2870,6 +2813,7 @@ class InMemoryGraphService(_ViolationMixin):
             event_dict = _vertex_to_dict(event)
             # Event 모델에 없는 characters_involved를 dict에 직접 추가 (resurrection 탐지용)
             event_dict["characters_involved"] = ev_data.get("characters_involved") or []
+            event_dict["chunk_id"] = ev_data.get("chunk_id") or ""
             self.add_event(event_dict)
             self.add_sourced_from(event_dict["id"], source_id, {
                 "source_id": source_id,
