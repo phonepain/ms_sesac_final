@@ -1269,8 +1269,8 @@ class _ViolationMixin:
             if dedup_key in seen_desc:
                 continue
 
-            # 2단계: Jaccard 유사도 dedup (character_id가 있는 경우)
-            # 동일 (type, character_id) 조합에서 key_parts가 50% 이상 겹치면 중복으로 판단
+            # 2단계: Jaccard 유사도 dedup
+            # (a) character_id가 있으면 동일 (type, character_id) 조합에서 50% 이상 겹치면 중복
             char_id = v.get("character_id") or ""
             if char_id:
                 ct_key = (str(v.get("type", "")), char_id)
