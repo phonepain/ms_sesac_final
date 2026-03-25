@@ -33,7 +33,8 @@ export default function ContradictionCard({ item, isStaged, onStage, onUnstageFi
   const [dec, setDec] = useState<DecisionType | null>(null);
   const [intentNote, setIntentNote] = useState('');
   const [intentSaved, setIntentSaved] = useState(false);
-  const [fixedText, setFixedText] = useState(item.ot || '');
+  const origText = item.ot || '';
+  const [fixedText, setFixedText] = useState(origText);
 
   // Fallback: sv가 없으면 info로 대체
   const sv = SV_COLORS[item?.sv] ?? SV_COLORS.info;
@@ -55,7 +56,6 @@ export default function ContradictionCard({ item, isStaged, onStage, onUnstageFi
   const desc       = item.ds  || '(설명 없음)';
   const suggestion = item.sg  || '';
   const alt        = item.al  || '';
-  const origText   = item.ot  || '';
   const evidence   = Array.isArray(item.ev) ? item.ev : [];
   const confidence = typeof item.cf === 'number' ? item.cf : 0;
 
@@ -290,11 +290,28 @@ export default function ContradictionCard({ item, isStaged, onStage, onUnstageFi
             {/* 수정 모드 */}
             {dec === 'fix' && !isStaged && (
               <div className="fade flex flex-col gap-2">
-                <div className="text-[10px] font-semibold text-[#a89880]">✍️ 수정할 내용을 입력하세요</div>
+                {/* 원본 텍스트 표시 (읽기전용) */}
+                {origText ? (
+                  <div>
+                    <div className="text-[10px] font-semibold text-[#b83232] mb-1">📌 원본 텍스트</div>
+                    <div
+                      className="w-full bg-[#fdf6f0] border border-[rgba(184,50,50,0.15)] rounded-lg px-3 py-2 text-[12px] text-[#6b5c47] leading-relaxed"
+                      style={{ minHeight: 48, wordBreak: 'break-word' }}
+                    >
+                      {origText}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-[10px] text-[#a89880] italic">
+                    원본 텍스트가 제공되지 않았습니다. 수정할 내용을 직접 입력하세요.
+                  </div>
+                )}
+                <div className="text-[10px] font-semibold text-[#2d7a56] mb-0.5">✍️ 수정 후 텍스트</div>
                 <textarea
                   value={fixedText}
                   onChange={e => setFixedText(e.target.value)}
                   rows={3}
+                  placeholder={origText ? "위 원본을 수정한 내용을 입력하세요..." : "수정할 내용을 입력하세요..."}
                   className="w-full bg-white border border-[#ede4d8] rounded-lg px-3 py-2 text-[12px] text-[#2c2416] outline-none resize-none focus:border-[#c4622d] leading-relaxed"
                   style={{ minHeight: 72 }}
                 />
@@ -306,7 +323,7 @@ export default function ContradictionCard({ item, isStaged, onStage, onUnstageFi
                     취소
                   </button>
                   <button
-                    onClick={() => onStage({ id: item.id, ch: charName, tp: typeLabel, ot: origText, fixedText })}
+                    onClick={() => onStage({ id: item.id, ch: charName, tp: typeLabel, ot: origText, fixedText, chunkId: item.chunkId })}
                     className="text-[11px] font-bold text-white bg-[#2d7a56] px-4 py-1.5 rounded-lg hover:bg-[#255f44] transition-colors"
                   >
                     ✓ 수정 저장하기

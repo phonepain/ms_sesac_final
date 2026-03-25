@@ -80,6 +80,7 @@ class StagedFix:
     fixed_text: str
     is_intentional: bool = False
     intent_note: str = ""
+    chunk_id: str = ""
     staged_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
 
 
@@ -212,6 +213,7 @@ class VersionService:
         fixed_text: str = "",
         is_intentional: bool = False,
         intent_note: str = "",
+        chunk_id: str = "",
     ) -> StagedFix:
         """
         수정 사항을 스테이징 큐에 등록합니다.
@@ -237,6 +239,7 @@ class VersionService:
             fixed_text=fixed_text,
             is_intentional=is_intentional,
             intent_note=intent_note,
+            chunk_id=chunk_id,
         )
         self._staging[contradiction_id] = fix
 
@@ -767,13 +770,17 @@ def _apply_text_fixes(
     content: str,
     fixes: list[StagedFix],
     log: structlog.BoundLogger,
+    chunk_contents: dict[str, str] | None = None,
 ) -> tuple[str, list[StagedFix], list[StagedFix]]:
     """
     원고 텍스트에 픽스를 순차 적용합니다.
 
     적용 순서:
     - staged_at 오름차순(선입선출)
-    - 각 픽스는 첫 번째 일치 항목만 치환
+    - chunk_id가 있으면 해당 청크 범위 내에서만 치환 (위치 안전)
+    - chunk_id가 없으면 첫 번째 일치 항목만 치환 (기존 방식)
+
+    chunk_contents: chunk_id → 청크 텍스트 맵 (있으면 범위 제한 치환에 사용)
     """
     current = content
     applied: list[StagedFix] = []
@@ -791,6 +798,25 @@ def _apply_text_fixes(
             )
             failed.append(fix)
             continue
+
+        # chunk_id 기반 위치 제한 치환
+        if fix.chunk_id and chunk_contents and fix.chunk_id in chunk_contents:
+            chunk_text = chunk_contents[fix.chunk_id]
+            # 청크 텍스트가 원고에서 시작하는 위치를 찾아 범위 내에서만 치환
+            chunk_start = current.find(chunk_text)
+            if chunk_start >= 0:
+                chunk_end = chunk_start + len(chunk_text)
+                chunk_region = current[chunk_start:chunk_end]
+                idx_in_chunk = chunk_region.find(fix.original_text)
+                if idx_in_chunk >= 0:
+                    abs_start = chunk_start + idx_in_chunk
+                    abs_end = abs_start + len(fix.original_text)
+                    current = current[:abs_start] + fix.fixed_text + current[abs_end:]
+                    applied.append(fix)
+                    log.debug("fix_applied_chunk_scoped", contradiction_id=fix.contradiction_id, chunk_id=fix.chunk_id)
+                    continue
+            # 청크 범위 매칭 실패 시 폴백 → 첫 번째 일치 치환
+            log.debug("chunk_scope_fallback", contradiction_id=fix.contradiction_id, chunk_id=fix.chunk_id)
 
         current = current.replace(fix.original_text, fix.fixed_text, 1)
         applied.append(fix)

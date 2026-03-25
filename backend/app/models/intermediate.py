@@ -76,6 +76,7 @@ class ExtractionResult(BaseModel):
     item_events: List[RawItemEvent] = Field(default_factory=list)
     knowledge_events: List[RawKnowledgeEvent] = Field(default_factory=list)
     source_chunk_id: Optional[str] = None
+    content_filter_blocked: bool = False
 
 
 # ==========================================

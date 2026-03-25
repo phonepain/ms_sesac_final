@@ -75,6 +75,8 @@ export interface Contradiction {
   sg: string;
   al: string | null;
   ot?: string;
+  chunkId?: string;
+  chunkContent?: string;
 }
 
 export interface StagedFix {
@@ -85,6 +87,7 @@ export interface StagedFix {
   fixedText?: string;
   isIntentional?: boolean;
   intentNote?: string;
+  chunkId?: string;
 }
 
 export interface Version {
