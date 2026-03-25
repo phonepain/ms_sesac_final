@@ -41,10 +41,12 @@ export default function AiChatPanel() {
   };
 
   return (
-    <div className="bg-white border border-[#ede4d8] rounded-2xl flex flex-col" style={{ height: '100%', minHeight: '360px' }}
-      style={{ boxShadow: "0 2px 8px rgba(44,36,22,0.06)" }}>
-      {/* 헤더 */}
-      <div className="px-4 py-3 border-b border-[#ede4d8] flex items-center gap-2 bg-[#fff8f0] rounded-t-2xl">
+    <div
+      className="bg-white border border-[#ede4d8] rounded-2xl flex flex-col h-full"
+      style={{ minHeight: '360px', boxShadow: '0 2px 8px rgba(44,36,22,0.06)' }}
+    >
+      {/* 헤더 — 상단 고정 */}
+      <div className="flex-shrink-0 px-4 py-3 border-b border-[#ede4d8] flex items-center gap-2 bg-[#fff8f0] rounded-t-2xl">
         <div className="w-7 h-7 rounded-full bg-[#c4622d] flex items-center justify-center text-base">🤖</div>
         <div>
           <div className="text-xs font-bold text-[#2c2416]">AI에게 질문하기</div>
@@ -52,8 +54,8 @@ export default function AiChatPanel() {
         </div>
       </div>
 
-      {/* 메시지 */}
-      <div className="flex-1 overflow-auto p-3 flex flex-col gap-2">
+      {/* 메시지 — 남은 공간 채우며 스크롤 */}
+      <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
         {messages.map((m, i) => (
           <div
             key={i}
@@ -74,8 +76,8 @@ export default function AiChatPanel() {
         <div ref={endRef} />
       </div>
 
-      {/* 입력창 */}
-      <div className="p-2.5 border-t border-[#ede4d8] flex gap-2">
+      {/* 입력창 — 하단 고정 */}
+      <div className="flex-shrink-0 p-2.5 border-t border-[#ede4d8] flex gap-2">
         <input
           value={input}
           onChange={e => setInput(e.target.value)}

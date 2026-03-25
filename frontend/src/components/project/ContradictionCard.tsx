@@ -2,6 +2,25 @@ import { useState } from 'react';
 import { SV_COLORS } from '../../types';
 import type { Contradiction, StagedFix, DecisionType } from '../../types';
 
+const TYPE_LABELS: Record<string, string> = {
+  information_asymmetry: "정보 비대칭",
+  timeline: "타임라인 오류",
+  relationship: "관계 충돌",
+  trait: "성격·설정 충돌",
+  emotion: "감정 일관성 오류",
+  item: "소유물 추적 오류",
+  deception: "거짓말·기만 오류",
+  flashback_check: "회상 장면 확인",
+  intentional_change: "의도적 설정 변경",
+  foreshadowing: "복선 가능성",
+  source_conflict: "소스 간 충돌",
+  unreliable_narrator: "비신뢰 서술자",
+  timeline_ambiguity: "시간 순서 불명확",
+  relationship_ambiguity: "관계 불명확",
+  emotion_shift: "감정 급변",
+  item_discrepancy: "소유물 불일치",
+}
+
 interface ContradictionCardProps {
   item: Contradiction;
   isStaged: boolean;
@@ -31,7 +50,7 @@ export default function ContradictionCard({ item, isStaged, onStage, onUnstageFi
 
   // 데이터 없을 때 fallback
   const charName   = item.ch  || '(캐릭터 미상)';
-  const typeLabel  = item.tp  || '';
+  const typeLabel  = TYPE_LABELS[item.tp] ?? item.tp ?? '';
   const dialogue   = item.dl  || '';
   const desc       = item.ds  || '(설명 없음)';
   const suggestion = item.sg  || '';
