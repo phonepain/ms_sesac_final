@@ -161,6 +161,17 @@ class SearchService:
             logger.error("Failed to get source excerpts", error=str(e))
             return []
 
+    async def get_chunk_content(self, chunk_id: str) -> Optional[str]:
+        """chunk_id로 원문 청크 텍스트를 조회합니다."""
+        if not self.client or not chunk_id:
+            return None
+        try:
+            result = self.client.get_document(key=chunk_id)
+            return result.get("content")
+        except Exception as e:
+            logger.debug("get_chunk_content_failed", chunk_id=chunk_id, error=str(e))
+            return None
+
     async def remove_source(self, source_id: str):
         if not self.client:
             return
@@ -283,6 +294,13 @@ class MockSearchService:
                 excerpt_list.append(excerpt)
 
         return excerpt_list
+
+    async def get_chunk_content(self, chunk_id: str) -> Optional[str]:
+        """chunk_id로 원문 청크 텍스트를 조회합니다."""
+        for chunk in self.chunks:
+            if chunk.id == chunk_id:
+                return chunk.content
+        return None
 
     async def remove_source(self, source_id: str):
         original_count = len(self.chunks)

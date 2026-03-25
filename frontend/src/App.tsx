@@ -271,7 +271,7 @@ export default function App() {
         graphBuilt: { ws: true, sc: true },
         contradictions: [
           ...res.contradictions.map((c: any) => ({
-            id: c.id, sv: ({ critical: 'critical', major: 'warning', minor: 'info' } as Record<string, string>)[c.severity?.toLowerCase()] as any ?? 'info', tp: CONTRADICTION_TYPE_LABELS[c.type] ?? c.type, ch: c.character_name || 'System',
+            id: c.id, sv: ({ critical: 'critical', major: 'warning', minor: 'info' } as Record<string, string>)[c.severity?.toLowerCase()] as any ?? 'info', tp: CONTRADICTION_TYPE_LABELS[c.type] ?? c.type, ch: c.character_name || '일반',
             ft: c.location || '정보', dl: c.dialogue || '', ds: c.description,
             ev: (c.evidence || []).map((e: any) => ({ sr: e.source_name, lc: e.source_location, tx: e.text })),
             cf: c.confidence, sg: c.suggestion || '', al: c.alternative || null, ot: c.original_text || '',
@@ -305,7 +305,7 @@ export default function App() {
           id: c.id,
           sv: ({ critical: 'critical', major: 'warning', minor: 'info' } as Record<string, string>)[c.severity?.toLowerCase()] as any ?? 'info',
           tp: CONTRADICTION_TYPE_LABELS[c.type] ?? c.type,
-          ch: c.character_name || 'System',
+          ch: c.character_name || '일반',
           ft: c.location || '분석 결과',
           dl: c.dialogue || '',
           ds: c.description,

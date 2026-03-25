@@ -565,14 +565,12 @@ class VersionService:
         try:
             source_vertex = await self._run_graph(self._graph.get_vertex, source_id, "source")
             filename = (source_vertex or {}).get("name", f"{source_id}.txt")
-            source_type = (source_vertex or {}).get("source_type", "scenario")
-            ingest_result = await self._ingest.process_file(
-                file_content=new_content.encode("utf-8"),
-                filename=filename,
+            # chunk_text(): 순수 청킹만 수행 (파일 저장 없음)
+            all_chunks = self._ingest.chunk_text(
+                text=new_content,
                 source_id=source_id,
-                source_type=source_type,
+                source_name=filename,
             )
-            all_chunks = ingest_result.chunks
         except Exception as exc:
             raise VersionError(f"재청킹 실패 (source_id={source_id}): {exc}") from exc
 
@@ -615,6 +613,11 @@ class VersionService:
         """
         변경된 청크에 대해서만 계층1~3을 순차 재실행합니다.
 
+        전략 (POC):
+        - 재청킹 시 새 chunk_id가 생성되므로, 기존 vertex의 chunk_id와 불일치
+        - 따라서 해당 source_id에 속하는 vertex/edge를 전부 삭제 후 재구축
+        - Source vertex 자체는 유지 (skip_source_vertex=True)
+
         Returns:
             list[PipelineError]: 발생한 오류 목록 (빈 리스트 = 전부 성공)
         """
@@ -625,14 +628,13 @@ class VersionService:
             log.debug("no_changed_chunks_skip_rebuild")
             return errors
 
-        chunk_ids = [chunk.id for chunk in changed_chunks]
         log.info("incremental_rebuild_start", chunk_count=len(changed_chunks))
 
         # source_type 조회 (계층1 추출에 필요)
         source_vertex = await self._run_graph(self._graph.get_vertex, source_id, "source")
         source_type = (source_vertex or {}).get("source_type", "scenario")
 
-        # 계층1: Extraction
+        # 계층1: Extraction (변경된 청크만)
         log.info("rebuild_layer1_extraction")
         extraction_results = []
         try:
@@ -642,12 +644,14 @@ class VersionService:
             errors.append(PipelineError(layer="extraction", message=f"계층1 재추출 실패: {exc}", recoverable=False))
             return errors  # 추출 실패 시 이후 단계 불가
 
-        # 이전 청크 기반 그래프 데이터 제거
-        log.info("removing_old_chunk_data")
+        # 해당 source_id의 기존 vertex/edge 전부 삭제 (Source vertex 제외)
+        # 재청킹 시 chunk_id가 변경되므로 chunk_id 기반 삭제 대신 source_id 기반 삭제
+        log.info("removing_old_source_data", source_id=source_id)
         try:
-            await self._run_graph(self._graph.remove_vertices_by_chunk_ids, chunk_ids)
+            removed = await self._run_graph(self._graph.remove_source, source_id)
+            log.info("old_source_data_removed", removed=removed)
         except Exception as exc:
-            log.warning("remove_old_vertices_failed", error=str(exc))
+            log.warning("remove_old_source_data_failed", error=str(exc))
             errors.append(PipelineError(layer="graph_cleanup", message=f"이전 데이터 삭제 실패: {exc}", recoverable=True))
 
         # 계층2: Normalization
@@ -674,11 +678,12 @@ class VersionService:
                 file_path=str(source_vertex.get("file_path", "")),
                 metadata=str(source_vertex.get("metadata", "{}")),
             )
+            # remove_source()가 Source vertex도 삭제하므로 재생성 필요
             await self._run_graph(
                 self._graph.materialize,
                 normalization_result,
                 source_obj,
-                skip_source_vertex=True,
+                skip_source_vertex=False,
             )
         except Exception as exc:
             log.error("rebuild_materialize_failed", error=str(exc))
