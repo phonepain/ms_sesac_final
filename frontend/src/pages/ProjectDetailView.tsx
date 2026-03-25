@@ -144,7 +144,7 @@ export default function ProjectDetailView({
           {tab === "overview" && (
             <>
               <KbStats stats={proj.kb} />
-              <SourceList sources={proj.sources} onReupload={onReupload} />
+              <SourceList sources={proj.sources} />
 
               {contradictions.length === 0 ? (
                 <button
