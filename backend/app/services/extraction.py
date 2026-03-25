@@ -35,9 +35,19 @@ class ExtractionService:
     async def extract_from_chunks(self, chunks: List[DocumentChunk], source_type: str) -> List[ExtractionResult]:
         logger.info("Starting batch extraction", total_chunks=len(chunks), source_type=source_type)
         tasks = [self.extract_from_chunk(chunk.content, source_type, chunk.id) for chunk in chunks]
-        results = await asyncio.gather(*tasks)
-        logger.info("Batch extraction complete", total_results=len(results))
-        return list(results)
+        results = list(await asyncio.gather(*tasks))
+
+        blocked = [r.source_chunk_id for r in results if r.content_filter_blocked]
+        if blocked:
+            logger.warning(
+                "Content filter blocked chunks — skipped",
+                blocked_count=len(blocked),
+                total_chunks=len(chunks),
+                blocked_chunk_ids=blocked,
+            )
+
+        logger.info("Batch extraction complete", total_results=len(results), blocked=len(blocked))
+        return results
 
     # [CHANGED][PHASE0-3] 서술형 텍스트에서도 캐릭터를 추정하기 위한 경량 규칙
     def _guess_characters_from_narrative(self, text: str, chunk_id: str) -> List[Dict[str, object]]:
@@ -673,50 +683,18 @@ class ExtractionService:
 
             try:
                 logger.debug("Calling LLM", chunk_id=chunk_id)
-                response = None
 
-                # content_filter 차단 시 텍스트 순화 후 재시도
-                current_prompt = prompt
-                for attempt in range(3):
-                    try:
-                        response = await self.client.beta.chat.completions.parse(
-                            model=self.deployment_name,
-                            messages=[
-                                {
-                                    "role": "system",
-                                    "content": "You are an extraction assistant. Return strict JSON matching schema.",
-                                },
-                                {"role": "user", "content": current_prompt},
-                            ],
-                            response_format=ExtractionResult,
-                        )
-                        if response and response.choices:
-                            break
-                    except Exception as retry_err:
-                        err_str = str(retry_err)
-                        if "content_filter" in err_str or "content_management" in err_str:
-                            logger.warning(
-                                "Content filter triggered, sanitizing and retrying",
-                                chunk_id=chunk_id, attempt=attempt + 1,
-                            )
-                            # 민감 표현 순화: 폭력/범죄 관련 직접 표현을 완화
-                            import re as _re
-                            sanitize_map = [
-                                (r'살인|살해|피살|살인범', '사건 발생'),
-                                (r'시체|사체|주검', '사망자'),
-                                (r'범죄\s*현장', '사건 현장'),
-                                (r'범인', '용의자'),
-                                (r'칼|흉기|무기', '증거물'),
-                                (r'사망한\s*인물은\s*이후\s*장면에\s*등장할\s*수\s*없음',
-                                 '퇴장한 인물은 이후 장면에 재등장할 수 없음'),
-                            ]
-                            sanitized = text
-                            for pattern, repl in sanitize_map:
-                                sanitized = _re.sub(pattern, repl, sanitized)
-                            current_prompt = prompt_template.format(text=sanitized)
-                            continue
-                        else:
-                            raise  # content_filter가 아닌 에러는 그대로 전파
+                response = await self.client.beta.chat.completions.parse(
+                    model=self.deployment_name,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are an extraction assistant. Return strict JSON matching schema.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    response_format=ExtractionResult,
+                )
 
                 try:
                     result = response.choices[0].message.parsed
@@ -729,8 +707,22 @@ class ExtractionService:
                     result = ExtractionResult(source_chunk_id=chunk_id)
 
                 result.source_chunk_id = chunk_id
+                if response and response.usage:
+                    from app.services.cost_tracker import get_tracker
+                    get_tracker().add(self.deployment_name, response.usage)
                 return result
 
             except Exception as api_error:
-                logger.error("Extraction API error", chunk_id=chunk_id, error=str(api_error))
+                err_str = str(api_error)
+                if "content_filter" in err_str or "content_management" in err_str:
+                    logger.warning(
+                        "Content filter blocked chunk — skipping",
+                        chunk_id=chunk_id,
+                        text_preview=text[:80],
+                    )
+                    result = ExtractionResult(source_chunk_id=chunk_id)
+                    result.content_filter_blocked = True
+                    return result
+
+                logger.error("Extraction API error", chunk_id=chunk_id, error=err_str)
                 return ExtractionResult(source_chunk_id=chunk_id)
