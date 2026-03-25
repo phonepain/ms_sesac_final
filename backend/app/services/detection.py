@@ -136,10 +136,12 @@ class DetectionService:
             )
             for e in v.get("evidence", [])
         ]
-        # original_text: violation에 명시된 값 → dialogue → evidence 첫 항목 텍스트
+        # original_text 폴백 체인: original_text → dialogue → evidence 첫 항목 텍스트 → description
         original_text = v.get("original_text") or v.get("dialogue") or ""
         if not original_text and evidence:
             original_text = evidence[0].text or ""
+        if not original_text:
+            original_text = v.get("description") or ""
 
         return ContradictionReport(
             id=v.get("id", ""),
@@ -322,7 +324,7 @@ class DetectionService:
                     {"role": "system", "content": "당신은 서사 작품의 세계관 규칙 위반 전문 분석가입니다. 반드시 JSON 배열만 반환하세요."},
                     {"role": "user", "content": prompt},
                 ],
-                temperature=0.1,
+                temperature=1,
             )
             raw_content = response.choices[0].message.content.strip()
             if response.usage:
