@@ -12,6 +12,28 @@ import { sourceApi, analyzeApi, versionApi, statsApi, confirmationApi, resetApi 
 
 
 
+const CONFIRMATION_TYPE_LABELS: Record<string, string> = {
+  flashback_check: "회상 장면 확인",
+  intentional_change: "의도적 설정 변경",
+  foreshadowing: "복선 가능성",
+  source_conflict: "소스 간 충돌",
+  unreliable_narrator: "비신뢰 서술자",
+  timeline_ambiguity: "시간 순서 불명확",
+  relationship_ambiguity: "관계 불명확",
+  emotion_shift: "감정 급변",
+  item_discrepancy: "소유물 불일치",
+}
+
+const CONTRADICTION_TYPE_LABELS: Record<string, string> = {
+  information_asymmetry: "정보 비대칭",
+  timeline: "타임라인 오류",
+  relationship: "관계 충돌",
+  trait: "성격·설정 충돌",
+  emotion: "감정 일관성 오류",
+  item: "소유물 추적 오류",
+  deception: "거짓말·기만 오류",
+}
+
 const ANALYZE_STEPS: ProgressStep[] = [
   { l: "GraphRAG 지식 조회...", ms: 1000 },
   { l: "캐릭터 정보 비교...", ms: 1500 },
@@ -109,7 +131,7 @@ export default function App() {
       contradictions: confirmations.map((c: any) => ({
         id: c.id,
         sv: 'warning' as const,
-        tp: c.confirmation_type,
+        tp: CONFIRMATION_TYPE_LABELS[c.confirmation_type] ?? c.confirmation_type,
         ch: '사용자 확인 필요',
         ft: '',
         dl: '',
@@ -249,13 +271,13 @@ export default function App() {
         graphBuilt: { ws: true, sc: true },
         contradictions: [
           ...res.contradictions.map((c: any) => ({
-            id: c.id, sv: ({ critical: 'critical', major: 'warning', minor: 'info' } as Record<string, string>)[c.severity?.toLowerCase()] as any ?? 'info', tp: c.type, ch: c.character_name || 'System',
+            id: c.id, sv: ({ critical: 'critical', major: 'warning', minor: 'info' } as Record<string, string>)[c.severity?.toLowerCase()] as any ?? 'info', tp: CONTRADICTION_TYPE_LABELS[c.type] ?? c.type, ch: c.character_name || 'System',
             ft: c.location || '정보', dl: c.dialogue || '', ds: c.description,
             ev: (c.evidence || []).map((e: any) => ({ sr: e.source_name, lc: e.source_location, tx: e.text })),
             cf: c.confidence, sg: c.suggestion || '', al: c.alternative || null, ot: c.original_text || '',
           })),
           ...(res.confirmations || []).map((c: any) => ({
-            id: c.id, sv: 'warning' as any, tp: c.confirmation_type, ch: '사용자 확인 필요',
+            id: c.id, sv: 'warning' as any, tp: CONFIRMATION_TYPE_LABELS[c.confirmation_type] ?? c.confirmation_type, ch: '사용자 확인 필요',
             ft: '', dl: '', ds: c.question || c.context_summary || '',
             ev: (c.source_excerpts || []).map((e: any) => ({ sr: e.source_name || '', lc: e.source_location || '', tx: e.text || '' })),
             cf: 0, sg: c.context_summary || '', al: null, ot: '',
@@ -281,7 +303,7 @@ export default function App() {
         ...res.contradictions.map((c: any) => ({
           id: c.id,
           sv: ({ critical: 'critical', major: 'warning', minor: 'info' } as Record<string, string>)[c.severity?.toLowerCase()] as any ?? 'info',
-          tp: c.type,
+          tp: CONTRADICTION_TYPE_LABELS[c.type] ?? c.type,
           ch: c.character_name || 'System',
           ft: c.location || '분석 결과',
           dl: c.dialogue || '',
@@ -295,7 +317,7 @@ export default function App() {
         ...(res.confirmations || []).map((c: any) => ({
           id: c.id,
           sv: 'warning' as any,
-          tp: c.confirmation_type,
+          tp: CONFIRMATION_TYPE_LABELS[c.confirmation_type] ?? c.confirmation_type,
           ch: '사용자 확인 필요',
           ft: '',
           dl: '',
