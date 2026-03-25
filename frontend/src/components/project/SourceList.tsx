@@ -35,7 +35,7 @@ function SourceItem({
           {s.n}
         </div>
         <div className="text-[10px] text-[#a89880]">
-          {c?.l || '기타'} · 인물 {s.ent}명 · 사실 {s.fct}건
+          {c?.l || '기타'}
         </div>
       </div>
       <div className="flex gap-1.5 shrink-0">
