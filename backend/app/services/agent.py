@@ -7,6 +7,7 @@ from app.config import settings
 from app.models.api import AnalysisResponse, ManuscriptInput
 from app.models.enums import SourceType
 from app.models.vertices import Source
+from app.services.cost_tracker import get_tracker, reset_tracker
 from app.services.detection import DetectionService
 from app.services.extraction import ExtractionService
 from app.services.graph import InMemoryGraphService, get_graph_service
@@ -100,10 +101,14 @@ async def _respond(state: AgentState) -> AgentState:
     # [approve]: 모순이 전혀 없으면 빈 결과 즉시 반환
     if not violations.get("hard") and not violations.get("soft"):
         logger.info("langgraph_node", node="approve", reason="no_violations")
-        return {**state, "snapshot": None, "result": AnalysisResponse(contradictions=[], confirmations=[], total=0)}
+        return {**state, "snapshot": None, "result": AnalysisResponse(
+            contradictions=[], confirmations=[], total=0,
+            llm_cost=get_tracker().summary(),
+        )}
 
     svc = DetectionService()
-    result = await svc.analyze(violations)
+    snapshot = state.get("snapshot")
+    result = await svc.analyze(violations, graph_service=snapshot)
 
     # Soft confirmations를 canonical graph에 저장
     # ConfirmationService.list_pending() / resolve()가 그래프를 백엔드로 사용하므로
@@ -154,6 +159,7 @@ class ContiCheckAgent:
         스냅샷 격리: canonical graph는 respond 이후 폐기, 절대 불변.
         """
         logger.info("agent_start", title=manuscript.title)
+        reset_tracker()
 
         initial: AgentState = {
             "manuscript": manuscript,
@@ -172,9 +178,13 @@ class ContiCheckAgent:
             logger.warning("agent_no_result")
             return AnalysisResponse(contradictions=[], confirmations=[], total=0)
 
+        cost = get_tracker().summary()
+        result.llm_cost = cost
         logger.info(
             "agent_complete",
             contradictions=len(result.contradictions),
             confirmations=len(result.confirmations),
+            llm_total_tokens=cost["total_tokens"],
+            llm_total_cost_usd=cost["total_cost_usd"],
         )
         return result

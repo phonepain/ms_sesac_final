@@ -456,6 +456,9 @@ class NormalizationService(_NormalizationCore):
             )
 
             result: NormalizationResult = response.choices[0].message.parsed
+            if response.usage:
+                from app.services.cost_tracker import get_tracker
+                get_tracker().add(self.deployment_name, response.usage)
 
             used_raw_names: Set[str] = set()
             linked_characters: List[NormalizedCharacter] = []

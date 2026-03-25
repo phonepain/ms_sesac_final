@@ -123,6 +123,18 @@ SCENARIO_PROMPT = """
     예시: {{"char_a": "철수", "char_b": "영희", "type_hint": "colleague", "detail": "파트너"}}
 7. 감정 상태 (누가 누구에게 어떤 감정) -> emotions
     예시: {{"from_char": "철수", "to_char": "영희", "emotion": "trust", "trigger_hint": null}}
+8. 세계 규칙/제약 조건 -> facts (category_hint: "world_fact")
+    나레이션, 지문, 대사에서 세계의 규칙/제약/금지 사항이 언급되면 fact로 추출하세요.
+    세계관 파일에서 이미 추출된 내용과 중복되어도 추출하세요 (정규화에서 병합됩니다).
+    추출 대상:
+    - 시간 기반 통제: "N시 이후 ~금지/봉쇄/잠김"
+    - 물리적 제약: "~없이는 ~할 수 없다", "~이 불가능하다"
+    - 통신/기술 제한: "~구간에서 통신 차단", "블랙아웃"
+    - 이동 제약: "A에서 B까지 N분 소요"
+    - 고유 아이템/자격: "단 하나뿐", "양도 불가"
+    예시:
+    {{"content": "이 구역에서는 22시 이후 모든 외출이 금지되어 있다", "category_hint": "world_fact", "is_secret_hint": false}}
+    {{"content": "심해 기지에서는 외부 통신이 일절 차단된다", "category_hint": "world_fact", "is_secret_hint": false}}
 
 입력 텍스트:
 {text}

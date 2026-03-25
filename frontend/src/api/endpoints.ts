@@ -137,13 +137,14 @@ export interface VersionInfo {
 }
 
 export const versionApi = {
-  stageFix: (contradictionId: string, originalText: string, fixedText: string) =>
+  stageFix: (contradictionId: string, originalText: string, fixedText: string, chunkId?: string) =>
     fetchApi<{status: string, contradiction_id: string}>('/fixes/stage', {
       method: 'POST',
       body: JSON.stringify({
         contradiction_id: contradictionId,
         original_text: originalText,
-        fixed_text: fixedText
+        fixed_text: fixedText,
+        chunk_id: chunkId || "",
       })
     }),
 

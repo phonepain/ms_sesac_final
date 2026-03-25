@@ -1,3 +1,5 @@
+import asyncio
+import json
 import time
 import uuid
 import structlog
@@ -14,6 +16,7 @@ from app.models.enums import (
 )
 from app.models.vertices import UserConfirmation, SourceExcerpt
 from app.prompts.verify_contradiction import CONTRADICTION_PROMPT
+from app.prompts.world_rule_check import WORLD_RULE_CHECK_PROMPT
 
 # ConfirmationType → ContradictionType 매핑
 _CONFIRMATION_TO_CONTRADICTION: Dict[ConfirmationType, ContradictionType] = {
@@ -83,6 +86,9 @@ class DetectionService:
                 response_format=ContradictionVerification,
             )
             result = response.choices[0].message.parsed
+            if response.usage:
+                from app.services.cost_tracker import get_tracker
+                get_tracker().add(self.deployment_name, response.usage)
             logger.info(
                 "soft_llm_verify",
                 confidence=result.confidence,
@@ -130,6 +136,11 @@ class DetectionService:
             )
             for e in v.get("evidence", [])
         ]
+        # original_text: violation에 명시된 값 → dialogue → evidence 첫 항목 텍스트
+        original_text = v.get("original_text") or v.get("dialogue") or ""
+        if not original_text and evidence:
+            original_text = evidence[0].text or ""
+
         return ContradictionReport(
             id=v.get("id", ""),
             type=v.get("type", ContradictionType.ASYMMETRY),
@@ -145,6 +156,8 @@ class DetectionService:
             alternative=v.get("alternative_interpretation"),
             needs_user_input=v.get("needs_user_input", False),
             user_question=v.get("user_question"),
+            original_text=original_text,
+            chunk_id=v.get("chunk_id"),
         )
 
     def _to_confirmation(self, v: Dict[str, Any]) -> UserConfirmation:
@@ -180,37 +193,262 @@ class DetectionService:
             reports.append(self._to_report(v))
             logger.info("hard_auto_report", violation_type=str(v.get("type")))
 
-        # Soft: LLM 검증 후 분기
-        for v in violations.get("soft", []):
-            confidence, reasoning = await self._verify_soft_with_llm(v)
-            if confidence >= 0.8:
-                v["confidence"] = confidence
-                reports.append(self._to_report(v))
-                logger.info("soft_auto_report", confidence=confidence)
-            else:
-                if not v.get("user_question"):
-                    v["user_question"] = reasoning
-                confirmations.append(self._to_confirmation(v))
-                logger.info("soft_needs_confirmation", confidence=confidence)
+        # Soft: LLM 검증 (병렬)
+        soft_list = violations.get("soft", [])
+        if soft_list:
+            soft_results = await asyncio.gather(
+                *[self._verify_soft_with_llm(v) for v in soft_list]
+            )
+            for v, (confidence, reasoning) in zip(soft_list, soft_results):
+                if confidence >= 0.8:
+                    v["confidence"] = confidence
+                    reports.append(self._to_report(v))
+                    logger.info("soft_auto_report", confidence=confidence)
+                else:
+                    if not v.get("user_question"):
+                        v["user_question"] = reasoning
+                    confirmations.append(self._to_confirmation(v))
+                    logger.info("soft_needs_confirmation", confidence=confidence)
 
         return reports, confirmations
+
+    # ── 세계 규칙 LLM 탐지 ────────────────────────────────────
+
+    MAX_CHARS_PER_BATCH = 15000  # 한국어 ~30K 토큰
+
+    async def _check_world_rules_with_llm(
+        self, graph_service
+    ) -> List[Dict[str, Any]]:
+        """그래프의 fact + event를 LLM에 보내 세계 규칙 위반을 탐지."""
+        from app.services.graph import _prop
+
+        all_facts = graph_service._vertices_by_label("fact")
+        all_events = graph_service._vertices_by_label("event")
+
+        if not all_facts or not all_events:
+            return []
+
+        # fact/event 텍스트 + 메타 수집
+        fact_entries = []
+        for fv in all_facts:
+            content = str(_prop(fv, "content") or "")
+            if content:
+                fact_entries.append({
+                    "content": content,
+                    "id": _prop(fv, "id"),
+                })
+
+        event_entries = []
+        for ev in all_events:
+            desc = str(_prop(ev, "description") or "")
+            if desc:
+                event_entries.append({
+                    "description": desc,
+                    "id": _prop(ev, "id"),
+                    "story_order": _prop(ev, "story_order") or _prop(ev, "discourse_order") or 0,
+                })
+
+        if not fact_entries or not event_entries:
+            return []
+
+        # 배치 분할
+        event_text = "\n".join(
+            f"[{i}] {e['description']}" for i, e in enumerate(event_entries)
+        )
+        total_event_chars = len(event_text)
+
+        batches = []
+        batch_facts = []
+        batch_chars = 0
+        for fe in fact_entries:
+            batch_facts.append(fe)
+            batch_chars += len(fe["content"])
+            if batch_chars + total_event_chars > self.MAX_CHARS_PER_BATCH:
+                batches.append(batch_facts)
+                batch_facts = []
+                batch_chars = 0
+        if batch_facts:
+            batches.append(batch_facts)
+
+        if not batches:
+            return []
+
+        logger.info(
+            "world_rule_llm_check",
+            total_facts=len(fact_entries),
+            total_events=len(event_entries),
+            batches=len(batches),
+        )
+
+        # LLM 호출 (배치별 병렬)
+        tasks = [
+            self._call_world_rule_llm(bf, event_entries, event_text)
+            for bf in batches
+        ]
+        batch_results = await asyncio.gather(*tasks)
+
+        # 결과 병합
+        violations = []
+        for result in batch_results:
+            violations.extend(result)
+        return violations
+
+    async def _call_world_rule_llm(
+        self,
+        fact_batch: List[Dict],
+        event_entries: List[Dict],
+        event_text: str,
+    ) -> List[Dict[str, Any]]:
+        """단일 배치에 대한 세계 규칙 LLM 호출."""
+        from app.services.graph import _make_violation
+
+        fact_text = "\n".join(
+            f"[{i}] {f['content']}" for i, f in enumerate(fact_batch)
+        )
+
+        prompt = WORLD_RULE_CHECK_PROMPT.format(
+            facts=fact_text,
+            events=event_text,
+        )
+
+        if self._mock_mode:
+            logger.info("world_rule_llm_mock — skipping")
+            return []
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.deployment_name,
+                messages=[
+                    {"role": "system", "content": "당신은 서사 작품의 세계관 규칙 위반 전문 분석가입니다. 반드시 JSON 배열만 반환하세요."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.1,
+            )
+            raw_content = response.choices[0].message.content.strip()
+            if response.usage:
+                from app.services.cost_tracker import get_tracker
+                get_tracker().add(self.deployment_name, response.usage)
+
+            # JSON 파싱 (```json ... ``` 래핑 처리)
+            if raw_content.startswith("```"):
+                raw_content = raw_content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+            items = json.loads(raw_content)
+            if not isinstance(items, list):
+                return []
+
+            violations = []
+            for item in items:
+                rule_idx = item.get("rule_index", -1)
+                event_idx = item.get("event_index", -1)
+                if rule_idx < 0 or event_idx < 0:
+                    continue
+                if rule_idx >= len(fact_batch) or event_idx >= len(event_entries):
+                    continue
+
+                confidence = float(item.get("confidence", 0.5))
+                sev_str = item.get("severity", "major")
+                severity = {
+                    "critical": Severity.CRITICAL,
+                    "major": Severity.MAJOR,
+                    "minor": Severity.MINOR,
+                }.get(sev_str, Severity.MAJOR)
+
+                # CRITICAL + high confidence → Hard 승격 (수학적/물리적 규칙 위반)
+                if severity == Severity.CRITICAL:
+                    needs_user = confidence < 0.85
+                elif severity == Severity.MINOR:
+                    needs_user = True
+                else:
+                    needs_user = confidence < 0.8
+
+                violations.append(_make_violation(
+                    vtype=ContradictionType.TIMELINE,
+                    severity=severity,
+                    description=item.get("description", "세계 규칙 위반"),
+                    confidence=confidence,
+                    evidence=[{
+                        "rule": fact_batch[rule_idx]["content"],
+                        "event": event_entries[event_idx]["description"][:100],
+                        "story_order": event_entries[event_idx].get("story_order", 0),
+                    }],
+                    needs_user_input=needs_user,
+                    confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY if needs_user else None,
+                    suggestion="세계 규칙과 이벤트 행동의 모순 여부를 확인하세요.",
+                ))
+
+            logger.info("world_rule_llm_result", violations=len(violations))
+            return violations
+
+        except Exception as e:
+            logger.error("world_rule_llm_failed", error=str(e))
+            return []
+
+    # ── analyze / full_scan ─────────────────────────────────
 
     async def analyze(
         self,
         violations: Dict[str, List],
         processing_start_ms: Optional[int] = None,
+        graph_service=None,
     ) -> AnalysisResponse:
         """violations dict → AnalysisResponse.
 
         agent.py에서 스냅샷 격리 후 find_all_violations() 결과를 여기로 전달.
+        graph_service가 있으면 세계 규칙 LLM 탐지도 실행.
         """
         start = processing_start_ms or int(time.time() * 1000)
-        reports, confirmations = await self.process_violations(violations)
+
+        # 세계 규칙 LLM 탐지 + process_violations 병렬 실행
+        async def _empty():
+            return []
+
+        world_rule_task = (
+            self._check_world_rules_with_llm(graph_service)
+            if graph_service else _empty()
+        )
+        process_task = self.process_violations(violations)
+
+        world_violations, (reports, confirmations) = await asyncio.gather(
+            world_rule_task, process_task
+        )
+
+        # 세계 규칙 LLM 결과 cross-dedup: graph 탐지 결과와 동일 규칙/이벤트 중복 제거
+        # process_violations에서 이미 처리된 evidence의 fact 내용을 수집
+        existing_facts: set = set()
+        for r in reports:
+            for e in r.evidence:
+                if e.text:
+                    # "사실: ..." 형태로 포매팅된 텍스트에서 fact 내용 추출
+                    for part in e.text.split(" | "):
+                        if part.startswith("사실: "):
+                            existing_facts.add(part[4:].strip()[:50])
+        for c in confirmations:
+            existing_facts.add(c.context_summary[:50])
+
+        for v in world_violations:
+            # evidence에서 rule 텍스트 추출하여 기존 결과와 비교
+            is_dup = False
+            for ev_item in v.get("evidence", []):
+                if isinstance(ev_item, dict):
+                    rule_text = str(ev_item.get("rule", ""))[:50]
+                    if rule_text and rule_text in existing_facts:
+                        is_dup = True
+                        break
+            if is_dup:
+                logger.debug("world_rule_dedup_skip", desc=v.get("description", "")[:60])
+                continue
+
+            if v.get("is_hard"):
+                reports.append(self._to_report(v))
+            else:
+                confirmations.append(self._to_confirmation(v))
+
         elapsed = int(time.time() * 1000) - start
         logger.info(
             "analyze_complete",
             reports=len(reports),
             confirmations=len(confirmations),
+            world_rule_violations=len(world_violations),
             elapsed_ms=elapsed,
         )
         return AnalysisResponse.from_contradictions(
@@ -280,7 +518,7 @@ class DetectionService:
         """전체 canonical graph 전수조사."""
         start = int(time.time() * 1000)
         violations = graph_service.find_all_violations()
-        return await self.analyze(violations, start)
+        return await self.analyze(violations, start, graph_service=graph_service)
 
     # ── 단일 후보 검증 (하위 호환) ────────────────────────────
 
@@ -307,6 +545,9 @@ class DetectionService:
                 response_format=ContradictionVerification,
             )
             verification_result = response.choices[0].message.parsed
+            if response.usage:
+                from app.services.cost_tracker import get_tracker
+                get_tracker().add(self.deployment_name, response.usage)
             logger.info(
                 "LLM Verification complete",
                 is_contradiction=verification_result.is_contradiction,

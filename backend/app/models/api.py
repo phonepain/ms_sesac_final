@@ -38,6 +38,7 @@ class IngestResponse(BaseModel):
     status: str
     stats: dict[str, Any]
     extracted_entities: int
+    content_filter_blocked_chunks: List[str] = Field(default_factory=list)
 
 # ==========================================
 # Analysis & Detection Models
@@ -65,6 +66,8 @@ class ContradictionReport(BaseModel):
     needs_user_input: bool = False
     user_question: Optional[str] = None
     original_text: Optional[str] = None
+    chunk_id: Optional[str] = None
+    chunk_content: Optional[str] = None
 
 class AnalysisResponse(BaseModel):
     contradictions: List[ContradictionReport] = Field(default_factory=list)
@@ -75,6 +78,7 @@ class AnalysisResponse(BaseModel):
     hard_count: int = 0
     soft_count: int = 0
     processing_time_ms: int = 0
+    llm_cost: Optional[dict] = None
 
     @classmethod
     def from_contradictions(cls, contradictions: List[ContradictionReport], confirmations: List[UserConfirmation], processing_time_ms: int = 0) -> 'AnalysisResponse':
