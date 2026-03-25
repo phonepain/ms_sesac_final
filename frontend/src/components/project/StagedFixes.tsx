@@ -1,5 +1,24 @@
 import type { StagedFix } from '../../types';
 
+const TYPE_LABELS: Record<string, string> = {
+  information_asymmetry: "정보 비대칭",
+  timeline: "타임라인 오류",
+  relationship: "관계 충돌",
+  trait: "성격·설정 충돌",
+  emotion: "감정 일관성 오류",
+  item: "소유물 추적 오류",
+  deception: "거짓말·기만 오류",
+  flashback_check: "회상 장면 확인",
+  intentional_change: "의도적 설정 변경",
+  foreshadowing: "복선 가능성",
+  source_conflict: "소스 간 충돌",
+  unreliable_narrator: "비신뢰 서술자",
+  timeline_ambiguity: "시간 순서 불명확",
+  relationship_ambiguity: "관계 불명확",
+  emotion_shift: "감정 급변",
+  item_discrepancy: "소유물 불일치",
+}
+
 interface StagedFixesProps {
   staged: StagedFix[];
   onRemove: (id: string) => void;
@@ -48,7 +67,7 @@ export default function StagedFixes({ staged, onRemove, onPush, onClear }: Stage
             {s.isIntentional ? (
               <>
                 <span className="inline-block text-[9px] font-bold bg-[rgba(124,92,191,0.1)] text-[#7c5cbf] px-1.5 py-0.5 rounded mr-1.5">의도된 설정</span>
-                <span className="text-[#6b5c47]">{s.ch} · {s.tp}</span>
+                <span className="text-[#6b5c47]">{s.ch} · {TYPE_LABELS[s.tp] ?? s.tp}</span>
                 {s.intentNote && <div className="text-[#a89880] mt-0.5 italic">메모: "{s.intentNote}"</div>}
               </>
             ) : (
