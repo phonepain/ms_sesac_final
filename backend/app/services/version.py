@@ -369,7 +369,7 @@ class VersionService:
         log.info("changed_chunks_identified", count=len(changed_chunks))
 
         # Step 7: 증분 재구축
-        await self._run_incremental_rebuild(
+        rebuild_errors = await self._run_incremental_rebuild(
             source_id=source_id,
             changed_chunks=changed_chunks,
             log=log,
@@ -395,6 +395,7 @@ class VersionService:
             resolved_contradiction_ids=resolved_ids,
             snapshot_path=snapshot_path,
             src=source_name,
+            pipeline_errors=rebuild_errors,
         )
 
         # Step 10: 스테이징 큐 소거
@@ -610,13 +611,19 @@ class VersionService:
         source_id: str,
         changed_chunks: list["DocumentChunk"],
         log: structlog.BoundLogger,
-    ) -> None:
+    ) -> list:
         """
         변경된 청크에 대해서만 계층1~3을 순차 재실행합니다.
+
+        Returns:
+            list[PipelineError]: 발생한 오류 목록 (빈 리스트 = 전부 성공)
         """
+        from app.models.api import PipelineError
+        errors: list[PipelineError] = []
+
         if not changed_chunks:
             log.debug("no_changed_chunks_skip_rebuild")
-            return
+            return errors
 
         chunk_ids = [chunk.id for chunk in changed_chunks]
         log.info("incremental_rebuild_start", chunk_count=len(changed_chunks))
@@ -627,10 +634,13 @@ class VersionService:
 
         # 계층1: Extraction
         log.info("rebuild_layer1_extraction")
+        extraction_results = []
         try:
             extraction_results = await self._extraction.extract_from_chunks(changed_chunks, source_type)
         except Exception as exc:
-            raise VersionError(f"계층1 재추출 실패: {exc}") from exc
+            log.error("rebuild_extraction_failed", error=str(exc))
+            errors.append(PipelineError(layer="extraction", message=f"계층1 재추출 실패: {exc}", recoverable=False))
+            return errors  # 추출 실패 시 이후 단계 불가
 
         # 이전 청크 기반 그래프 데이터 제거
         log.info("removing_old_chunk_data")
@@ -638,13 +648,17 @@ class VersionService:
             await self._run_graph(self._graph.remove_vertices_by_chunk_ids, chunk_ids)
         except Exception as exc:
             log.warning("remove_old_vertices_failed", error=str(exc))
+            errors.append(PipelineError(layer="graph_cleanup", message=f"이전 데이터 삭제 실패: {exc}", recoverable=True))
 
         # 계층2: Normalization
         log.info("rebuild_layer2_normalization")
+        normalization_result = None
         try:
             normalization_result = await self._normalization.normalize(extraction_results)
         except Exception as exc:
-            raise VersionError(f"계층2 정규화 실패: {exc}") from exc
+            log.error("rebuild_normalization_failed", error=str(exc))
+            errors.append(PipelineError(layer="normalization", message=f"계층2 정규화 실패: {exc}", recoverable=False))
+            return errors
 
         # 계층3: Graph Materialization
         log.info("rebuild_layer3_graph")
@@ -652,8 +666,6 @@ class VersionService:
             if source_vertex is None:
                 raise VersionError(f"Source Vertex를 찾을 수 없습니다: source_id={source_id}")
 
-            # source_vertex의 id는 'src-xxx' 형식으로 UUID가 아님 — 직접 생성
-            # (materialize() 내부에서 source.id는 source_id로 즉시 덮어씌워짐)
             from app.models.enums import SourceType as _ST
             source_obj = Source(
                 source_id=source_id,
@@ -669,18 +681,24 @@ class VersionService:
                 skip_source_vertex=True,
             )
         except Exception as exc:
-            if isinstance(exc, VersionError):
-                raise
-            raise VersionError(f"계층3 그래프 재적재 실패: {exc}") from exc
+            log.error("rebuild_materialize_failed", error=str(exc))
+            errors.append(PipelineError(layer="materialize", message=f"계층3 그래프 재적재 실패: {exc}", recoverable=False))
 
-        # Search 재인덱싱
+        # Search 재인덱싱: 기존 인덱스 삭제 후 새 청크 인덱싱
         log.info("rebuild_search_reindex")
+        try:
+            await self._search.remove_source(source_id)
+        except Exception as exc:
+            log.warning("search_remove_old_failed", error=str(exc))
+            errors.append(PipelineError(layer="search", message=f"검색 인덱스 삭제 실패: {exc}", recoverable=True))
         try:
             await self._search.index_chunks(source_id=source_id, chunks=changed_chunks)
         except Exception as exc:
             log.warning("search_reindex_failed", error=str(exc))
+            errors.append(PipelineError(layer="search", message=f"검색 재인덱싱 실패: {exc}", recoverable=True))
 
-        log.info("incremental_rebuild_complete")
+        log.info("incremental_rebuild_complete", errors=len(errors))
+        return errors
 
     # ──────────────────────────────────────────────────────────────
     # Private: 모순 resolved 마킹
@@ -726,6 +744,7 @@ class VersionService:
         resolved_contradiction_ids: list[str],
         snapshot_path: str,
         src: str = "",
+        pipeline_errors: list = None,
     ) -> VersionInfo:
         """
         새 VersionInfo를 생성하고 인메모리 메타 저장소에 등록합니다.
@@ -740,6 +759,7 @@ class VersionService:
             description=description,
             snapshot_path=snapshot_path,
             src=src,
+            pipeline_errors=pipeline_errors or [],
         )
 
         stored = _StoredVersion(
