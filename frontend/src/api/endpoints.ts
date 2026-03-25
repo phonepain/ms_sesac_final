@@ -1,4 +1,4 @@
-import { fetchApi } from './client';
+import { fetchApi, BASE_URL } from './client';
 
 // ==========================================
 // 1. 소스 관리 API
@@ -36,7 +36,7 @@ export const sourceApi = {
   list: () => fetchApi<Source[]>('/sources'),
 
   download: async (id: string): Promise<Blob> => {
-    const res = await fetch(`http://127.0.0.1:8000/api/sources/${id}/download`);
+    const res = await fetch(`${BASE_URL}/sources/${id}/download`);
     if (!res.ok) throw new Error(`Download failed: ${res.status}`);
     return res.blob();
   },
