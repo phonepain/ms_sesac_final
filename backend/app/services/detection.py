@@ -99,6 +99,40 @@ class DetectionService:
             logger.error("soft_llm_verify_failed", error=str(e))
             return 0.0, f"검증 오류: {str(e)}"
 
+    # ── 유틸리티 ─────────────────────────────────────────────
+
+    @staticmethod
+    def _common_substr_len(a: str, b: str) -> int:
+        """두 문자열의 최장 공통 부분문자열 길이."""
+        if not a or not b:
+            return 0
+        short, long_ = (a, b) if len(a) <= len(b) else (b, a)
+        for length in range(len(short), 9, -1):
+            for start in range(len(short) - length + 1):
+                if short[start:start + length] in long_:
+                    return length
+        return 0
+
+    @staticmethod
+    def _extract_keywords(text: str) -> set:
+        """한글 텍스트에서 조사/어미를 제거한 핵심 키워드 추출."""
+        import re as _re
+        # 숫자+단위
+        nums = set(_re.findall(r'\d+[분시간일월년]', text))
+        # 한글 단어에서 흔한 조사/어미 strip
+        words = _re.findall(r'[가-힣]+', text)
+        cleaned = set()
+        for w in words:
+            w = _re.sub(
+                r'(에서|까지는|까지|으로는|에서의|이라|으로|에게|한테'
+                r'|하며|하는데|했다고|되어|있어|가능|통해서만|통해|걸려야'
+                r'|만에|하는|인데|있는|했다|된다|한다|이다|하여|대로'
+                r'|이지만|라는|라고|에는|으며|이며|에도|지만|이나)$', '', w)
+            w = _re.sub(r'(을|를|이|가|은|는|의|에|로|과|와|도|서|만|씩|들|째)$', '', w)
+            if len(w) >= 2:
+                cleaned.add(w)
+        return cleaned | nums
+
     # ── violation dict → Pydantic 변환 ────────────────────────
 
     @staticmethod
@@ -289,10 +323,52 @@ class DetectionService:
         ]
         batch_results = await asyncio.gather(*tasks)
 
-        # 결과 병합
-        violations = []
+        # 결과 병합 + LLM 내부 중복 제거
+        raw_violations = []
         for result in batch_results:
-            violations.extend(result)
+            raw_violations.extend(result)
+
+        # LLM이 같은 규칙-이벤트 조합을 다른 표현으로 중복 출력하는 경우 제거
+        violations: List[Dict[str, Any]] = []
+        seen_rule_event: set = set()       # (rule_text[:50], event_text[:50])
+        seen_desc_parts: List[set] = []    # description 한글 토큰 Jaccard dedup
+
+        for v in raw_violations:
+            ev_list = v.get("evidence") or []
+            rule_t = ""
+            event_t = ""
+            for ev_item in ev_list:
+                if isinstance(ev_item, dict):
+                    rule_t = str(ev_item.get("rule", ""))[:50]
+                    event_t = str(ev_item.get("event", ""))[:50]
+
+            # (rule, event) 쌍 기반 exact dedup
+            if rule_t and event_t:
+                re_key = (rule_t, event_t)
+                if re_key in seen_rule_event:
+                    logger.debug("world_rule_internal_dedup_exact", desc=v.get("description", "")[:60])
+                    continue
+                seen_rule_event.add(re_key)
+
+            # description 한글 토큰 Jaccard dedup (0.5 이상 → 중복)
+            desc = v.get("description", "")
+            import re as _re
+            parts = set(_re.findall(r'[가-힣]{2,}', desc))
+            is_dup = False
+            for prev in seen_desc_parts:
+                union = parts | prev
+                inter = parts & prev
+                if union and len(inter) / len(union) > 0.5:
+                    is_dup = True
+                    break
+            if is_dup:
+                logger.debug("world_rule_internal_dedup_jaccard", desc=desc[:60])
+                continue
+            seen_desc_parts.append(parts)
+
+            violations.append(v)
+
+        logger.info("world_rule_dedup", raw=len(raw_violations), deduped=len(violations))
         return violations
 
     async def _call_world_rule_llm(
@@ -415,35 +491,143 @@ class DetectionService:
         )
 
         # 세계 규칙 LLM 결과 cross-dedup: graph 탐지 결과와 동일 규칙/이벤트 중복 제거
-        # process_violations에서 이미 처리된 evidence의 fact 내용을 수집
-        existing_facts: set = set()
+        # 기존 report/confirmation에서 evidence fact 텍스트 수집
+        existing_fact_keys: set = set()
         for r in reports:
             for e in r.evidence:
                 if e.text:
-                    # "사실: ..." 형태로 포매팅된 텍스트에서 fact 내용 추출
                     for part in e.text.split(" | "):
                         if part.startswith("사실: "):
-                            existing_facts.add(part[4:].strip()[:50])
+                            existing_fact_keys.add(part[4:].strip()[:60])
         for c in confirmations:
-            existing_facts.add(c.context_summary[:50])
+            if c.context_summary:
+                existing_fact_keys.add(c.context_summary[:60])
+
+        # 기존 description 키워드 수집 (Jaccard dedup 보조)
+        existing_desc_parts: List[set] = []
+        for r in reports:
+            existing_desc_parts.append(self._extract_keywords(r.description))
+        for c in confirmations:
+            existing_desc_parts.append(self._extract_keywords(c.question or c.context_summary))
 
         for v in world_violations:
-            # evidence에서 rule 텍스트 추출하여 기존 결과와 비교
             is_dup = False
+
+            # 1) evidence rule↔fact 부분문자열 매칭
             for ev_item in v.get("evidence", []):
                 if isinstance(ev_item, dict):
-                    rule_text = str(ev_item.get("rule", ""))[:50]
-                    if rule_text and rule_text in existing_facts:
-                        is_dup = True
+                    rule_text = str(ev_item.get("rule", ""))
+                    if rule_text and len(rule_text) > 10:
+                        rule_short = rule_text[:60]
+                        for existing in existing_fact_keys:
+                            shorter = min(rule_short, existing, key=len)
+                            longer = max(rule_short, existing, key=len)
+                            if shorter in longer or self._common_substr_len(shorter, longer) >= 20:
+                                is_dup = True
+                                break
+                    if is_dup:
                         break
             if is_dup:
-                logger.debug("world_rule_dedup_skip", desc=v.get("description", "")[:60])
+                logger.debug("world_rule_cross_dedup_fact", desc=v.get("description", "")[:60])
                 continue
 
+            # 2) description 키워드 Jaccard 보조 (Hard 우선)
+            desc = v.get("description", "")
+            v_kw = self._extract_keywords(desc)
+            dup_conf_idx = -1
+            if v_kw and len(v_kw) >= 3:
+                # reports와 비교
+                for prev in existing_desc_parts[:len(reports)]:
+                    if not prev:
+                        continue
+                    union = v_kw | prev
+                    inter = v_kw & prev
+                    if not union:
+                        continue
+                    jac = len(inter) / len(union)
+                    if jac > 0.5 or (jac > 0.3 and len(inter) >= 3):
+                        is_dup = True
+                        break
+                # confirmations와 비교 (Hard 우선: LLM hard가 기존 soft와 겹으면 soft 제거)
+                if not is_dup:
+                    conf_parts = existing_desc_parts[len(reports):]
+                    for ci, prev in enumerate(conf_parts):
+                        if not prev:
+                            continue
+                        union = v_kw | prev
+                        inter = v_kw & prev
+                        if not union:
+                            continue
+                        jac = len(inter) / len(union)
+                        if jac > 0.5 or (jac > 0.3 and len(inter) >= 3):
+                            is_dup = True
+                            dup_conf_idx = ci
+                            break
+
+            if is_dup:
+                # Hard 우선: LLM hard + 기존 soft confirmation → soft 제거, hard 추가
+                if v.get("is_hard") and dup_conf_idx >= 0 and dup_conf_idx < len(confirmations):
+                    logger.debug("world_rule_hard_upgrade", desc=desc[:60])
+                    confirmations.pop(dup_conf_idx)
+                    existing_desc_parts.pop(len(reports) + dup_conf_idx)
+                    reports.append(self._to_report(v))
+                    existing_desc_parts.insert(len(reports) - 1, v_kw)
+                    continue
+                logger.debug("world_rule_cross_dedup_jaccard", desc=desc[:60])
+                continue
+
+            # 중복 아님 → 추가
+            for ev_item in v.get("evidence", []):
+                if isinstance(ev_item, dict):
+                    rt = str(ev_item.get("rule", ""))
+                    if rt and len(rt) > 10:
+                        existing_fact_keys.add(rt[:60])
+            existing_desc_parts.append(v_kw)
             if v.get("is_hard"):
                 reports.append(self._to_report(v))
             else:
                 confirmations.append(self._to_confirmation(v))
+
+        # ── 최종 cross-dedup: reports와 confirmations 전체를 대상으로 ──
+        # Hard report가 이미 잡은 내용이 Soft confirmation에도 있으면 confirmation 제거
+        report_kw: List[set] = [self._extract_keywords(r.description) for r in reports]
+
+        deduped_confirmations: List[UserConfirmation] = []
+        for c in confirmations:
+            c_kw = self._extract_keywords(c.question or c.context_summary)
+            is_dup = False
+            if c_kw and len(c_kw) >= 2:
+                for rk in report_kw:
+                    union = c_kw | rk
+                    inter = c_kw & rk
+                    if union and len(inter) / len(union) > 0.35:
+                        is_dup = True
+                        break
+            if is_dup:
+                logger.debug("final_dedup_confirmation_removed", q=c.question[:60] if c.question else "")
+                continue
+            deduped_confirmations.append(c)
+        confirmations = deduped_confirmations
+
+        # reports 내 자체 중복 제거 (keyword Jaccard 0.5 이상)
+        deduped_reports: List[ContradictionReport] = []
+        deduped_report_kw: List[set] = []
+        for r in reports:
+            r_kw = self._extract_keywords(r.description)
+            is_dup = False
+            if r_kw and len(r_kw) >= 2:
+                for prev in deduped_report_kw:
+                    union = r_kw | prev
+                    inter = r_kw & prev
+                    if union and len(inter) / len(union) > 0.5:
+                        is_dup = True
+                        break
+            if is_dup:
+                logger.debug("final_dedup_report_removed", desc=r.description[:60])
+                continue
+            deduped_reports.append(r)
+            deduped_report_kw.append(r_kw)
+        reports = deduped_reports
 
         elapsed = int(time.time() * 1000) - start
         logger.info(
