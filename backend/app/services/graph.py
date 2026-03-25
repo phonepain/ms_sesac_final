@@ -287,6 +287,7 @@ class _ViolationMixin:
                         {"type": "MENTIONS", "story_order": m_so, "dialogue": _prop(e, "dialogue_text")},
                         {"type": "LEARNS", "story_order": l_so},
                     ],
+                    dialogue=_prop(e, "dialogue_text"),
                     suggestion="MENTIONS 시점을 LEARNS 이후로 수정하거나 LEARNS 시점을 앞당기세요.",
                 ))
 
@@ -332,6 +333,7 @@ class _ViolationMixin:
                     "teacher_knows_at": teacher_earliest,
                     "fact_id": fact_id,
                 }],
+                dialogue=_prop(e, "dialogue_text"),
                 suggestion=(
                     f"'{teacher_name}'이(가) 사실을 알기 전에 '{student_name}'에게 "
                     "가르쳐줄 수 없습니다. 정보 전달 시점 또는 출처를 수정하세요."
@@ -374,6 +376,7 @@ class _ViolationMixin:
                     confidence=0.95,
                     character_id=cid, character_name=char_name,
                     evidence=[{"death_at": death_so, "appears_at": so, "edge": edge_label}],
+                    dialogue=_prop(e, "dialogue_text"),
                     suggestion="사망 이벤트 또는 이후 등장 시점을 수정하세요.",
                 ))
 
@@ -415,6 +418,7 @@ class _ViolationMixin:
                         confidence=0.95,
                         character_id=cid, character_name=char_name,
                         evidence=[{"death_at": death_so, "appears_at": so, "event": desc[:80]}],
+                        dialogue=desc,
                         suggestion="사망 이벤트 또는 이후 등장 시점을 수정하세요.",
                     ))
 
@@ -469,6 +473,7 @@ class _ViolationMixin:
                     confidence=0.92,
                     character_id=cid, character_name=char_name,
                     evidence=[{"resurrection_event": _prop(ev, "id"), "story_order": so, "description": desc}],
+                    dialogue=desc,
                     suggestion="사망 시점 이후 해당 캐릭터의 등장 장면을 제거하거나 사망 시점을 조정하세요.",
                 ))
             if not raw_involved:
@@ -479,6 +484,7 @@ class _ViolationMixin:
                     confidence=0.85,
                     character_id=None, character_name=None,
                     evidence=[{"resurrection_event": _prop(ev, "id"), "story_order": so}],
+                    dialogue=desc,
                     suggestion="사망 이벤트 또는 재등장 장면을 확인하세요.",
                 ))
         return violations
@@ -558,6 +564,7 @@ class _ViolationMixin:
                     evidence=[{"trait_key": trait_key, "values": values}],
                     needs_user_input=not is_imm,
                     confirmation_type=ConfirmationType.INTENTIONAL_CHANGE if not is_imm else None,
+                    dialogue=f"{trait_key}: {', '.join(str(v) for v in values)}",
                     suggestion=f"'{trait_key}' 특성 값을 통일하거나 변화 이유를 명시하세요.",
                 ))
         return violations
@@ -597,6 +604,7 @@ class _ViolationMixin:
                         evidence=[{"prev": _prop(prev, "emotion"), "curr": _prop(curr, "emotion")}],
                         needs_user_input=True,
                         confirmation_type=ConfirmationType.EMOTION_SHIFT,
+                        dialogue=_prop(curr, "dialogue_text"),
                         suggestion="감정 변화를 유발한 이벤트를 명시하거나 감정 추이를 자연스럽게 조정하세요.",
                     ))
         return violations
@@ -756,13 +764,15 @@ class _ViolationMixin:
 
         for (cid, fid), so in believed_false.items():
             char_name = (self.get_character(cid) or {}).get("name", cid)
+            fact_content = _prop(facts.get(fid, {}), "content") or ""
             violations.append(_make_violation(
                 vtype=ContradictionType.DECEPTION,
                 severity=Severity.MINOR,
                 description=f"캐릭터 '{char_name}'이(가) 거짓 사실을 진실로 학습(story_order={so})",
                 confidence=0.55,
                 character_id=cid, character_name=char_name,
-                evidence=[{"fact_id": fid, "believed_true_at": so}],
+                evidence=[{"fact_id": fid, "believed_true_at": so, "fact": fact_content[:100]}],
+                dialogue=fact_content,
                 needs_user_input=True,
                 confirmation_type=ConfirmationType.UNRELIABLE_NARRATOR,
             ))
@@ -885,6 +895,7 @@ class _ViolationMixin:
                             confirmation_type=(
                                 ConfirmationType.INTENTIONAL_CHANGE if not is_imm else None
                             ),
+                            dialogue=desc,
                             suggestion=(
                                 f"'{trait['key']}' 특성과 모순되는 행동을 수정하거나 "
                                 "특성 변화 근거를 명시하세요."
@@ -926,6 +937,7 @@ class _ViolationMixin:
                             }],
                             needs_user_input=True,
                             confirmation_type=ConfirmationType.INTENTIONAL_CHANGE,
+                            dialogue=desc,
                             suggestion=(
                                 f"특성과 모순되는 행동을 수정하거나 변화 근거를 명시하세요."
                             ),
@@ -1010,6 +1022,7 @@ class _ViolationMixin:
                         }],
                         needs_user_input=not is_definite,
                         confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY if not is_definite else None,
+                        dialogue=desc,
                         suggestion=(
                             "세계 규칙의 수치 제약과 이벤트 내용을 일치시키거나 "
                             "예외 상황을 명시하세요."
@@ -1187,6 +1200,7 @@ class _ViolationMixin:
                         f"{diff}분 만에 이동(story_order={curr['so']}): {curr['desc'][:60]}"
                     ),
                     confidence=0.95 if is_definite else 0.75,
+                    dialogue=curr["desc"],
                     evidence=[{
                         "fact": constraint["fact_content"],
                         "prev_event": prev["desc"][:60],
