@@ -1,5 +1,6 @@
 import { CAT_INFO } from '../../types';
 import type { Project } from '../../types';
+import { sourceApi } from '../../api/endpoints';
 
 interface SourceListProps {
   sources: Project['sources'];
@@ -14,8 +15,7 @@ function SourceItem({
 
   const handleDownload = async () => {
     try {
-      const res = await fetch(`/api/sources/${s.id}/download`);
-      const blob = await res.blob();
+      const blob = await sourceApi.download(s.id);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
