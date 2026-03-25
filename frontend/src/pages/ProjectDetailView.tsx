@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { SV_COLORS } from '../types';
 import type { Project, SeverityType, Contradiction, StagedFix } from '../types';
+import { versionApi } from '../api/endpoints';
 import KbStats from '../components/project/KbStats';
 import SourceList from '../components/project/SourceList';
 import AiChatPanel from '../components/project/AiChatPanel';
@@ -53,11 +54,11 @@ export default function ProjectDetailView({
     try {
       let data = '';
       if (type === 'content') {
-        const res = await fetch(`/api/versions/${vId}/content`);
-        data = await res.text();
+        const res = await versionApi.getContent(vId);
+        data = res.content;
       } else if (type === 'diff' && prevId) {
-        const res = await fetch(`/api/versions/${prevId}/diff/${vId}`);
-        data = await res.text();
+        const res = await versionApi.getDiff(prevId, vId);
+        data = res.diff;
       }
       setVersionPanels(p => ({ ...p, [vId]: { type, data } }));
     } catch {
