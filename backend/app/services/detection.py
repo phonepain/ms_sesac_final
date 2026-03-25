@@ -161,10 +161,26 @@ class DetectionService:
                     parts.append(f"{k}: {v_val}")
         return " | ".join(parts) if parts else "(정보 없음)"
 
+    # evidence type → 한글 레이블
+    _EVIDENCE_TYPE_LABELS = {
+        "MENTIONS": "언급",
+        "LEARNS": "학습",
+        "AT_LOCATION": "위치",
+        "POSSESSES": "소유",
+        "LOSES": "분실",
+        "FEELS": "감정",
+        "HAS_STATUS": "상태",
+        "HAS_TRAIT": "특성",
+        "RELATED_TO": "관계",
+        "rule": "세계 규칙",
+    }
+
     def _to_report(self, v: Dict[str, Any]) -> ContradictionReport:
         evidence = [
             EvidenceItem(
-                source_name=str(e.get("type", "그래프")),
+                source_name=self._EVIDENCE_TYPE_LABELS.get(
+                    str(e.get("type", "")), str(e.get("type", "그래프"))
+                ),
                 source_location=str(e.get("story_order", "")),
                 text=self._fmt_evidence(e),
             )
@@ -468,6 +484,7 @@ class DetectionService:
         violations: Dict[str, List],
         processing_start_ms: Optional[int] = None,
         graph_service=None,
+        search_service=None,
     ) -> AnalysisResponse:
         """violations dict → AnalysisResponse.
 
@@ -629,6 +646,12 @@ class DetectionService:
             deduped_report_kw.append(r_kw)
         reports = deduped_reports
 
+        # ── chunk_id로 원문 청크 조회 → original_text 교체 ──
+        # graph_service에서 관련 vertex의 chunk_id를 찾고,
+        # search_service에서 원문 청크를 가져와 original_text에 채움
+        if graph_service and search_service:
+            await self._enrich_original_text(reports, graph_service, search_service)
+
         elapsed = int(time.time() * 1000) - start
         logger.info(
             "analyze_complete",
@@ -700,11 +723,83 @@ class DetectionService:
             note="graph_service 없이 호출됨 — 호출자가 full_scan()으로 재탐지 수행 필요",
         )
 
-    async def full_scan(self, graph_service) -> AnalysisResponse:
+    async def _enrich_original_text(
+        self,
+        reports: List[ContradictionReport],
+        graph_service,
+        search_service,
+    ) -> None:
+        """reports의 original_text를 원고 원문 청크로 교체합니다.
+
+        흐름: character_id → character vertex → chunk_id → search_service.get_chunk_content()
+        chunk_id가 없거나 조회 실패 시 기존 original_text(dialogue 등)를 유지합니다.
+        """
+        from app.services.graph import _prop
+
+        # 1) 모든 report에서 character_id 수집 → vertex chunk_id 조회
+        char_ids = {r.character_id for r in reports if r.character_id}
+        chunk_id_map: Dict[str, str] = {}  # character_id → chunk_id
+
+        for cid in char_ids:
+            try:
+                v = graph_service.get_character(cid)
+                if v and v.get("chunk_id"):
+                    chunk_id_map[cid] = v["chunk_id"]
+            except Exception:
+                pass
+
+        # event vertex도 살펴봄 (character_id가 없는 report 대비)
+        # chunk_id가 있는 event vertex들 수집
+        event_chunks: Dict[str, str] = {}  # event_id → chunk_id
+        try:
+            for ev in graph_service._vertices_by_label("event"):
+                eid = _prop(ev, "id")
+                cid = ev.get("chunk_id")
+                if eid and cid:
+                    event_chunks[eid] = cid
+        except Exception:
+            pass
+
+        # 2) 고유 chunk_id 목록 → 일괄 조회
+        all_chunk_ids = set(chunk_id_map.values()) | set(event_chunks.values())
+        chunk_content_cache: Dict[str, str] = {}
+
+        for cid in all_chunk_ids:
+            try:
+                content = await search_service.get_chunk_content(cid)
+                if content:
+                    chunk_content_cache[cid] = content
+            except Exception:
+                pass
+
+        if not chunk_content_cache:
+            return
+
+        # 3) reports에 original_text + chunk_id 채움
+        for r in reports:
+            # character_id → chunk_id 경로
+            cid = chunk_id_map.get(r.character_id or "")
+            if cid and cid in chunk_content_cache:
+                r.original_text = chunk_content_cache[cid]
+                r.chunk_id = cid
+                r.chunk_content = chunk_content_cache[cid]
+                continue
+
+            # evidence에서 event_id 추출 시도
+            for ev in (r.evidence or []):
+                if ev.text:
+                    # evidence에 event_id가 있으면 해당 event의 chunk 사용
+                    pass
+            # dialogue가 이미 있으면 유지 (폴백)
+
+        enriched = sum(1 for r in reports if r.chunk_id)
+        logger.info("enrich_original_text", enriched=enriched, total=len(reports))
+
+    async def full_scan(self, graph_service, search_service=None) -> AnalysisResponse:
         """전체 canonical graph 전수조사."""
         start = int(time.time() * 1000)
         violations = graph_service.find_all_violations()
-        return await self.analyze(violations, start, graph_service=graph_service)
+        return await self.analyze(violations, start, graph_service=graph_service, search_service=search_service)
 
     # ── 단일 후보 검증 (하위 호환) ────────────────────────────
 

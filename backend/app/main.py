@@ -454,8 +454,9 @@ async def scan_database():
     """그래프 전수조사 — canonical graph 전체 대상 모순 탐지"""
     try:
         graph = get_graph_service()
+        search = get_search_service()
         svc = DetectionService()
-        return await svc.full_scan(graph)
+        return await svc.full_scan(graph, search_service=search)
     except Exception as e:
         logger.error("scan_failed", error=str(e))
         raise HTTPException(status_code=500, detail=f"전수조사 실패: {e}")

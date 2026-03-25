@@ -13,6 +13,7 @@ from app.services.extraction import ExtractionService
 from app.services.graph import InMemoryGraphService, get_graph_service
 from app.services.ingest import IngestService
 from app.services.normalization import NormalizationService
+from app.services.search import get_search_service
 
 logger = structlog.get_logger()
 
@@ -183,7 +184,8 @@ async def _respond(state: AgentState) -> AgentState:
 
     svc = DetectionService()
     snapshot = state.get("snapshot")
-    result = await svc.analyze(violations, graph_service=snapshot)
+    search = get_search_service()
+    result = await svc.analyze(violations, graph_service=snapshot, search_service=search)
 
     # Soft confirmations를 canonical graph에 저장
     # ConfirmationService.list_pending() / resolve()가 그래프를 백엔드로 사용하므로
