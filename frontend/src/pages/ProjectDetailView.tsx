@@ -23,6 +23,22 @@ interface ProjectDetailViewProps {
   setShowAi: (show: boolean) => void;
 }
 
+const formatDate = (dt: string) => {
+  try {
+    return new Date(dt).toLocaleString('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).replace(/\. /g, '-').replace('.', '').replace(',', '');
+  } catch {
+    return dt;
+  }
+};
+
 export default function ProjectDetailView({
   proj, tab, setTab, staged, onStageFix, onUnstageFix, onPushFixes, onClearStaged,
   onAnalyze, onReupload, showAi, setShowAi
@@ -128,7 +144,7 @@ export default function ProjectDetailView({
           {tab === "overview" && (
             <>
               <KbStats stats={proj.kb} />
-              <SourceList sources={proj.sources} onReupload={onReupload} />
+              <SourceList sources={proj.sources} />
 
               {contradictions.length === 0 ? (
                 <button
@@ -285,7 +301,7 @@ export default function ProjectDetailView({
                               </span>
                             )}
                           </div>
-                          <span className="text-[10px] text-[#a89880]">{v.dt}</span>
+                          <span className="text-[10px] text-[#a89880]">{formatDate(v.dt)}</span>
                         </div>
                         <p className="text-[11px] text-[#6b5c47] leading-relaxed break-keep">{v.ds}</p>
 
