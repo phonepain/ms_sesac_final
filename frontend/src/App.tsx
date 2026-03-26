@@ -132,22 +132,34 @@ export default function App() {
         id: c.id,
         sv: 'warning' as const,
         tp: CONFIRMATION_TYPE_LABELS[c.confirmation_type] ?? c.confirmation_type,
-        ch: '사용자 확인 필요',
+        ch: c.character_name || '사용자 확인 필요',
         ft: '',
-        dl: '',
+        dl: c.dialogue || '',
         ds: c.question || c.context_summary || '',
         ev: (c.source_excerpts || []).map((e: any) => ({ sr: e.source_name || '', lc: e.source_location || '', tx: e.text || '' })),
         cf: 0,
-        sg: c.context_summary || '',
+        sg: c.suggestion || c.context_summary || '',
         al: null,
+        ot: c.original_text || '',
+        chunkId: c.chunk_id || '',
       })),
-      versions: versions.map((v: any) => ({
-        id: v.id,
-        vr: v.version,
-        dt: v.date,
-        fx: v.fixes_count,
-        ds: v.description,
-      })),
+      versions: [
+        ...versions.map((v: any) => ({
+          id: v.id,
+          vr: v.version,
+          dt: v.date,
+          fx: v.fixes_count,
+          ds: v.description,
+        })),
+        // "최초 업로드" 기준점 — 소스 원본 조회용
+        ...(sources.length > 0 ? [{
+          id: `initial_${sources[0].id || sources[0].source_id}`,
+          vr: "v0",
+          dt: sources[0].ingested_at || "",
+          fx: 0,
+          ds: "최초 업로드",
+        }] : []),
+      ],
     };
 
     setProjects([proj]);
@@ -176,9 +188,10 @@ export default function App() {
       // Wait for API to completely finish
       await apiPromise;
       
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("처리 중 예기치 못한 오류가 발생했습니다.");
+      const msg = e?.message || "알 수 없는 오류";
+      alert(`오류: ${msg}`);
     } finally {
       setTimeout(() => setProgress(null), 300);
     }
@@ -278,13 +291,15 @@ export default function App() {
             chunkId: c.chunk_id || '', chunkContent: c.chunk_content || '',
           })),
           ...(res.confirmations || []).map((c: any) => ({
-            id: c.id, sv: 'warning' as any, tp: CONFIRMATION_TYPE_LABELS[c.confirmation_type] ?? c.confirmation_type, ch: '사용자 확인 필요',
-            ft: '', dl: '', ds: c.question || c.context_summary || '',
+            id: c.id, sv: 'warning' as any, tp: CONFIRMATION_TYPE_LABELS[c.confirmation_type] ?? c.confirmation_type,
+            ch: c.character_name || '사용자 확인 필요',
+            ft: '', dl: c.dialogue || '', ds: c.question || c.context_summary || '',
             ev: (c.source_excerpts || []).map((e: any) => ({ sr: e.source_name || '', lc: e.source_location || '', tx: e.text || '' })),
-            cf: 0, sg: c.context_summary || '', al: null, ot: '',
+            cf: 0, sg: c.suggestion || c.context_summary || '', al: null,
+            ot: c.original_text || '', chunkId: c.chunk_id || '',
           })),
         ],
-        versions: [{ id: "v1", vr: "v1.0", dt: new Date().toLocaleString("ko-KR"), fx: 0, ds: "최초 업로드" }]
+        versions: [{ id: `initial_${Object.values(nFiles).flat()[0]?.id || 'unknown'}`, vr: "v0", dt: new Date().toLocaleString("ko-KR"), fx: 0, ds: "최초 업로드" }]
       };
       setProjects(p => [np, ...p]);
       setActiveId(np.id);
@@ -321,15 +336,16 @@ export default function App() {
           id: c.id,
           sv: 'warning' as any,
           tp: CONFIRMATION_TYPE_LABELS[c.confirmation_type] ?? c.confirmation_type,
-          ch: '사용자 확인 필요',
+          ch: c.character_name || '사용자 확인 필요',
           ft: '',
-          dl: '',
+          dl: c.dialogue || '',
           ds: c.question || c.context_summary || '',
           ev: (c.source_excerpts || []).map((e: any) => ({ sr: e.source_name || '', lc: e.source_location || '', tx: e.text || '' })),
           cf: 0,
-          sg: c.context_summary || '',
+          sg: c.suggestion || c.context_summary || '',
           al: null,
-          ot: '',
+          ot: c.original_text || '',
+          chunkId: c.chunk_id || '',
         })),
       ];
 

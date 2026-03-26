@@ -17,6 +17,7 @@ from app.models.enums import (
 from app.models.vertices import UserConfirmation, SourceExcerpt
 from app.prompts.verify_contradiction import CONTRADICTION_PROMPT
 from app.prompts.world_rule_check import WORLD_RULE_CHECK_PROMPT
+from app.prompts.event_consistency_check import EVENT_CONSISTENCY_CHECK_PROMPT
 
 # ConfirmationType → ContradictionType 매핑
 _CONFIRMATION_TO_CONTRADICTION: Dict[ConfirmationType, ContradictionType] = {
@@ -186,12 +187,9 @@ class DetectionService:
             )
             for e in v.get("evidence", [])
         ]
-        # original_text 폴백 체인: original_text → dialogue → evidence 첫 항목 텍스트 → description
-        original_text = v.get("original_text") or v.get("dialogue") or ""
-        if not original_text and evidence:
-            original_text = evidence[0].text or ""
-        if not original_text:
-            original_text = v.get("description") or ""
+        # original_text 폴백 체인: original_text → dialogue → description
+        # evidence 메타데이터(story_order 등)는 원문이 아니므로 제외
+        original_text = v.get("original_text") or v.get("dialogue") or v.get("description") or ""
 
         return ContradictionReport(
             id=v.get("id", ""),
@@ -213,6 +211,19 @@ class DetectionService:
         )
 
     def _to_confirmation(self, v: Dict[str, Any]) -> UserConfirmation:
+        # evidence → source_excerpts 변환
+        source_excerpts = [
+            SourceExcerpt(
+                source_name=str(e.get("source_name", "")),
+                source_location=str(e.get("story_order", "")),
+                text=self._fmt_evidence(e),
+            )
+            for e in v.get("evidence", [])
+        ]
+
+        # original_text: 실제 원고 원문만 사용
+        original_text = v.get("original_text") or v.get("dialogue") or v.get("description") or ""
+
         return UserConfirmation(
             source_id="detection",
             confirmation_type=(
@@ -221,10 +232,17 @@ class DetectionService:
             status=ConfirmationStatus.PENDING,
             question=v.get("user_question") or v.get("description", ""),
             context_summary=v.get("description", ""),
-            source_excerpts=[],
+            source_excerpts=source_excerpts,
             related_entity_ids=(
                 [v["character_id"]] if v.get("character_id") else []
             ),
+            original_text=original_text,
+            dialogue=v.get("dialogue"),
+            suggestion=v.get("suggestion"),
+            character_id=v.get("character_id"),
+            character_name=v.get("character_name"),
+            chunk_id=v.get("chunk_id"),
+            violation_type=str(v.get("type", "")),
         )
 
     # ── 핵심 처리 ─────────────────────────────────────────────
@@ -276,8 +294,9 @@ class DetectionService:
 
         all_facts = graph_service._vertices_by_label("fact")
         all_events = graph_service._vertices_by_label("event")
+        all_traits = graph_service._vertices_by_label("trait")
 
-        if not all_facts or not all_events:
+        if not all_events:
             return []
 
         # fact/event 텍스트 + 메타 수집
@@ -289,6 +308,44 @@ class DetectionService:
                     "content": content,
                     "id": _prop(fv, "id"),
                 })
+
+        # trait → fact_entries에 추가 (캐릭터 설정도 규칙으로 비교)
+        for tv in all_traits:
+            key = str(_prop(tv, "key") or "")
+            value = str(_prop(tv, "value") or "")
+            if key and value:
+                # trait과 연결된 캐릭터 이름 찾기
+                trait_id = _prop(tv, "id")
+                char_name = ""
+                for e in graph_service._edges_by_label("HAS_TRAIT"):
+                    if _prop(e, "to_id") == trait_id:
+                        char_v = graph_service.get_character(_prop(e, "from_id"))
+                        if char_v:
+                            char_name = _prop(char_v, "name") or ""
+                        break
+                prefix = f"캐릭터 '{char_name}'의 설정: " if char_name else "설정: "
+                fact_entries.append({
+                    "content": f"{prefix}{key}={value}",
+                    "id": _prop(tv, "id"),
+                })
+
+        # knowledge (LEARNS/MENTIONS 엣지의 dialogue_text) → fact_entries에 추가
+        for label in ("LEARNS", "MENTIONS"):
+            for edge in graph_service._edges_by_label(label):
+                dialogue = str(_prop(edge, "dialogue_text") or "")
+                if not dialogue:
+                    continue
+                char_id = _prop(edge, "from_id")
+                char_v = graph_service.get_character(char_id) if char_id else None
+                char_name = _prop(char_v, "name") if char_v else ""
+                prefix = f"캐릭터 '{char_name}'의 발언: " if char_name else "발언: "
+                fact_entries.append({
+                    "content": f"{prefix}{dialogue}",
+                    "id": _prop(edge, "id") or "",
+                })
+
+        if not fact_entries or not all_events:
+            return []
 
         event_entries = []
         for ev in all_events:
@@ -387,6 +444,124 @@ class DetectionService:
         logger.info("world_rule_dedup", raw=len(raw_violations), deduped=len(violations))
         return violations
 
+    async def _check_event_consistency_with_llm(
+        self, graph_service
+    ) -> List[Dict[str, Any]]:
+        """이벤트 서술 간 내적 일관성 모순을 LLM으로 탐지."""
+        from app.services.graph import _prop, _make_violation
+
+        all_events = graph_service._vertices_by_label("event")
+        if not all_events or len(all_events) < 2:
+            return []
+
+        event_entries = []
+        for ev in all_events:
+            desc = str(_prop(ev, "description") or "")
+            if desc:
+                event_entries.append({
+                    "description": desc,
+                    "id": _prop(ev, "id"),
+                    "story_order": _prop(ev, "story_order") or _prop(ev, "discourse_order") or 0,
+                })
+
+        if len(event_entries) < 2:
+            return []
+
+        event_text = "\n".join(
+            f"[{i}] {e['description']}" for i, e in enumerate(event_entries)
+        )
+
+        logger.info("event_consistency_llm_check", total_events=len(event_entries))
+
+        if self._mock_mode:
+            logger.info("event_consistency_llm_mock — skipping")
+            return []
+
+        try:
+            prompt = EVENT_CONSISTENCY_CHECK_PROMPT.format(events=event_text)
+            response = await self.client.chat.completions.create(
+                model=self.deployment_name,
+                messages=[
+                    {"role": "system", "content": "당신은 서사 작품의 내적 일관성 오류 전문 분석가입니다. 반드시 JSON 배열만 반환하세요."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=1,
+            )
+            raw_content = response.choices[0].message.content.strip()
+            if response.usage:
+                from app.services.cost_tracker import get_tracker
+                get_tracker().add(self.deployment_name, response.usage)
+
+            if raw_content.startswith("```"):
+                raw_content = raw_content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+            items = json.loads(raw_content)
+            if not isinstance(items, list):
+                return []
+
+            violations = []
+            seen_pairs: set = set()
+            seen_desc_parts: List[set] = []
+
+            for item in items:
+                idx_a = item.get("event_a_index", -1)
+                idx_b = item.get("event_b_index", -1)
+                if idx_a < 0 or idx_b < 0:
+                    continue
+                if idx_a >= len(event_entries) or idx_b >= len(event_entries):
+                    continue
+
+                # 같은 event 쌍 중복 방지
+                pair_key = (min(idx_a, idx_b), max(idx_a, idx_b))
+                if pair_key in seen_pairs:
+                    continue
+                seen_pairs.add(pair_key)
+
+                # description Jaccard dedup
+                import re as _re
+                desc = item.get("description", "")
+                parts = set(_re.findall(r'[가-힣]{2,}', desc))
+                is_dup = False
+                for prev in seen_desc_parts:
+                    union = parts | prev
+                    inter = parts & prev
+                    if union and len(inter) / len(union) > 0.5:
+                        is_dup = True
+                        break
+                if is_dup:
+                    continue
+                seen_desc_parts.append(parts)
+
+                confidence = float(item.get("confidence", 0.5))
+                sev_str = item.get("severity", "major")
+                severity = {
+                    "critical": Severity.CRITICAL,
+                    "major": Severity.MAJOR,
+                    "minor": Severity.MINOR,
+                }.get(sev_str, Severity.MAJOR)
+
+                needs_user = confidence < 0.8
+
+                violations.append(_make_violation(
+                    vtype=ContradictionType.TIMELINE,
+                    severity=severity,
+                    description=desc or "이벤트 간 서술 일관성 위반",
+                    confidence=confidence,
+                    evidence=[{
+                        "event_a": event_entries[idx_a]["description"][:100],
+                        "event_b": event_entries[idx_b]["description"][:100],
+                    }],
+                    needs_user_input=needs_user,
+                    confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY if needs_user else None,
+                    suggestion="이벤트 서술 간 모순 여부를 확인하세요.",
+                ))
+
+            logger.info("event_consistency_llm_result", violations=len(violations))
+            return violations
+
+        except Exception as e:
+            logger.error("event_consistency_llm_failed", error=str(e))
+            return []
+
     async def _call_world_rule_llm(
         self,
         fact_batch: List[Dict],
@@ -436,7 +611,14 @@ class DetectionService:
                 event_idx = item.get("event_index", -1)
                 if rule_idx < 0 or event_idx < 0:
                     continue
-                if rule_idx >= len(fact_batch) or event_idx >= len(event_entries):
+                if rule_idx >= len(fact_batch):
+                    continue
+
+                # event_index가 event 범위 내면 fact↔event, 아니면 fact↔fact
+                is_fact_vs_fact = event_idx >= len(event_entries)
+                if is_fact_vs_fact and event_idx >= len(fact_batch):
+                    continue
+                if not is_fact_vs_fact and event_idx >= len(event_entries):
                     continue
 
                 confidence = float(item.get("confidence", 0.5))
@@ -447,7 +629,7 @@ class DetectionService:
                     "minor": Severity.MINOR,
                 }.get(sev_str, Severity.MAJOR)
 
-                # CRITICAL + high confidence → Hard 승격 (수학적/물리적 규칙 위반)
+                # CRITICAL + high confidence → Hard 승격
                 if severity == Severity.CRITICAL:
                     needs_user = confidence < 0.85
                 elif severity == Severity.MINOR:
@@ -455,19 +637,32 @@ class DetectionService:
                 else:
                     needs_user = confidence < 0.8
 
-                violations.append(_make_violation(
-                    vtype=ContradictionType.TIMELINE,
-                    severity=severity,
-                    description=item.get("description", "세계 규칙 위반"),
-                    confidence=confidence,
-                    evidence=[{
+                if is_fact_vs_fact:
+                    evidence = [{
+                        "rule": fact_batch[rule_idx]["content"],
+                        "event": fact_batch[event_idx]["content"][:100],
+                        "story_order": 0,
+                    }]
+                    vtype = ContradictionType.TRAIT
+                    suggestion = "사실/설정 간 모순 여부를 확인하세요."
+                else:
+                    evidence = [{
                         "rule": fact_batch[rule_idx]["content"],
                         "event": event_entries[event_idx]["description"][:100],
                         "story_order": event_entries[event_idx].get("story_order", 0),
-                    }],
+                    }]
+                    vtype = ContradictionType.TIMELINE
+                    suggestion = "설정과 이벤트의 모순 여부를 확인하세요."
+
+                violations.append(_make_violation(
+                    vtype=vtype,
+                    severity=severity,
+                    description=item.get("description", "내적 일관성 위반"),
+                    confidence=confidence,
+                    evidence=evidence,
                     needs_user_input=needs_user,
                     confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY if needs_user else None,
-                    suggestion="세계 규칙과 이벤트 행동의 모순 여부를 확인하세요.",
+                    suggestion=suggestion,
                 ))
 
             logger.info("world_rule_llm_result", violations=len(violations))
@@ -501,11 +696,25 @@ class DetectionService:
             self._check_world_rules_with_llm(graph_service)
             if graph_service else _empty()
         )
+
+        # event consistency: 구조적 탐지 결과가 적을 때만 실행 (과탐지 방지)
+        structural_count = len(violations.get("hard", [])) + len(violations.get("soft", []))
+        run_event_consistency = graph_service and structural_count <= 3
+        event_consistency_task = (
+            self._check_event_consistency_with_llm(graph_service)
+            if run_event_consistency else _empty()
+        )
+        if not run_event_consistency and graph_service:
+            logger.info("event_consistency_skipped", structural_count=structural_count)
+
         process_task = self.process_violations(violations)
 
-        world_violations, (reports, confirmations) = await asyncio.gather(
-            world_rule_task, process_task
+        world_violations, event_violations, (reports, confirmations) = await asyncio.gather(
+            world_rule_task, event_consistency_task, process_task
         )
+
+        # event consistency 결과를 world_violations에 합쳐서 동일한 dedup 경로 사용
+        world_violations = list(world_violations) + list(event_violations)
 
         # 세계 규칙 LLM 결과 cross-dedup: graph 탐지 결과와 동일 규칙/이벤트 중복 제거
         # 기존 report/confirmation에서 evidence fact 텍스트 수집
@@ -617,16 +826,29 @@ class DetectionService:
                 for rk in report_kw:
                     union = c_kw | rk
                     inter = c_kw & rk
-                    if union and len(inter) / len(union) > 0.35:
+                    if union and len(inter) / len(union) > 0.3:
                         is_dup = True
                         break
             if is_dup:
                 logger.debug("final_dedup_confirmation_removed", q=c.question[:60] if c.question else "")
                 continue
+            # confirmation 간 자체 중복도 제거
+            c_dup = False
+            for prev_c in deduped_confirmations:
+                prev_kw = self._extract_keywords(prev_c.question or prev_c.context_summary)
+                if prev_kw and c_kw:
+                    union = c_kw | prev_kw
+                    inter = c_kw & prev_kw
+                    if union and len(inter) / len(union) > 0.4:
+                        c_dup = True
+                        break
+            if c_dup:
+                logger.debug("final_dedup_confirmation_self_removed", q=c.question[:60] if c.question else "")
+                continue
             deduped_confirmations.append(c)
         confirmations = deduped_confirmations
 
-        # reports 내 자체 중복 제거 (keyword Jaccard 0.5 이상)
+        # reports 내 자체 중복 제거 (keyword Jaccard 0.35 이상)
         deduped_reports: List[ContradictionReport] = []
         deduped_report_kw: List[set] = []
         for r in reports:
@@ -636,7 +858,7 @@ class DetectionService:
                 for prev in deduped_report_kw:
                     union = r_kw | prev
                     inter = r_kw & prev
-                    if union and len(inter) / len(union) > 0.5:
+                    if union and len(inter) / len(union) > 0.35:
                         is_dup = True
                         break
             if is_dup:
@@ -651,6 +873,10 @@ class DetectionService:
         # search_service에서 원문 청크를 가져와 original_text에 채움
         if graph_service and search_service:
             await self._enrich_original_text(reports, graph_service, search_service)
+            # confirmations에도 동일 enrichment 적용
+            await self._enrich_confirmation_original_text(
+                confirmations, graph_service, search_service
+            )
 
         elapsed = int(time.time() * 1000) - start
         logger.info(
@@ -658,6 +884,7 @@ class DetectionService:
             reports=len(reports),
             confirmations=len(confirmations),
             world_rule_violations=len(world_violations),
+            event_consistency_violations=len(event_violations),
             elapsed_ms=elapsed,
         )
         return AnalysisResponse.from_contradictions(
@@ -729,16 +956,16 @@ class DetectionService:
         graph_service,
         search_service,
     ) -> None:
-        """reports의 original_text를 원고 원문 청크로 교체합니다.
+        """reports의 original_text를 원고 원문으로 교체합니다.
 
-        흐름: character_id → character vertex → chunk_id → search_service.get_chunk_content()
-        chunk_id가 없거나 조회 실패 시 기존 original_text(dialogue 등)를 유지합니다.
+        경로 1: character vertex → chunk_id → search_service.get_chunk_content()
+        경로 2: 소스 원본에서 description 키워드로 관련 문장 검색 (폴백)
         """
         from app.services.graph import _prop
 
-        # 1) 모든 report에서 character_id 수집 → vertex chunk_id 조회
+        # 1) chunk_id 경로 시도
         char_ids = {r.character_id for r in reports if r.character_id}
-        chunk_id_map: Dict[str, str] = {}  # character_id → chunk_id
+        chunk_id_map: Dict[str, str] = {}
 
         for cid in char_ids:
             try:
@@ -748,9 +975,7 @@ class DetectionService:
             except Exception:
                 pass
 
-        # event vertex도 살펴봄 (character_id가 없는 report 대비)
-        # chunk_id가 있는 event vertex들 수집
-        event_chunks: Dict[str, str] = {}  # event_id → chunk_id
+        event_chunks: Dict[str, str] = {}
         try:
             for ev in graph_service._vertices_by_label("event"):
                 eid = _prop(ev, "id")
@@ -760,7 +985,6 @@ class DetectionService:
         except Exception:
             pass
 
-        # 2) 고유 chunk_id 목록 → 일괄 조회
         all_chunk_ids = set(chunk_id_map.values()) | set(event_chunks.values())
         chunk_content_cache: Dict[str, str] = {}
 
@@ -772,12 +996,23 @@ class DetectionService:
             except Exception:
                 pass
 
-        if not chunk_content_cache:
-            return
+        # 2) 소스 원본 텍스트 로드 (폴백용)
+        source_text = ""
+        try:
+            sources = graph_service.list_sources() if hasattr(graph_service, "list_sources") else []
+            if sources:
+                from app.services.storage import get_global_storage
+                storage = get_global_storage()
+                fp = sources[0].get("file_path", "")
+                if fp:
+                    source_text = await storage.get_file_text(fp)
+                    source_text = source_text.replace("\r\n", "\n").replace("\r", "\n")
+        except Exception:
+            pass
 
-        # 3) reports에 original_text + chunk_id 채움
+        # 3) reports에 original_text 채움
         for r in reports:
-            # character_id → chunk_id 경로
+            # 경로 1: chunk_id → search
             cid = chunk_id_map.get(r.character_id or "")
             if cid and cid in chunk_content_cache:
                 r.original_text = chunk_content_cache[cid]
@@ -785,15 +1020,98 @@ class DetectionService:
                 r.chunk_content = chunk_content_cache[cid]
                 continue
 
-            # evidence에서 event_id 추출 시도
-            for ev in (r.evidence or []):
-                if ev.text:
-                    # evidence에 event_id가 있으면 해당 event의 chunk 사용
-                    pass
-            # dialogue가 이미 있으면 유지 (폴백)
+            # 경로 2: 소스 원본에서 description 키워드로 관련 문장 검색
+            if source_text and r.description:
+                matched = self._find_matching_sentence(source_text, r.description)
+                if matched:
+                    r.original_text = matched
+                    continue
 
-        enriched = sum(1 for r in reports if r.chunk_id)
+        enriched = sum(1 for r in reports if r.chunk_id or (r.original_text and r.original_text != r.description))
         logger.info("enrich_original_text", enriched=enriched, total=len(reports))
+
+    @staticmethod
+    def _find_matching_sentence(source_text: str, description: str) -> str:
+        """description의 키워드로 소스 원본에서 가장 관련성 높은 문장을 찾습니다."""
+        import re
+        # description에서 한글 키워드 추출 (2글자 이상)
+        keywords = set(re.findall(r'[가-힣]{2,}', description))
+        if len(keywords) < 2:
+            return ""
+
+        # 소스를 문장 단위로 분리
+        lines = source_text.split("\n")
+        best_line = ""
+        best_score = 0
+
+        for line in lines:
+            line = line.strip()
+            if len(line) < 5:
+                continue
+            line_words = set(re.findall(r'[가-힣]{2,}', line))
+            if not line_words:
+                continue
+            overlap = len(keywords & line_words)
+            if overlap > best_score:
+                best_score = overlap
+                best_line = line
+
+        # 최소 2개 키워드 매칭 시 반환
+        return best_line if best_score >= 2 else ""
+
+    async def _enrich_confirmation_original_text(
+        self,
+        confirmations: List[UserConfirmation],
+        graph_service,
+        search_service,
+    ) -> None:
+        """confirmations의 original_text를 원고 원문으로 교체합니다.
+
+        경로 1: chunk_id → search_service.get_chunk_content()
+        경로 2: 소스 원본에서 description 키워드 검색 (폴백)
+        """
+        # 경로 1: chunk_id 기반
+        chunk_ids = {c.chunk_id for c in confirmations if c.chunk_id}
+        cache: Dict[str, str] = {}
+        for cid in chunk_ids:
+            try:
+                content = await search_service.get_chunk_content(cid)
+                if content:
+                    cache[cid] = content
+            except Exception:
+                pass
+
+        # 경로 2: 소스 원본 로드 (폴백)
+        source_text = ""
+        try:
+            sources = graph_service.list_sources() if hasattr(graph_service, "list_sources") else []
+            if sources:
+                from app.services.storage import get_global_storage
+                storage = get_global_storage()
+                fp = sources[0].get("file_path", "")
+                if fp:
+                    source_text = await storage.get_file_text(fp)
+                    source_text = source_text.replace("\r\n", "\n").replace("\r", "\n")
+        except Exception:
+            pass
+
+        enriched = 0
+        for c in confirmations:
+            # 경로 1
+            if c.chunk_id and c.chunk_id in cache:
+                c.original_text = cache[c.chunk_id]
+                enriched += 1
+                continue
+            # 경로 2: description/question에서 키워드 추출 → 소스 원본 검색
+            if source_text:
+                desc = c.context_summary or c.question or ""
+                matched = self._find_matching_sentence(source_text, desc)
+                if matched:
+                    c.original_text = matched
+                    enriched += 1
+
+        logger.info("enrich_confirmation_original_text",
+                     enriched=enriched, total=len(confirmations))
 
     async def full_scan(self, graph_service, search_service=None) -> AnalysisResponse:
         """전체 canonical graph 전수조사."""
