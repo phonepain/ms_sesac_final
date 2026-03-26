@@ -263,17 +263,33 @@ export default function App() {
 
   const onNewAnalyze = () => {
     runProgress(ANALYZE_STEPS, "모순 탐지 분석 중", async () => {
-      const res = await analyzeApi.scan();
-      const stats = await statsApi.getKbStats();
-      
+      const [res, stats, serverSources] = await Promise.all([
+        analyzeApi.scan(),
+        statsApi.getKbStats(),
+        sourceApi.list(),
+      ]);
+
+      // 서버 소스 정보로 프로젝트명 + source ID 결정
+      const firstSource = serverSources[0];
+      const projName = firstSource?.name?.replace(/\.[^.]+$/, '') || `새 프로젝트 ${projects.length + 1}`;
+      const initialId = firstSource ? `initial_${firstSource.id || firstSource.source_id}` : `initial_unknown`;
+
       const np: Project = {
-        id: `p-${Date.now()}`,
-        name: `새 프로젝트 ${projects.length + 1}`,
+        id: 'server',
+        name: projName,
         date: new Date().toISOString().slice(0, 10),
         kb: stats,
-        sources: Object.entries(nFiles).flatMap(([cat, fs]) =>
-          fs.map(f => ({ id: f.id, n: f.name, cat: cat as 'worldview'|'settings'|'scenario', ent: 10, fct: 5 }))
-        ),
+        sources: serverSources.length > 0
+          ? serverSources.map((s: any) => ({
+              id: s.id || s.source_id,
+              n: s.name,
+              cat: (s.source_type || s.type || 'scenario') as 'worldview' | 'settings' | 'scenario',
+              ent: s.extracted_entities || 0,
+              fct: 0,
+            }))
+          : Object.entries(nFiles).flatMap(([cat, fs]) =>
+              fs.map(f => ({ id: f.id, n: f.name, cat: cat as 'worldview'|'settings'|'scenario', ent: 10, fct: 5 }))
+            ),
         graphBuilt: { ws: true, sc: true },
         contradictions: [
           ...res.contradictions.map((c: any) => ({
@@ -292,7 +308,7 @@ export default function App() {
             ot: c.original_text || '', chunkId: c.chunk_id || '',
           })),
         ],
-        versions: [{ id: `initial_${Object.values(nFiles).flat()[0]?.id || 'unknown'}`, vr: "v0", dt: new Date().toLocaleString("ko-KR"), fx: 0, ds: "최초 업로드" }]
+        versions: [{ id: initialId, vr: "v0", dt: new Date().toLocaleString("ko-KR"), fx: 0, ds: "최초 업로드" }]
       };
       setProjects(p => [np, ...p]);
       setActiveId(np.id);
