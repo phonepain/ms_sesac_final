@@ -116,7 +116,8 @@ class Source(VertexBase):
     metadata: str = "{}"  # JSON string
     ingested_at: datetime = Field(default_factory=datetime.now)
     status: Optional[str] = "active"
-    file_path: str = ""  # StorageService가 반환한 저장 경로
+    file_path: str = ""  # StorageService가 반환한 저장 경로 (Push 시 최신 스냅샷으로 갱신)
+    original_file_path: str = ""  # 최초 업로드 경로 (불변 — diff 기준점)
 
     @property
     def partition_key(self) -> str:
@@ -141,6 +142,14 @@ class UserConfirmation(VertexBase):
     related_entity_ids: List[str] = Field(default_factory=list)
     user_response: Optional[str] = None
     resolved_at: Optional[datetime] = None
+    # 원문 관련 필드 (Soft confirmation에서 수정 UI 지원)
+    original_text: Optional[str] = None
+    dialogue: Optional[str] = None
+    suggestion: Optional[str] = None
+    character_id: Optional[str] = None
+    character_name: Optional[str] = None
+    chunk_id: Optional[str] = None
+    violation_type: Optional[str] = None
 
     @property
     def partition_key(self) -> str:

@@ -168,6 +168,7 @@ class VersionService:
         normalization_service: "NormalizationService",
         search_service: "SearchService",
         storage_service: "StorageService",
+        confirmation_service: "ConfirmationService | None" = None,
     ) -> None:
         self._graph = graph_service
         self._ingest = ingest_service
@@ -175,6 +176,7 @@ class VersionService:
         self._normalization = normalization_service
         self._search = search_service
         self._storage = storage_service
+        self._confirmation = confirmation_service
         self._log = logger.bind(service="VersionService")
 
         # 스테이징 큐: contradiction_id → StagedFix
@@ -360,27 +362,54 @@ class VersionService:
         log.info("source_file_path_updated", source_id=source_id, file_path=snapshot_path)
 
         # Step 6: 변경 청크 식별
-        changed_chunks = await self._identify_changed_chunks(
+        changed_chunks, all_chunks = await self._identify_changed_chunks(
             source_id=source_id,
             new_content=new_content,
             applied_fixes=applied_fixes,
             log=log,
         )
-        log.info("changed_chunks_identified", count=len(changed_chunks))
+        log.info("changed_chunks_identified", changed=len(changed_chunks), total=len(all_chunks))
 
-        # Step 7: 증분 재구축
+        # Step 7: 증분 재구축 (그래프: changed_chunks, Search: all_chunks)
         rebuild_errors = await self._run_incremental_rebuild(
             source_id=source_id,
             changed_chunks=changed_chunks,
+            all_chunks=all_chunks,
             log=log,
         )
 
-        # Step 8: contradiction_id들을 resolved로 마킹
-        resolved_ids = [f.contradiction_id for f in applied_fixes]
-        await self._mark_contradictions_resolved(
-            contradiction_ids=resolved_ids,
-            log=log,
-        )
+        # Step 8-a: is_intentional 픽스 → ConfirmationService.resolve() 호출
+        # (Step 8-b의 _mark_contradictions_resolved보다 먼저 실행 —
+        #  resolve()가 status를 confirmed_intentional로 변경하므로)
+        intentional_ids: set[str] = set()
+        if self._confirmation:
+            for fix in applied_fixes:
+                if fix.is_intentional:
+                    try:
+                        await self._confirmation.resolve(
+                            confirmation_id=str(fix.contradiction_id),
+                            user_response=fix.intent_note or "의도된 설정으로 인정",
+                            decision="confirmed_intentional",
+                        )
+                        intentional_ids.add(str(fix.contradiction_id))
+                        log.info("intentional_confirmation_resolved",
+                                 confirmation_id=fix.contradiction_id)
+                    except Exception as _exc:
+                        # Hard contradiction ID이거나 이미 resolved된 경우 스킵
+                        log.debug("confirmation_resolve_skipped",
+                                  id=fix.contradiction_id, error=str(_exc))
+
+        # Step 8-b: 나머지 contradiction_id들을 resolved로 마킹
+        # (intentional 처리된 것은 이미 ConfirmationService가 처리했으므로 제외)
+        resolved_ids = [
+            f.contradiction_id for f in applied_fixes
+            if str(f.contradiction_id) not in intentional_ids
+        ]
+        if resolved_ids:
+            await self._mark_contradictions_resolved(
+                contradiction_ids=resolved_ids,
+                log=log,
+            )
 
         # Step 9: 버전 메타 생성 + 저장
         source_vertex = await self._run_graph(self._graph.get_vertex, source_id, "source")
@@ -553,19 +582,17 @@ class VersionService:
         new_content: str,
         applied_fixes: list[StagedFix],
         log: structlog.BoundLogger,
-    ) -> list["DocumentChunk"]:
+    ) -> tuple[list["DocumentChunk"], list["DocumentChunk"]]:
         """
         수정이 적용된 텍스트 영역이 포함된 청크만 선별합니다.
 
-        전략:
-        - IngestService로 new_content를 재청킹
-        - 각 청크가 fixed_text를 포함하면 '변경된 청크'로 분류
-        - 오버랩 때문에 인접 청크도 함께 포함될 수 있음
+        Returns (changed_chunks, all_chunks):
+        - changed_chunks: 그래프 증분 재구축 대상
+        - all_chunks: Search 전체 재인덱싱 대상
         """
         try:
             source_vertex = await self._run_graph(self._graph.get_vertex, source_id, "source")
             filename = (source_vertex or {}).get("name", f"{source_id}.txt")
-            # chunk_text(): 순수 청킹만 수행 (파일 저장 없음)
             all_chunks = self._ingest.chunk_text(
                 text=new_content,
                 source_id=source_id,
@@ -574,13 +601,13 @@ class VersionService:
         except Exception as exc:
             raise VersionError(f"재청킹 실패 (source_id={source_id}): {exc}") from exc
 
-        # is_intentional 픽스는 텍스트 변경 없음 — 빈 문자열이 모든 청크에 매칭되는 것 방지
+        # is_intentional 픽스는 텍스트 변경 없음
         fixed_texts = {fix.fixed_text for fix in applied_fixes if not fix.is_intentional and fix.fixed_text}
 
         # 모든 픽스가 is_intentional=True — 텍스트 변경 없으므로 재구축 불필요
         if not fixed_texts:
             log.info("all_fixes_intentional_no_rebuild_needed")
-            return []
+            return [], all_chunks
 
         changed: list["DocumentChunk"] = []
 
@@ -596,9 +623,9 @@ class VersionService:
                     "안전하게 전체 청크를 변경 대상으로 처리합니다."
                 ),
             )
-            return all_chunks
+            return all_chunks, all_chunks
 
-        return changed
+        return changed, all_chunks
 
     # ──────────────────────────────────────────────────────────────
     # Private: 증분 재구축 (계층1 → 계층2 → 계층3 → 재인덱싱)
@@ -609,14 +636,14 @@ class VersionService:
         source_id: str,
         changed_chunks: list["DocumentChunk"],
         log: structlog.BoundLogger,
+        all_chunks: list["DocumentChunk"] | None = None,
     ) -> list:
         """
         변경된 청크에 대해서만 계층1~3을 순차 재실행합니다.
 
-        전략 (POC):
-        - 재청킹 시 새 chunk_id가 생성되므로, 기존 vertex의 chunk_id와 불일치
-        - 따라서 해당 source_id에 속하는 vertex/edge를 전부 삭제 후 재구축
-        - Source vertex 자체는 유지 (skip_source_vertex=True)
+        Parameters:
+            changed_chunks: 그래프 증분 재구축 대상 청크
+            all_chunks: Search 전체 재인덱싱 대상 청크 (None이면 changed_chunks 사용)
 
         Returns:
             list[PipelineError]: 발생한 오류 목록 (빈 리스트 = 전부 성공)
@@ -689,15 +716,16 @@ class VersionService:
             log.error("rebuild_materialize_failed", error=str(exc))
             errors.append(PipelineError(layer="materialize", message=f"계층3 그래프 재적재 실패: {exc}", recoverable=False))
 
-        # Search 재인덱싱: 기존 인덱스 삭제 후 새 청크 인덱싱
-        log.info("rebuild_search_reindex")
+        # Search 재인덱싱: 기존 인덱스 삭제 후 전체 청크 재인덱싱 (정합성 보장)
+        reindex_chunks = all_chunks if all_chunks else changed_chunks
+        log.info("rebuild_search_reindex", chunks=len(reindex_chunks))
         try:
             await self._search.remove_source(source_id)
         except Exception as exc:
             log.warning("search_remove_old_failed", error=str(exc))
             errors.append(PipelineError(layer="search", message=f"검색 인덱스 삭제 실패: {exc}", recoverable=True))
         try:
-            await self._search.index_chunks(source_id=source_id, chunks=changed_chunks)
+            await self._search.index_chunks(source_id=source_id, chunks=reindex_chunks)
         except Exception as exc:
             log.warning("search_reindex_failed", error=str(exc))
             errors.append(PipelineError(layer="search", message=f"검색 재인덱싱 실패: {exc}", recoverable=True))
@@ -807,7 +835,8 @@ def _apply_text_fixes(
 
     chunk_contents: chunk_id → 청크 텍스트 맵 (있으면 범위 제한 치환에 사용)
     """
-    current = content
+    # \r\n → \n 정규화 (Windows 줄바꿈 호환)
+    current = content.replace("\r\n", "\n").replace("\r", "\n")
     applied: list[StagedFix] = []
     failed: list[StagedFix] = []
 
@@ -815,7 +844,9 @@ def _apply_text_fixes(
         if fix.is_intentional:
             applied.append(fix)
             continue
-        if fix.original_text not in current:
+        # original_text도 줄바꿈 정규화
+        normalized_ot = fix.original_text.replace("\r\n", "\n").replace("\r", "\n")
+        if normalized_ot not in current:
             log.warning(
                 "fix_original_not_found",
                 contradiction_id=fix.contradiction_id,
@@ -826,24 +857,22 @@ def _apply_text_fixes(
 
         # chunk_id 기반 위치 제한 치환
         if fix.chunk_id and chunk_contents and fix.chunk_id in chunk_contents:
-            chunk_text = chunk_contents[fix.chunk_id]
-            # 청크 텍스트가 원고에서 시작하는 위치를 찾아 범위 내에서만 치환
+            chunk_text = chunk_contents[fix.chunk_id].replace("\r\n", "\n").replace("\r", "\n")
             chunk_start = current.find(chunk_text)
             if chunk_start >= 0:
                 chunk_end = chunk_start + len(chunk_text)
                 chunk_region = current[chunk_start:chunk_end]
-                idx_in_chunk = chunk_region.find(fix.original_text)
+                idx_in_chunk = chunk_region.find(normalized_ot)
                 if idx_in_chunk >= 0:
                     abs_start = chunk_start + idx_in_chunk
-                    abs_end = abs_start + len(fix.original_text)
+                    abs_end = abs_start + len(normalized_ot)
                     current = current[:abs_start] + fix.fixed_text + current[abs_end:]
                     applied.append(fix)
                     log.debug("fix_applied_chunk_scoped", contradiction_id=fix.contradiction_id, chunk_id=fix.chunk_id)
                     continue
-            # 청크 범위 매칭 실패 시 폴백 → 첫 번째 일치 치환
             log.debug("chunk_scope_fallback", contradiction_id=fix.contradiction_id, chunk_id=fix.chunk_id)
 
-        current = current.replace(fix.original_text, fix.fixed_text, 1)
+        current = current.replace(normalized_ot, fix.fixed_text, 1)
         applied.append(fix)
         log.debug("fix_applied", contradiction_id=fix.contradiction_id)
 

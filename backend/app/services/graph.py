@@ -205,6 +205,12 @@ class _ViolationMixin:
       get_item(id)             -> Optional[Dict]
     """
 
+    # ── 의도 처리 필터 ────────────────────────────────────────
+    @staticmethod
+    def _is_intentional(edge: Dict) -> bool:
+        """의도 처리(confirmed_intentional)된 엣지인지 확인"""
+        return edge.get("confirmed_intentional") in (True, "True", "true", 1)
+
     # ── 특성-이벤트 탐지 상수 ─────────────────────────────────
     _PROHIBITIVE_MARKERS = [
         "혐오", "절대", "하지 않", "않는다", "못하", "안 마", "마시지 않",
@@ -234,8 +240,8 @@ class _ViolationMixin:
             — 아직 모르는 사람에게서 배울 수 없음
         """
         violations = []
-        mentions = self._edges_by_label("MENTIONS")
-        learns = self._edges_by_label("LEARNS")
+        mentions = [e for e in self._edges_by_label("MENTIONS") if not self._is_intentional(e)]
+        learns = [e for e in self._edges_by_label("LEARNS") if not self._is_intentional(e)]
 
         # 이름 → 캐릭터 ID 맵 (cross-character 탐지에 사용)
         name_to_cid: Dict[str, str] = {}
@@ -344,8 +350,8 @@ class _ViolationMixin:
     def find_timeline_violations(self) -> List[Dict[str, Any]]:
         """2. 타임라인: 사망 후 재등장, 동시 다중 위치"""
         violations = []
-        has_status = self._edges_by_label("HAS_STATUS")
-        at_location = self._edges_by_label("AT_LOCATION")
+        has_status = [e for e in self._edges_by_label("HAS_STATUS") if not self._is_intentional(e)]
+        at_location = [e for e in self._edges_by_label("AT_LOCATION") if not self._is_intentional(e)]
 
         death_index: Dict[str, float] = {}
         for e in has_status:
@@ -354,7 +360,7 @@ class _ViolationMixin:
                 if cid and so is not None:
                     death_index[cid] = float(so)
 
-        appearance_edges = at_location + self._edges_by_label("MENTIONS") + self._edges_by_label("LEARNS")
+        appearance_edges = at_location + [e for e in self._edges_by_label("MENTIONS") if not self._is_intentional(e)] + [e for e in self._edges_by_label("LEARNS") if not self._is_intentional(e)]
         seen_violation: set = set()
         for e in appearance_edges:
             cid, so = _prop(e, "from_id"), _prop(e, "story_order")
@@ -492,7 +498,7 @@ class _ViolationMixin:
     def find_relationship_violations(self) -> List[Dict[str, Any]]:
         """3. 관계 모순"""
         violations = []
-        related = self._edges_by_label("RELATED_TO")
+        related = [e for e in self._edges_by_label("RELATED_TO") if not self._is_intentional(e)]
         pair_index: Dict[frozenset, List[str]] = {}
         for e in related:
             a, b, rtype = _prop(e, "from_id"), _prop(e, "to_id"), _prop(e, "relationship_type")
@@ -535,7 +541,7 @@ class _ViolationMixin:
     def find_trait_violations(self) -> List[Dict[str, Any]]:
         """4. 성격·설정 모순"""
         violations = []
-        has_trait = self._edges_by_label("HAS_TRAIT")
+        has_trait = [e for e in self._edges_by_label("HAS_TRAIT") if not self._is_intentional(e)]
         char_trait_index: Dict[Tuple[str, str], List[Dict]] = {}
         for e in has_trait:
             cid, tid = _prop(e, "from_id"), _prop(e, "to_id")
@@ -564,7 +570,6 @@ class _ViolationMixin:
                     evidence=[{"trait_key": trait_key, "values": values}],
                     needs_user_input=not is_imm,
                     confirmation_type=ConfirmationType.INTENTIONAL_CHANGE if not is_imm else None,
-                    dialogue=f"{trait_key}: {', '.join(str(v) for v in values)}",
                     suggestion=f"'{trait_key}' 특성 값을 통일하거나 변화 이유를 명시하세요.",
                 ))
         return violations
@@ -572,7 +577,7 @@ class _ViolationMixin:
     def find_emotion_violations(self) -> List[Dict[str, Any]]:
         """5. 감정 일관성"""
         violations = []
-        feels = self._edges_by_label("FEELS")
+        feels = [e for e in self._edges_by_label("FEELS") if not self._is_intentional(e)]
         pair_emotions: Dict[Tuple[str, str], List[Dict]] = {}
         for e in feels:
             fid, tid = _prop(e, "from_id"), _prop(e, "to_id")
@@ -612,8 +617,8 @@ class _ViolationMixin:
     def find_item_violations(self) -> List[Dict[str, Any]]:
         """6. 소유물 추적"""
         violations = []
-        possesses = self._edges_by_label("POSSESSES")
-        loses = self._edges_by_label("LOSES")
+        possesses = [e for e in self._edges_by_label("POSSESSES") if not self._is_intentional(e)]
+        loses = [e for e in self._edges_by_label("LOSES") if not self._is_intentional(e)]
 
         item_history: Dict[str, List[Dict]] = {}
         for e in possesses:
@@ -708,8 +713,8 @@ class _ViolationMixin:
         """7. 거짓말·기만"""
         violations = []
         facts = {_prop(v, "id"): v for v in self._vertices_by_label("fact")}
-        learns = self._edges_by_label("LEARNS")
-        mentions = self._edges_by_label("MENTIONS")
+        learns = [e for e in self._edges_by_label("LEARNS") if not self._is_intentional(e)]
+        mentions = [e for e in self._edges_by_label("MENTIONS") if not self._is_intentional(e)]
 
         false_fact_ids = {
             fid for fid, fv in facts.items()
@@ -1331,6 +1336,22 @@ class _ViolationMixin:
                 if is_dup:
                     continue
                 seen_char_type_parts.setdefault(ct_key, []).append(key_parts_set)
+
+            # (b) cross-character dedup: character_id와 관계없이 키워드 45% 이상 겹치면 중복
+            #     (같은 모순을 다른 캐릭터 관점에서 잡은 경우 제거)
+            if key_parts_set and len(key_parts_set) >= 3:
+                is_cross_dup = False
+                for prev_v in all_v:
+                    prev_parts = set(re.findall(r'[가-힣]{2,}', prev_v.get("description", "")))
+                    if not prev_parts or len(prev_parts) < 3:
+                        continue
+                    union = key_parts_set | prev_parts
+                    inter = key_parts_set & prev_parts
+                    if union and len(inter) / len(union) > 0.45:
+                        is_cross_dup = True
+                        break
+                if is_cross_dup:
+                    continue
 
             seen_desc.add(dedup_key)
             all_v.append(v)
@@ -2440,6 +2461,25 @@ class GremlinGraphService(_ViolationMixin):
             logger.error("resolve_trait_violation_failed", trait_id=trait_id, error=str(e))
             raise
 
+    def mark_edge_intentional(self, edge_label: str, vertex_id: str,
+                              confirmation_id: str) -> int:
+        """해당 vertex에 연결된 특정 label의 엣지에 confirmed_intentional=true 마킹."""
+        try:
+            query = (
+                f"g.V({self._qval(vertex_id)})"
+                f".bothE({self._qval(edge_label)})"
+                f".property('confirmed_intentional', true)"
+                f".property('confirmation_id', {self._qval(confirmation_id)})"
+            )
+            self._submit(query)
+            logger.info("mark_edge_intentional_ok", edge_label=edge_label,
+                        vertex_id=vertex_id, confirmation_id=confirmation_id)
+            return 1
+        except Exception as e:
+            logger.error("mark_edge_intentional_failed", edge_label=edge_label,
+                         vertex_id=vertex_id, error=str(e))
+            raise
+
     def remove_vertices_by_chunk_ids(self, chunk_ids: List[str]) -> int:
         """chunk_id 속성이 chunk_ids에 포함된 vertex 및 연관 edge 삭제."""
         if not chunk_ids:
@@ -3306,6 +3346,21 @@ class InMemoryGraphService(_ViolationMixin):
                 edge["confirmation_id"] = confirmation_id
                 updated += 1
         self.log.info("resolve_trait_violation_ok", trait_id=trait_id, updated_edges=updated)
+
+    def mark_edge_intentional(self, edge_label: str, vertex_id: str,
+                              confirmation_id: str) -> int:
+        """해당 vertex에 연결된 특정 label의 엣지에 confirmed_intentional=True 마킹."""
+        updated = 0
+        for edge in self.edges:
+            if edge.get("label") != edge_label:
+                continue
+            if edge.get("from_id") == vertex_id or edge.get("to_id") == vertex_id:
+                edge["confirmed_intentional"] = True
+                edge["confirmation_id"] = confirmation_id
+                updated += 1
+        self.log.info("mark_edge_intentional", label=edge_label,
+                      vertex_id=vertex_id, updated=updated)
+        return updated
 
     def remove_vertices_by_chunk_ids(self, chunk_ids: List[str]) -> int:
         """chunk_id 필드가 chunk_ids에 포함된 vertex를 삭제하고 삭제 수 반환."""

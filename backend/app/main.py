@@ -32,13 +32,16 @@ _version_service: Optional[VersionService] = None
 def get_version_service() -> VersionService:
     global _version_service
     if _version_service is None:
+        graph = get_graph_service()
+        search = get_search_service()
         _version_service = VersionService(
-            graph_service=get_graph_service(),
+            graph_service=graph,
             ingest_service=IngestService(),
             extraction_service=ExtractionService(),
             normalization_service=NormalizationService(),
-            search_service=get_search_service(),
+            search_service=search,
             storage_service=get_global_storage(),
+            confirmation_service=ConfirmationService(graph, search),
         )
     return _version_service
 
@@ -137,6 +140,7 @@ async def upload_source(
         source_type=SourceType(source_type),
         name=filename,
         file_path=ingest_result.file_path,
+        original_file_path=ingest_result.file_path,
     )
     # 3) Extract → Normalize → Materialize → Search 인덱싱
     # (Source vertex는 materialize() 내부에서 적재하므로 별도 add_source 불필요)
@@ -577,7 +581,27 @@ async def list_versions():
 
 @app.get("/api/versions/{version_id}/content")
 async def get_version_content(version_id: str):
-    """해당 버전의 원고 텍스트 반환 — VersionService.get_version() 위임 (source_id 내부 조회)"""
+    """해당 버전의 원고 텍스트 반환.
+
+    version_id가 'initial_'로 시작하면 소스 원본 텍스트를 반환합니다.
+    """
+    # "최초 업로드" — 소스 원본 반환
+    if version_id.startswith("initial_"):
+        source_id = version_id[len("initial_"):]
+        graph = get_graph_service()
+        source_vertex = await _run_graph(graph.get_vertex, source_id, "source")
+        if not source_vertex:
+            raise HTTPException(status_code=404, detail=f"소스를 찾을 수 없습니다: {source_id}")
+        file_path = source_vertex.get("original_file_path") or source_vertex.get("file_path", "")
+        if not file_path:
+            raise HTTPException(status_code=404, detail=f"파일 경로가 없습니다: {source_id}")
+        storage: StorageService = get_global_storage()
+        try:
+            text = await storage.get_file_text(file_path)
+        except Exception as e:
+            raise HTTPException(status_code=404, detail=f"파일 읽기 실패: {e}")
+        return {"content": text}
+
     try:
         svc = get_version_service()
         text = await svc.get_version(version_id)
@@ -595,13 +619,36 @@ async def get_version_detail(version_id: str):
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+async def _resolve_version_text(version_id: str) -> str:
+    """version_id가 'initial_'이면 소스 원본, 아니면 VersionService에서 조회"""
+    if version_id.startswith("initial_"):
+        source_id = version_id[len("initial_"):]
+        graph = get_graph_service()
+        sv = await _run_graph(graph.get_vertex, source_id, "source")
+        if not sv:
+            raise HTTPException(status_code=404, detail=f"소스를 찾을 수 없습니다: {source_id}")
+        fp = sv.get("original_file_path") or sv.get("file_path", "")
+        if not fp:
+            raise HTTPException(status_code=404, detail=f"파일 경로가 없습니다: {source_id}")
+        storage: StorageService = get_global_storage()
+        return await storage.get_file_text(fp)
+    svc = get_version_service()
+    return await svc.get_version(version_id)
+
 @app.get("/api/versions/{v_a}/diff/{v_b}")
 async def compare_versions(v_a: str, v_b: str):
     """두 버전 간 차이 반환"""
     try:
-        svc = get_version_service()
-        diff = await svc.diff_versions(v_a, v_b)
-        return {"diff": diff}
+        text_a = await _resolve_version_text(v_a)
+        text_b = await _resolve_version_text(v_b)
+        import difflib
+        diff = "\n".join(difflib.unified_diff(
+            text_a.splitlines(), text_b.splitlines(),
+            fromfile=v_a, tofile=v_b, lineterm=""
+        ))
+        return {"diff": diff or "(차이 없음)"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
