@@ -202,7 +202,7 @@ def main():
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         for group_name, case_name, r in all_results:
-            safe_name = f"{group_name}_{case_name}".replace("#", "").replace(" ", "_")
+            safe_name = f"{group_name}_{case_name}".replace("#", "").replace(" ", "_").replace(":", "").replace("/", "_")
             outpath = os.path.join(RESULTS_DIR, f"{safe_name}.json")
             r["_group"] = group_name
             r["_timestamp"] = timestamp
