@@ -42,13 +42,6 @@ const ANALYZE_STEPS: ProgressStep[] = [
   { l: "리포트 생성...", ms: 600 }
 ];
 
-const REUPLOAD_STEPS: ProgressStep[] = [
-  { l: "파일 업로드...", ms: 800 },
-  { l: "문서 파싱 및 청킹...", ms: 1200 },
-  { l: "GraphRAG 증분 재구축...", ms: 2000 },
-  { l: "새 버전 생성...", ms: 600 }
-];
-
 const PUSH_STEPS: ProgressStep[] = [
   { l: "수정사항 원본 반영...", ms: 800 },
   { l: "변경 영역 재파싱...", ms: 1200 },
@@ -376,23 +369,6 @@ export default function App() {
     setStaged(p => p.filter(s => s.id !== id));
   };
 
-  const onReupload = (srcId: string, _srcName: string, file: File) => {
-    if (!activeProj) return;
-    runProgress(REUPLOAD_STEPS, "파일 재업로드 및 GraphRAG 재구축", async () => {
-      await sourceApi.reupload(srcId, file);
-      const nv = {
-        id: `v-${Date.now()}`,
-        vr: `v${(activeProj.versions.length + 1)}.0`,
-        dt: new Date().toLocaleString("ko-KR"),
-        fx: 0,
-        ds: `파일 재업로드: ${file.name}`,
-        src: file.name
-      };
-      const updated = { ...activeProj, versions: [nv, ...activeProj.versions] };
-      setProjects(p => p.map(x => x.id === updated.id ? updated : x));
-    });
-  };
-
   const onPushFixes = () => {
     if (!activeProj || staged.length === 0) return;
     runProgress(PUSH_STEPS, "수정사항 반영 및 GraphRAG 재구축", async () => {
@@ -471,7 +447,6 @@ export default function App() {
               onPushFixes={onPushFixes}
               onClearStaged={() => setStaged([])}
               onAnalyze={onAnalyze}
-              onReupload={onReupload}
               showAi={showAi}
               setShowAi={setShowAi}
             />

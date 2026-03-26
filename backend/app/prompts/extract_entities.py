@@ -30,6 +30,7 @@ SETTINGS_PROMPT = """
 
 [추출 대상]
 1. 캐릭터 (이름, 별명, 역할) -> characters
+    ★ 동물/반려동물도 캐릭터로 추출하세요 (이름이 있는 경우).
 2. 특성 (성격, 외모, 능력 등) -> traits
     ★ 특히 다음 패턴은 반드시 trait로 추출하세요:
     - 금지/불가 습관: "절대 ~하지 않는다", "~을 극도로 혐오", "입에 대지 않는다"
@@ -42,6 +43,17 @@ SETTINGS_PROMPT = """
       예시: {{"character_name": "A", "key": "상태", "value": "3년 전 처형으로 사망", "category_hint": "background"}}
     - 불변 습관/규칙: "절대", "결코", "반드시", "항상"
       예시: {{"character_name": "A", "key": "습관", "value": "기록을 절대 누락하지 않음", "category_hint": "personality"}}
+    - 외모/신체 특징: 머리 색·스타일, 눈 색, 키, 체형, 피부색 등
+      예시: {{"character_name": "A", "key": "머리색", "value": "금발", "category_hint": "physical"}}
+      예시: {{"character_name": "A", "key": "손잡이", "value": "오른손잡이", "category_hint": "physical"}}
+    - 동물/반려동물 속성: 종(species), 품종(breed), 털 색상
+      예시: {{"character_name": "보리", "key": "종", "value": "개", "category_hint": "physical"}}
+      예시: {{"character_name": "보리", "key": "품종", "value": "골든 리트리버 믹스", "category_hint": "physical"}}
+      예시: {{"character_name": "루나", "key": "털색", "value": "흰색", "category_hint": "physical"}}
+    - 거주/결혼 상태: 독거, 기혼, 미혼, 동거
+      예시: {{"character_name": "A", "key": "결혼", "value": "기혼, 아내와 거주", "category_hint": "background"}}
+    - 의사소통 방식: 텔레파시, 수어, 특수 능력 등
+      예시: {{"character_name": "루나", "key": "소통방식", "value": "카이와 텔레파시로 소통", "category_hint": "ability"}}
 3. 관계 (두 캐릭터 간 관계 유형) -> relationships
     type_hint는 반드시 아래 영문 값 중 하나로 지정하세요:
     - "family_parent"   : 부모-자녀 (어머니, 아버지, 아들, 딸)
@@ -85,6 +97,25 @@ SCENARIO_PROMPT = """
       반드시 "없이"를 포함하여 기술 (예: "카드 없이 문을 연다", "산소 슈트 없이 외부로 나간다")
     - 세계 규칙 위반 행동: 금지/불가능으로 명시된 행동을 캐릭터가 수행하는 장면은
       그 행동을 구체적으로 기술 (예: "심해에서 통신기로 실시간 화상 통화를 시도한다")
+    - 나레이션/지문의 환경·날씨 묘사: 하늘 상태, 비/눈/바람, 달(보름달/그믐달), 기온, 조명
+      예시: {{"description": "창밖에 맑은 하늘에 노을이 지고 있다", "event_type": "scene",
+        "characters_involved": [], "location_hint": "집"}}
+      예시: {{"description": "폭우가 쏟아지는 밤, 보름달빛 아래 산길을 걷는다", "event_type": "scene",
+        "characters_involved": ["세진"], "location_hint": "산길"}}
+    - 외모·의상 묘사: 머리 색/스타일, 의상 색상, 물리적 특징이 나레이션에 언급되면 반드시 기술
+      예시: {{"description": "은채가 빨간색 원피스를 입고 파티에 도착한다", "event_type": "scene",
+        "characters_involved": ["은채"], "location_hint": "루프탑 바"}}
+    - 수치적 사실: 인원수, 점수, 나이, 횟수 등 구체적 숫자가 포함된 서술
+      예시: {{"description": "네 사람이 테이블에 앉아 건배한다", "event_type": "scene",
+        "characters_involved": ["은채", "지수", "윤서", "하영"], "location_hint": "식당"}}
+      예시: {{"description": "최종 점수 72 대 70으로 팀이 승리한다", "event_type": "scene",
+        "characters_involved": [], "location_hint": "체육관"}}
+    - 행동 방식의 세부 디테일: 어떤 손으로(왼손/오른손), 어떤 방법으로 행동하는지
+      예시: {{"description": "도윤이 왼손으로 칼을 쥐고 산길을 올랐다", "event_type": "scene",
+        "characters_involved": ["도윤"], "location_hint": "산길"}}
+    - 동물/사물의 종류·색상이 나레이션에서 언급될 때
+      예시: {{"description": "루나의 검은 털을 쓰다듬으며 카이가 말했다", "event_type": "scene",
+        "characters_involved": ["카이", "루나"], "location_hint": "숲"}}
 2. 정보 흐름 -> knowledge_events
     각 항목의 event_type을 반드시 아래 둘 중 하나로 지정하세요:
     - "mentions" : 캐릭터가 이미 알고 있는 사실을 대사/행동으로 표현하는 경우
@@ -105,6 +136,32 @@ SCENARIO_PROMPT = """
       {{"character_name": "B", "fact_content": "B의 열쇠 분실", "event_type": "learns",
         "method": "observation", "via_character": null, "dialogue_text": "열쇠가 없어졌다"}}
     주의: 같은 사실에 대해 mentions(앞)와 learns(뒤)가 모두 추출되면 정보 비대칭 모순을 탐지할 수 있습니다.
+    ★ 대사에서 사실 주장 패턴 — 반드시 추출:
+    - 종류/유형/품종 주장: 캐릭터가 동물·사물·사람의 종류를 언급
+      예시: {{"character_name": "수의사", "fact_content": "보리는 고양이이다", "event_type": "mentions",
+        "method": "direct_speech", "dialogue_text": "건강한 고양이네요"}}
+      예시: {{"character_name": "동욱", "fact_content": "보리는 시바견이다", "event_type": "mentions",
+        "method": "direct_speech", "dialogue_text": "시바견이지?"}}
+    - 시간/기간/횟수 주장: "N년", "N번째", "처음/두번째", "올해 초", "작년에"
+      예시: {{"character_name": "상훈", "fact_content": "보리 입양 기간은 3년이다", "event_type": "mentions",
+        "method": "direct_speech", "dialogue_text": "입양한 지 벌써 삼 년"}}
+      예시: {{"character_name": "예린", "fact_content": "방콕 방문은 세 번째이다", "event_type": "mentions",
+        "method": "direct_speech", "dialogue_text": "네, 세 번째예요"}}
+    - 날씨/환경 관련 주장: 대사에서 날씨·환경 상태를 언급
+      예시: {{"character_name": "상훈", "fact_content": "비가 와서 산책을 못 갔다", "event_type": "mentions",
+        "method": "direct_speech", "dialogue_text": "오늘은 비가 와서 못 갔어"}}
+    - 거주/결혼 상태 관련 주장: "혼자 산다", "아내가", "남편이"
+      예시: {{"character_name": "동욱", "fact_content": "상훈은 혼자 산다", "event_type": "mentions",
+        "method": "direct_speech", "dialogue_text": "넌 혼자 사는데 누가 밥 해줘?"}}
+    - 입수 경로/출처 주장: "~에서 샀다", "~에서 데려왔다", "입양했다"
+      예시: {{"character_name": "상훈", "fact_content": "보리를 펫샵에서 데려왔다", "event_type": "mentions",
+        "method": "direct_speech", "dialogue_text": "작년에 펫샵에서 데려왔어"}}
+    - 장소/위치 주장: 캐릭터가 자신의 현재 위치나 방문지를 대사로 언급
+      예시: {{"character_name": "예린", "fact_content": "현재 도쿄에 있다", "event_type": "mentions",
+        "method": "direct_speech", "dialogue_text": "나 지금 도쿄 수상시장!"}}
+    - 나이/생일 주장: 캐릭터가 나이, 생일, 생년을 대사로 언급
+      예시: {{"character_name": "지수", "fact_content": "은채의 나이는 28세이다", "event_type": "mentions",
+        "method": "direct_speech", "dialogue_text": "스물여덟 번째 생일을 이렇게 멋진 데서"}}
 3. 아이템의 획득/분실 -> item_events
     (action 값은 반드시 아래 3개 중 하나만 사용하세요:
     - "possesses" : 새로 획득
@@ -117,16 +174,29 @@ SCENARIO_PROMPT = """
       "action": "possesses"
     }}
 4. 등장 캐릭터 (이름, 별명, 역할) -> characters
-5. 캐릭터 특성 (성격, 직업, 능력 등 key-value) -> traits
-    예시: {{"character_name": "철수", "key": "직업", "value": "형사", "category_hint": "background"}}
+5. 캐릭터 특성 (성격, 직업, 능력, 외모 등 key-value) -> traits
+    ★ 나레이션/지문에서 캐릭터의 속성이 서술되면 반드시 추출:
+    - 동물/반려동물의 종·품종·색상: "골든 리트리버", "흰색 늑대", "고양이"
+      예시: {{"character_name": "보리", "key": "품종", "value": "골든 리트리버 믹스", "category_hint": "physical"}}
+      예시: {{"character_name": "루나", "key": "털색", "value": "흰색", "category_hint": "physical"}}
+    - 외모 묘사: 머리 색·스타일, 눈 색, 의상 색상
+      예시: {{"character_name": "아리아", "key": "머리색", "value": "금발", "category_hint": "physical"}}
+      예시: {{"character_name": "은채", "key": "헤어스타일", "value": "곱슬 펌", "category_hint": "physical"}}
+    - 거주 상태: 독거, 기혼, 동거 (나레이션에서 아내/남편 등장, "혼자 산다" 등)
+      예시: {{"character_name": "상훈", "key": "결혼", "value": "기혼 (아내 있음)", "category_hint": "background"}}
+    - 손잡이: 왼손잡이, 오른손잡이
+    - 입양/구매 경위: 입양 시기, 경로
+      예시: {{"character_name": "보리", "key": "입양시기", "value": "올해 초 유기견으로 입양", "category_hint": "background"}}
+    - 일반 특성 예시:
+      {{"character_name": "철수", "key": "직업", "value": "형사", "category_hint": "background"}}
 6. 캐릭터 간 관계 -> relationships
     예시: {{"char_a": "철수", "char_b": "영희", "type_hint": "colleague", "detail": "파트너"}}
 7. 감정 상태 (누가 누구에게 어떤 감정) -> emotions
     예시: {{"from_char": "철수", "to_char": "영희", "emotion": "trust", "trigger_hint": null}}
-8. 세계 규칙/제약 조건 -> facts (category_hint: "world_fact")
+8. 세계 규칙/제약 조건 + 나레이션 사실 -> facts
     나레이션, 지문, 대사에서 세계의 규칙/제약/금지 사항이 언급되면 fact로 추출하세요.
     세계관 파일에서 이미 추출된 내용과 중복되어도 추출하세요 (정규화에서 병합됩니다).
-    추출 대상:
+    추출 대상 (category_hint: "world_fact"):
     - 시간 기반 통제: "N시 이후 ~금지/봉쇄/잠김"
     - 물리적 제약: "~없이는 ~할 수 없다", "~이 불가능하다"
     - 통신/기술 제한: "~구간에서 통신 차단", "블랙아웃"
@@ -135,6 +205,20 @@ SCENARIO_PROMPT = """
     예시:
     {{"content": "이 구역에서는 22시 이후 모든 외출이 금지되어 있다", "category_hint": "world_fact", "is_secret_hint": false}}
     {{"content": "심해 기지에서는 외부 통신이 일절 차단된다", "category_hint": "world_fact", "is_secret_hint": false}}
+
+    ★ 나레이션이 확립하는 사실도 fact로 추출 (category_hint: "narration_fact"):
+    - 환경/날씨 상태: 지문·나레이션에서 명시된 하늘, 비/눈, 바람, 달, 조명 상태
+      예시: {{"content": "맑은 하늘에 노을이 지고 있다", "category_hint": "narration_fact", "is_secret_hint": false}}
+      예시: {{"content": "폭우가 내리고 있다", "category_hint": "narration_fact", "is_secret_hint": false}}
+      예시: {{"content": "그믐밤으로 달이 없다", "category_hint": "narration_fact", "is_secret_hint": false}}
+    - 수치적 사실: 인원수, 점수, 경기 결과 등 나레이션에서 확인된 숫자
+      예시: {{"content": "최종 점수 72 대 70으로 팀이 승리했다", "category_hint": "narration_fact", "is_secret_hint": false}}
+      예시: {{"content": "네 사람이 테이블에 앉았다", "category_hint": "narration_fact", "is_secret_hint": false}}
+    - 시간적 사실: 나레이션에서 명시된 시기, 기간
+      예시: {{"content": "상훈은 올해 초에 보리를 입양했다", "category_hint": "narration_fact", "is_secret_hint": false}}
+      예시: {{"content": "은채는 서른두 번째 생일을 맞았다", "category_hint": "narration_fact", "is_secret_hint": false}}
+    - 선물/물건 내용물: 나레이션에서 확인된 실제 내용
+      예시: {{"content": "상자를 열어보니 고급 지갑이 들어 있었다", "category_hint": "narration_fact", "is_secret_hint": false}}
 
 입력 텍스트:
 {text}

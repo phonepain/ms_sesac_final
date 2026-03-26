@@ -126,24 +126,23 @@ def clean_ai_search():
             credential=AzureKeyCredential(settings.search_key),
         )
 
+        # 전체 문서 삭제 (source_id 무관)
         total_deleted = 0
-        for sid in TARGET_SOURCE_IDS:
-            log(f"  source_id={sid} 검색 중...")
-            try:
-                results = list(search.search(
-                    search_text="*",
-                    filter=f"source_id eq '{sid}'",
-                    select=["id"],
-                    top=1000,
-                ))
-                if results:
-                    search.delete_documents(documents=[{"id": r["id"]} for r in results])
-                    log(f"    {len(results)}개 문서 삭제 완료")
-                    total_deleted += len(results)
-                else:
-                    log(f"    (삭제할 문서 없음)")
-            except Exception as e:
-                log(f"    ERR: {e}")
+        log(f"  전체 문서 검색 중...")
+        try:
+            results = list(search.search(
+                search_text="*",
+                select=["id"],
+                top=1000,
+            ))
+            if results:
+                search.delete_documents(documents=[{"id": r["id"]} for r in results])
+                total_deleted = len(results)
+                log(f"    {total_deleted}개 문서 삭제 완료")
+            else:
+                log(f"    (삭제할 문서 없음)")
+        except Exception as e:
+            log(f"    ERR: {e}")
 
         if total_deleted > 0:
             log(f"  총 {total_deleted}개 문서 삭제 완료")
