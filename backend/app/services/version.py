@@ -703,6 +703,7 @@ class VersionService:
                 source_type=_ST(source_vertex.get("source_type", "scenario")),
                 name=str(source_vertex.get("name", source_id)),
                 file_path=str(source_vertex.get("file_path", "")),
+                original_file_path=str(source_vertex.get("original_file_path", "")),
                 metadata=str(source_vertex.get("metadata", "{}")),
             )
             # remove_source()가 Source vertex도 삭제하므로 재생성 필요

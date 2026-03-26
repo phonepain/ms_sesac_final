@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { SV_COLORS } from '../types';
 import type { Project, SeverityType, Contradiction, StagedFix } from '../types';
 import { versionApi } from '../api/endpoints';
@@ -18,7 +18,6 @@ interface ProjectDetailViewProps {
   onPushFixes: () => void;
   onClearStaged: () => void;
   onAnalyze: () => void;
-  onReupload?: (srcId: string, srcName: string, file: File) => void;
   showAi: boolean;
   setShowAi: (show: boolean) => void;
 }
@@ -41,11 +40,10 @@ const formatDate = (dt: string) => {
 
 export default function ProjectDetailView({
   proj, tab, setTab, staged, onStageFix, onUnstageFix, onPushFixes, onClearStaged,
-  onAnalyze, onReupload, showAi, setShowAi
+  onAnalyze, showAi, setShowAi
 }: ProjectDetailViewProps) {
   const [filter, setFilter] = useState<'all' | SeverityType>('all');
   const [versionPanels, setVersionPanels] = useState<Record<string, { type: 'content' | 'diff'; data?: string } | null>>({});
-  const versionFileRef = useRef<HTMLInputElement>(null);
 
   const contradictions: Contradiction[] = proj.contradictions || [];
   const stagedIds = new Set(staged.map(s => s.id));
@@ -239,25 +237,6 @@ export default function ProjectDetailView({
           {/* 버전 탭 */}
           {tab === "versions" && (
             <>
-              <button
-                onClick={() => versionFileRef.current?.click()}
-                className="flex items-center gap-1.5 text-[11px] text-[#a89880] hover:text-[#c4622d] px-4 py-2.5 rounded-xl border border-[#ede4d8] bg-white hover:border-[rgba(196,98,45,0.3)] hover:bg-[#fdeee6] transition-colors w-full justify-center"
-                style={{ boxShadow: "0 2px 8px rgba(44,36,22,0.06)" }}
-              >
-                📁 파일로 새 버전 만들기
-              </button>
-              <input
-                type="file"
-                ref={versionFileRef}
-                className="hidden"
-                accept=".txt,.pdf"
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (file && onReupload) onReupload('', proj.name, file);
-                  e.target.value = '';
-                }}
-              />
-
               {/* 버전 타임라인 */}
               <div className="pl-6 relative">
                 <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-[#ede4d8] rounded-sm" />

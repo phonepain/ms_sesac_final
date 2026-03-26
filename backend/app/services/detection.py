@@ -307,6 +307,7 @@ class DetectionService:
                 fact_entries.append({
                     "content": content,
                     "id": _prop(fv, "id"),
+                    "chunk_id": fv.get("chunk_id") or None,
                 })
 
         # trait → fact_entries에 추가 (캐릭터 설정도 규칙으로 비교)
@@ -355,6 +356,7 @@ class DetectionService:
                     "description": desc,
                     "id": _prop(ev, "id"),
                     "story_order": _prop(ev, "story_order") or _prop(ev, "discourse_order") or 0,
+                    "chunk_id": ev.get("chunk_id") or None,
                 })
 
         if not fact_entries or not event_entries:
@@ -541,6 +543,11 @@ class DetectionService:
 
                 needs_user = confidence < 0.8
 
+                # event vertex에서 chunk_id 가져오기
+                ev_a_v = all_events[idx_a] if idx_a < len(all_events) else None
+                ev_b_v = all_events[idx_b] if idx_b < len(all_events) else None
+                ev_chunk = (ev_a_v.get("chunk_id") if ev_a_v else None) or (ev_b_v.get("chunk_id") if ev_b_v else None)
+
                 violations.append(_make_violation(
                     vtype=ContradictionType.TIMELINE,
                     severity=severity,
@@ -553,6 +560,7 @@ class DetectionService:
                     needs_user_input=needs_user,
                     confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY if needs_user else None,
                     suggestion="이벤트 서술 간 모순 여부를 확인하세요.",
+                    chunk_id=ev_chunk,
                 ))
 
             logger.info("event_consistency_llm_result", violations=len(violations))
@@ -654,6 +662,12 @@ class DetectionService:
                     vtype = ContradictionType.TIMELINE
                     suggestion = "설정과 이벤트의 모순 여부를 확인하세요."
 
+                # fact/event vertex에서 chunk_id 가져오기
+                if is_fact_vs_fact:
+                    v_chunk = fact_batch[rule_idx].get("chunk_id") or fact_batch[event_idx].get("chunk_id")
+                else:
+                    v_chunk = fact_batch[rule_idx].get("chunk_id") or event_entries[event_idx].get("chunk_id")
+
                 violations.append(_make_violation(
                     vtype=vtype,
                     severity=severity,
@@ -663,6 +677,7 @@ class DetectionService:
                     needs_user_input=needs_user,
                     confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY if needs_user else None,
                     suggestion=suggestion,
+                    chunk_id=v_chunk,
                 ))
 
             logger.info("world_rule_llm_result", violations=len(violations))
@@ -1012,7 +1027,25 @@ class DetectionService:
 
         # 3) reports에 original_text 채움
         for r in reports:
-            # 경로 1: chunk_id → search
+            # 경로 0: report가 이미 chunk_id를 가지고 있으면 바로 사용
+            if r.chunk_id and r.chunk_id in chunk_content_cache:
+                r.original_text = chunk_content_cache[r.chunk_id]
+                r.chunk_content = chunk_content_cache[r.chunk_id]
+                continue
+
+            # 경로 0-b: report의 chunk_id가 캐시에 없으면 조회 시도
+            if r.chunk_id and r.chunk_id not in chunk_content_cache:
+                try:
+                    content = await search_service.get_chunk_content(r.chunk_id)
+                    if content:
+                        chunk_content_cache[r.chunk_id] = content
+                        r.original_text = content
+                        r.chunk_content = content
+                        continue
+                except Exception:
+                    pass
+
+            # 경로 1: character vertex의 chunk_id → search
             cid = chunk_id_map.get(r.character_id or "")
             if cid and cid in chunk_content_cache:
                 r.original_text = chunk_content_cache[cid]
