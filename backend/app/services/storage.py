@@ -413,6 +413,19 @@ class LocalStorageService(StorageService):
         logger.info("delete_all_uploads complete", files_deleted=count)
         return count
 
+    async def delete_all_versions(self) -> int:
+        """versions 디렉토리의 모든 파일을 삭제합니다."""
+        count = 0
+        for item in list(self._versions.iterdir()):
+            if item.is_dir():
+                count += sum(1 for f in item.rglob("*") if f.is_file())
+                shutil.rmtree(item, ignore_errors=True)
+            elif item.is_file():
+                item.unlink(missing_ok=True)
+                count += 1
+        logger.info("delete_all_versions complete", files_deleted=count)
+        return count
+
     # ── 버전 스냅샷 관리 ─────────────────────────────────
 
     async def save_version_snapshot(
@@ -602,6 +615,19 @@ class BlobStorageService(StorageService):
         except Exception as exc:
             logger.error("delete_all_uploads failed", error=str(exc))
             raise StorageError(f"전체 업로드 삭제 실패") from exc
+
+    async def delete_all_versions(self) -> int:
+        """버전 컨테이너의 모든 blob을 삭제합니다."""
+        try:
+            container_client = self._client.get_container_client(self._versions_container)
+            blobs = list(container_client.list_blobs())
+            if blobs:
+                container_client.delete_blobs(*[b.name for b in blobs])
+            logger.info("delete_all_versions complete", count=len(blobs))
+            return len(blobs)
+        except Exception as exc:
+            logger.error("delete_all_versions failed", error=str(exc))
+            raise StorageError(f"전체 버전 삭제 실패") from exc
 
     # ── 버전 스냅샷 관리 ─────────────────────────────────
 

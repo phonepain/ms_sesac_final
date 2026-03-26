@@ -91,14 +91,21 @@ async def reset_all():
 
     graph_result = graph_svc.clear_all()
     deleted_files = await storage_svc.delete_all_uploads()
+    deleted_versions = await storage_svc.delete_all_versions()
     await search_svc.reset_index()
+
+    # VersionService 전체 초기화
     version_svc._staging.clear()
+    version_svc._versions.clear()
+    version_svc._version_order.clear()
+    version_svc._version_counter = 0
 
     return {
         "status": "ok",
         "message": "전체 초기화 완료",
         "graph_cleared": graph_result,
         "files_deleted": deleted_files,
+        "versions_deleted": deleted_versions,
     }
 
 
