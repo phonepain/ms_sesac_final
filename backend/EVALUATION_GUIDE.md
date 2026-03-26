@@ -18,6 +18,11 @@ cp .env.example .env
 ```
 AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
 AZURE_OPENAI_API_KEY=your-api-key
+AZURE_OPENAI_DEPLOY_MINI=gpt-5.4-mini
+AZURE_OPENAI_DEPLOY_MAIN=gpt-5.3-chat
+USE_LOCAL_GRAPH=true
+USE_LOCAL_STORAGE=true
+USE_MOCK_SEARCH=true
 ```
 
 ## 3. 테스트 실행
@@ -58,18 +63,20 @@ python scripts/case500_e2e_test.py --case 0
 
 | 스크립트 | 대상 폴더 | 케이스 수 | 형식 | 예상 시간 |
 |----------|----------|----------|------|----------|
-| case500_e2e_test.py | claude_test_case500 | 4 | 단일파일 ~1KB | ~3분 |
-| case1000_e2e_test.py | claude_test_case1000 | 4 | 단일파일 ~2KB | ~3분 |
-| case1000v2_e2e_test.py | claude_test_case1000_v2 | 4 | 단일파일 ~1.7KB | ~3분 |
-| case2000_e2e_test.py | claude_test_case2000 | 4 | 단일파일 3~4.5KB | ~4분 |
-| batch_e2e_test.py | case | 4 | 단일파일 3~5KB | ~3분 |
-| case2_e2e_test.py | cases2 | 8 | 3파일(W+S+S) | ~8분 |
+| case500_e2e_test.py | case500 | 4 | 단일파일 ~1KB | ~3분 |
+| case1000_e2e_test.py | case1000 | 4 | 단일파일 ~2KB | ~3분 |
+| case1000v2_e2e_test.py | case1000v2 | 4 | 단일파일 ~1.7KB | ~3분 |
+| case2000_e2e_test.py | case2000 | 4 | 단일파일 3~4.5KB | ~4분 |
+| batch_e2e_test.py | batch | 4 | 단일파일 3~5KB | ~3분 |
+| case2_e2e_test.py | case2 | 8 | 3파일(W+S+S) | ~8분 |
 | cases3_e2e_test.py | cases3 | 8 | 3파일(W+S+S) | ~10분 |
-| long_case_e2e_test.py | case2plus | 4 | 3파일(긴 시나리오) | ~40분 |
-| variation_e2e_test.py | cases | 5 | 3파일(W+S+S) | ~5분 |
-| wss500_e2e_test.py | claude_test_wss500 | 4 | 단일(섹션분리) | ~3분 |
-| wss1000_e2e_test.py | claude_test_wss1000 | 4 | 단일(섹션분리) | ~4분 |
-| wss2_1000_e2e_test.py | claude_test_wss2_1000 | 4 | 3파일 분리 | ~4분 |
+| long_case_e2e_test.py | long_case | 4 | 3파일(긴 시나리오) | ~40분 |
+| variation_e2e_test.py | variation | 5 | 3파일(W+S+S) | ~5분 |
+| wss500_e2e_test.py | wss500 | 4 | 단일(섹션분리) | ~3분 |
+| wss1000_e2e_test.py | wss1000 | 4 | 단일(섹션분리) | ~4분 |
+| wss2_1000_e2e_test.py | wss2_1000 | 4 | 3파일 분리 | ~4분 |
+
+> 폴더 규칙: `{스크립트명}_e2e_test.py` ↔ `data/sample/{스크립트명}/`
 
 ## 5. 결과 해석
 
@@ -99,12 +106,116 @@ case500        case1                       3    2    -1    39s
 - 차이가 **양수**: 과탐지 (기대보다 많이 찾음)
 - 차이가 **0**: 이상적
 
-## 6. 테스트 데이터 구조
+## 6. 평가 프레임워크 (Gold Standard 기반 P/R/F1)
+
+### 개요
+
+단순 건수 비교가 아닌, Gold Standard 키워드 매칭 기반 **Precision / Recall / F1** 메트릭 제공.
+
+- **Gold Standard**: 57개 케이스, 703건 모순 (카테고리, 키워드, Hard/Soft 태그)
+- **평가 도구**: `evaluation/evaluate_results.py` (AI 호출 없이 로컬 실행)
+
+### 2단계 워크플로우
+
+#### 1단계: 테스트 실행 + 결과 저장 (AI 필요)
+
+```bash
+# 전체 실행 + 결과 저장
+python scripts/run_all_tests.py --save
+
+# 나눠서 실행 가능 (서로 다른 PC/시간에)
+python scripts/run_all_tests.py --save case500
+python scripts/run_all_tests.py --save case1000v2 wss500
+python scripts/run_all_tests.py --save long_case
+```
+
+결과는 `backend/results/` 폴더에 케이스별 JSON으로 저장됩니다.
+
+```
+results/
+├── case500_case1.json
+├── case500_case2.json
+├── case1000v2_case14.json
+└── ...
+```
+
+#### 2단계: 통합 평가 (AI 불필요)
+
+```bash
+# 저장된 전체 결과 평가
+python -m evaluation.evaluate_results
+
+# 특정 셋만 평가
+python -m evaluation.evaluate_results --set case500 case1000v2
+
+# 상세 매칭 출력 (어떤 모순이 매칭/미매칭인지)
+python -m evaluation.evaluate_results -v
+
+# 매칭 임계값 조정 (기본 0.3)
+python -m evaluation.evaluate_results --threshold 0.2
+```
+
+### 평가 출력 예시
+
+```
+셋별 메트릭
+  셋             케이스   TP   FP   FN       P       R      F1
+  ────────────────────────────────────────────────────────────
+  case500          4     6    6    4  50.0%  60.0%  54.5%
+  case1000v2       4    12    5    9  70.6%  57.1%  63.2%
+  ────────────────────────────────────────────────────────────
+  전체               8    18   11   13  62.1%  58.1%  60.0%
+
+  [전체 Detection 메트릭]
+  Precision : 62.1% (18/29)
+  Recall    : 58.1% (18/31)
+  F1        : 60.0%
+
+  유형별 Recall:
+    물리/규칙 위반  ########............  43% (3/7)
+    설정/성격 모순  #################### 100% (3/3)
+    타임라인/이동   ##############......  70% (7/10)
+```
+
+### 메트릭 설명
+
+| 메트릭 | 의미 |
+|--------|------|
+| **Precision** | 탐지한 것 중 실제 모순인 비율 (높을수록 과탐지 적음) |
+| **Recall** | 실제 모순 중 탐지한 비율 (높을수록 미탐지 적음) |
+| **F1** | Precision과 Recall의 조화평균 |
+| **TP** | True Positive — Gold에 있고 탐지함 |
+| **FP** | False Positive — Gold에 없는데 탐지함 (과탐지) |
+| **FN** | False Negative — Gold에 있는데 탐지 못함 (미탐지) |
+| **유형별 Recall** | 7가지 모순 유형별 탐지율 |
+
+### Gold Standard 재생성
+
+expectation 파일을 수정했거나 새로운 테스트 케이스를 추가한 경우:
+
+```bash
+python -m evaluation.generate_gold
+```
+
+`evaluation/gold_standard_cases.json`이 재생성됩니다.
+
+### 다른 PC에서 평가만 실행
+
+1. Git에서 프로젝트를 clone
+2. 다른 PC에서 생성된 `results/*.json` 파일을 `backend/results/`에 복사
+3. 평가 실행 (API 키 불필요):
+
+```bash
+cd backend
+python -m evaluation.evaluate_results -v
+```
+
+## 7. 테스트 데이터 구조
 
 ### 단일 파일 (case500, case1000 등)
 
 ```
-data/sample/claude_test_case500/
+data/sample/case500/
 ├── case1.txt           # 시나리오 텍스트
 ├── expectation1.txt    # 기대 모순 목록
 ├── case2.txt
@@ -112,27 +223,27 @@ data/sample/claude_test_case500/
 ...
 ```
 
-### 3파일 분리 (cases2, cases3 등)
+### 3파일 분리 (case2, cases3 등)
 
 ```
-data/sample/cases2/
+data/sample/case2/
 ├── test_1_world.txt       # 세계관
 ├── test_1_config.txt      # 설정집
 ├── test_1_scenario.txt    # 시나리오
-├── test_1_expectation.txt # 기대값 ("총 N건" 형식)
+├── test_1_expectation.txt # 기대값
 ...
 ```
 
 ### 단일파일 섹션분리 (wss500, wss1000)
 
 ```
-data/sample/claude_test_wss500/
+data/sample/wss500/
 ├── case17.txt    # [세계관] [설정집] [시나리오] 섹션이 한 파일에 포함
 ├── expectation17.txt
 ...
 ```
 
-## 7. 기준 성능 (Azure GPT-5.4-mini + GPT-5.3-chat, 2026-03-26)
+## 8. 기준 성능 (Azure GPT-5.4-mini + GPT-5.3-chat, 2026-03-26)
 
 | 테스트셋 | 기대 | 탐지 | 탐지율 |
 |---------|------|------|--------|
@@ -144,3 +255,14 @@ data/sample/claude_test_wss500/
 | wss500 | 18 | 12 | 67% |
 | cases2 | 38 | 38 | 100% |
 | cases3 | 33 | 34 | 103% |
+
+## 9. 토큰/비용 추정 (전체 57케이스 1회 실행)
+
+| 모델 | 입력 단가 (/1M) | 출력 단가 (/1M) | 예상 비용 |
+|------|----------------|----------------|----------|
+| Claude Opus 4.6 | $15 | $75 | ~$52 |
+| Claude Sonnet 4.6 | $3 | $15 | ~$10 |
+| Gemini 3.1 Pro Preview | $2 | $12 | ~$8 |
+| Gemini 3.1 Flash-Lite | $0.25 | $1.50 | ~$1 |
+
+> 총 ~1.7M 토큰 (입력 ~1.25M + 출력 ~0.45M)

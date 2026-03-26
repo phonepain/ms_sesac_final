@@ -9,6 +9,8 @@
   python scripts/run_all_tests.py                    # 전체
   python scripts/run_all_tests.py long_case           # long_case만
   python scripts/run_all_tests.py case500 long_case   # 여러 스크립트
+  python scripts/run_all_tests.py --save              # 결과를 results/ 에 JSON 저장
+  python scripts/run_all_tests.py --save case500      # 특정만 실행 + 저장
 """
 import subprocess
 import sys
@@ -16,6 +18,7 @@ import os
 import io
 import json
 import time
+from datetime import datetime
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
@@ -88,8 +91,15 @@ def run_one_case(script: str, case_idx: int) -> dict:
     }
 
 
+RESULTS_DIR = os.path.join(BACKEND_DIR, "results")
+
+
 def main():
-    selected = sys.argv[1:] if len(sys.argv) > 1 else None
+    args = sys.argv[1:]
+    save_mode = "--save" in args
+    if save_mode:
+        args.remove("--save")
+    selected = args if args else None
 
     tests_to_run = []
     for name, script, count in ALL_TESTS:
@@ -185,6 +195,22 @@ def main():
     diff_str = f"+{diff_total}" if diff_total > 0 else str(diff_total)
     print(f"  {'합계':<14} {'':<24} {grand_expected:>4} {grand_detected:>4} {diff_str:>5} {grand_elapsed:>5.0f}s")
     print(f"{'=' * 74}")
+
+    # ── 결과 저장 ──
+    if save_mode:
+        os.makedirs(RESULTS_DIR, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        for group_name, case_name, r in all_results:
+            safe_name = f"{group_name}_{case_name}".replace("#", "").replace(" ", "_")
+            outpath = os.path.join(RESULTS_DIR, f"{safe_name}.json")
+            r["_group"] = group_name
+            r["_timestamp"] = timestamp
+            with open(outpath, "w", encoding="utf-8") as f:
+                json.dump(r, f, ensure_ascii=False, indent=2)
+
+        print(f"\n  결과 저장: {RESULTS_DIR}/ ({len(all_results)}개 파일)")
+        print(f"  통합 평가: python -m evaluation.evaluate_results")
 
 
 if __name__ == "__main__":
