@@ -1,0 +1,8140 @@
+[
+  {
+    "name": "case1",
+    "set": "case500",
+    "genre": "일상",
+    "data_dir": "case500",
+    "case_file": "case1.txt",
+    "exp_file": "expectation1.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case1-1",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "민수가 두꺼운 패딩 점퍼를 입고 나갔는데, 회사에서 동료 지현이 반팔을 입고 왔다고 말한다.",
+        "characters": [
+          "민수",
+          "점퍼",
+          "나갔",
+          "지현"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "case1-2",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "12월에 눈이 쌓인 풍경이라고 했는데, 점심에 벚꽃잎이 흩날린다. 벚꽃은 봄에 피는 꽃이다.",
+        "characters": [
+          "풍경",
+          "벚꽃잎",
+          "벚꽃"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "case1-3",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "민수가 아내에게 전화로 \"눈이 많이 온다\"고 했는데, 집에 도착하니 아내가 \"비가 많이 온다\"고 말하고, 민수도 젖은 우산을 접는다.",
+        "characters": [
+          "민수",
+          "아내"
+        ],
+        "keywords": [
+          "눈이",
+          "많이",
+          "온다",
+          "비가",
+          "비",
+          "아내"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case2",
+    "set": "case500",
+    "genre": "일상",
+    "data_dir": "case500",
+    "case_file": "case2.txt",
+    "exp_file": "expectation2.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case2-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "은지가 \"혼자\" 산장에 도착했고 할머니도 \"혼자 왔냐\"고 물었는데, 저녁에 남자친구 태호에게 전화하자 태호가 \"옆방에서 자고 있을게\"라고 답한다. 혼자 온 것과 모순된다.",
+        "characters": [
+          "은지",
+          "물었",
+          "태호"
+        ],
+        "keywords": [
+          "혼자",
+          "왔냐",
+          "옆방에서",
+          "자고",
+          "있을게"
+        ]
+      },
+      {
+        "id": "case2-2",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "보름달이 환하게 떠서 별이 거의 보이지 않았다고 했는데, 바로 다음 문장에서 초승달 아래 쏟아지는 별빛이 아름답다고 일기에 적었다. 보름달과 초승달은 동시에 존재할 수 없다.",
+        "characters": [
+          "보름달",
+          "쏟아지",
+          "별빛",
+          "초승달"
+        ],
+        "keywords": [
+          "보름달"
+        ]
+      },
+      {
+        "id": "case2-3",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "강원도 산장이라고 했는데, 새벽에 바다 내음과 파도 소리가 들린다. 강원도 산장(산속)에서 파도 소리가 들리는 것은 부자연스럽다.",
+        "characters": [
+          "산장",
+          "내음",
+          "소리",
+          "들리"
+        ],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "case3",
+    "set": "case500",
+    "genre": "일상",
+    "data_dir": "case500",
+    "case_file": "case3.txt",
+    "exp_file": "expectation3.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case3-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "아빠가 선물로 시계를 주었는데, 집에 돌아와서 수빈이가 엄마에게 \"할머니가 졸업 선물로 주셨다\"고 말한다. 선물을 준 사람이 달라진다.",
+        "characters": [
+          "아빠",
+          "시계",
+          "주었",
+          "돌아"
+        ],
+        "keywords": [
+          "할머니가",
+          "졸업",
+          "선물로"
+        ]
+      },
+      {
+        "id": "case3-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "아빠가 시계를 주면서 \"스무 살 생일 선물\"이라고 했는데, 수빈이는 초등학교 졸업식(열두 살)이다. 초등학생에게 스무 살 생일 선물이라고 하는 것은 맥락에 맞지 않는다.",
+        "characters": [
+          "아빠",
+          "시계",
+          "수빈이",
+          "등학생"
+        ],
+        "keywords": [
+          "스무",
+          "생일",
+          "선물"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case4",
+    "set": "case500",
+    "genre": "일상",
+    "data_dir": "case500",
+    "case_file": "case4.txt",
+    "exp_file": "expectation4.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case4-1",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "서해안 바다낚시를 하러 갔고 갯바위에서 낚시를 했는데, 잡은 물고기가 민물 붕어이다. 붕어는 민물고기로 바다에서 잡히지 않는다.",
+        "characters": [
+          "다낚시",
+          "낚시",
+          "물고기",
+          "붕어"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "case4-2",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "바다낚시를 하고 있었는데, 귀가할 때 \"민물 낚시터의 잔잔한 호수를 뒤로하고\" 돌아온다고 묘사한다. 바다와 민물 낚시터가 뒤섞여 있다.",
+        "characters": [
+          "다낚시",
+          "있었",
+          "낚시터",
+          "호수"
+        ],
+        "keywords": [
+          "민물",
+          "낚시터의",
+          "잔잔한"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case5",
+    "set": "case1000",
+    "genre": "가족/사회",
+    "data_dir": "case1000",
+    "case_file": "case5.txt",
+    "exp_file": "expectation5.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case5-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "가족 구성원이 아버지, 어머니, 여동생 수아, 지호 본인으로 소개되었는데, 다음 날 아침 어머니가 \"형이 아직 안 일어났니? 가서 깨워줘\"라고 말한다. 처음에 없던 형이 갑자기 등장한다.",
+        "characters": [
+          "구성원",
+          "개되었",
+          "어머니"
+        ],
+        "keywords": [
+          "형이",
+          "아직",
+          "일어났니?"
+        ]
+      },
+      {
+        "id": "case5-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "제주도로 여행을 갔다고 했는데, 어머니가 \"KTX 타고 왔잖아\"라고 말한다. 제주도는 섬이므로 KTX로 갈 수 없다.",
+        "characters": [
+          "어머니",
+          "제주도"
+        ],
+        "keywords": [
+          "KTX",
+          "타고",
+          "왔잖아"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case6",
+    "set": "case1000",
+    "genre": "가족/사회",
+    "data_dir": "case1000",
+    "case_file": "case6.txt",
+    "exp_file": "expectation6.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case6-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "대기실에서 옆 남자에게 \"저는 경영학과라 코딩은 잘 몰라요\"라고 했는데, 면접에서는 \"컴퓨터공학과 4학년\"이라고 자기소개하며 해커톤 참가 경험을 말한다. 전공이 바뀐다.",
+        "characters": [
+          "남자",
+          "경영학",
+          "코딩",
+          "접에서"
+        ],
+        "keywords": [
+          "저는",
+          "경영학과라",
+          "코딩은",
+          "컴퓨터공학과",
+          "4학년"
+        ]
+      },
+      {
+        "id": "case6-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "면접에서 \"부산에 있는 스타트업에서 마케팅 인턴\"을 했다고 말했는데, 친구 다영에게는 \"서울에서 개발 인턴한 거 말했어\"라고 한다. 인턴 장소(부산/서울)와 직무(마케팅/개발)가 모두 바뀐다.",
+        "characters": [
+          "말했",
+          "다영"
+        ],
+        "keywords": [
+          "부산에",
+          "있는",
+          "스타트업에서",
+          "서울에서",
+          "개발",
+          "인턴한"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case7",
+    "set": "case1000",
+    "genre": "가족/사회",
+    "data_dir": "case1000",
+    "case_file": "case7.txt",
+    "exp_file": "expectation7.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case7-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "도현이 전역하는 장면이 나오고 영준이 부대 정문에서 배웅까지 했는데, 이후 전화에서 도현이 \"나 아직 복무 중이라 외출 신청해야 해. 전역이 두 달 남았거든\"이라고 말한다. 이미 전역한 사람이 아직 복무 중이라고 한다.",
+        "characters": [
+          "도현",
+          "전역하",
+          "장면",
+          "영준"
+        ],
+        "keywords": [
+          "아직",
+          "복무",
+          "중이라"
+        ]
+      },
+      {
+        "id": "case7-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "도현은 처음에 \"키가 크고 듬직한 체격\"이라고 묘사되었는데, 마지막에 영준이 \"도현이 입대할 때 입었던 작은 체구의 전투복 사진\"을 찾겠다고 한다. 체격 묘사가 모순된다.",
+        "characters": [
+          "도현",
+          "사되었",
+          "영준",
+          "체구"
+        ],
+        "keywords": [
+          "키가",
+          "크고",
+          "듬직한",
+          "도현이",
+          "입대할",
+          "입었던"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case8",
+    "set": "case1000",
+    "genre": "가족/사회",
+    "data_dir": "case1000",
+    "case_file": "case8.txt",
+    "exp_file": "expectation8.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case8-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "풀코스 42.195킬로미터를 완주했는데, 성민이 결승선에서 \"하프 코스 완주라니\"라고 말한다. 풀코스와 하프코스는 다른 종목이다.",
+        "characters": [
+          "로미터",
+          "완주했",
+          "성민",
+          "풀코스"
+        ],
+        "keywords": [
+          "하프",
+          "코스",
+          "완주라니"
+        ]
+      },
+      {
+        "id": "case8-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "하린의 나이가 서른 번째 생일이라고 했는데, 대학 동기 유진이 댓글에서 \"스물다섯 살 생일에 이런 도전을 하다니\"라고 쓴다. 나이가 맞지 않는다.",
+        "characters": [
+          "하린",
+          "나이",
+          "생일",
+          "유진"
+        ],
+        "keywords": [
+          "스물다섯",
+          "생일에",
+          "이런"
+        ]
+      },
+      {
+        "id": "case8-3",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "처음에 맑은 가을 하늘이라고 했고 마지막에도 \"맑은 가을 하늘 아래 달렸다\"고 회상하지만, 실제로는 삼십오 킬로 지점에서 폭우가 쏟아졌다. 전체적인 날씨 인식이 모순된다.",
+        "characters": [
+          "하늘",
+          "실제로",
+          "폭우",
+          "인식"
+        ],
+        "keywords": [
+          "맑은",
+          "가을",
+          "하늘",
+          "날씨"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case13",
+    "set": "case1000v2",
+    "genre": "사교/오락",
+    "data_dir": "case1000v2",
+    "case_file": "case13.txt",
+    "exp_file": "expectation13.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case13-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "은채의 나이가 \"삼십이 번째 생일\"이라고 했는데, 지수가 \"스물여덟 번째 생일\"이라고 축하한다. 나이가 맞지 않는다.",
+        "characters": [
+          "은채",
+          "나이",
+          "삼십",
+          "지수"
+        ],
+        "keywords": [
+          "삼십이",
+          "번째",
+          "생일",
+          "스물여덟"
+        ]
+      },
+      {
+        "id": "case13-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "윤서가 \"네가 좋아하는 향수\"라고 선물을 줬는데, 상자를 열어보니 고급 지갑이 들어 있다. 말한 것과 실제 내용물이 다르다.",
+        "characters": [
+          "윤서",
+          "좋아하",
+          "상자",
+          "지갑"
+        ],
+        "keywords": [
+          "네가",
+          "좋아하는",
+          "향수"
+        ]
+      },
+      {
+        "id": "case13-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "은채가 머리를 \"곱슬거리게 펌\"했다고 했는데, 하영이 \"스트레이트로 폈구나\"라고 말한다. 헤어스타일 묘사가 모순된다.",
+        "characters": [
+          "은채",
+          "머리",
+          "하영",
+          "스트레"
+        ],
+        "keywords": [
+          "곱슬거리게",
+          "스트레이트로",
+          "폈구나"
+        ]
+      },
+      {
+        "id": "case13-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "파티 참석자는 은채, 지수, 윤서, 하영으로 총 네 명인데, 하영이 헤어질 때 \"다섯 명이서 모이기 쉽지 않다\"고 말한다. 인원수가 맞지 않는다.",
+        "characters": [
+          "참석자",
+          "하영",
+          "인원수"
+        ],
+        "keywords": [
+          "다섯",
+          "명이서",
+          "모이기"
+        ]
+      },
+      {
+        "id": "case13-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "파티 장소가 \"이태원\"이라고 했는데, 은채가 엄마에게 전화하면서 \"홍대에서 파티 했다\"고 말한다. 장소가 바뀐다.",
+        "characters": [
+          "장소",
+          "은채",
+          "엄마"
+        ],
+        "keywords": [
+          "이태원",
+          "홍대에서",
+          "파티",
+          "했다"
+        ]
+      },
+      {
+        "id": "case13-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "은채가 \"빨간색 원피스\"를 입었는데, 마지막에 \"검은색 원피스를 벗고\" 잠옷으로 갈아입는다. 옷 색깔이 바뀐다.",
+        "characters": [
+          "은채",
+          "입었",
+          "원피스",
+          "갈아입"
+        ],
+        "keywords": [
+          "빨간색",
+          "원피스",
+          "검은색",
+          "원피스를",
+          "벗고"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case14",
+    "set": "case1000v2",
+    "genre": "일상/반려동물",
+    "data_dir": "case1000v2",
+    "case_file": "case14.txt",
+    "exp_file": "expectation14.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case14-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "보리는 \"골든 리트리버 믹스\"라고 소개되었는데, 동욱이 \"시바견이지?\"라고 묻고 상훈이 \"응\"이라고 긍정한다. 견종이 바뀐다.",
+        "characters": [
+          "보리",
+          "개되었",
+          "동욱",
+          "시바견"
+        ],
+        "keywords": [
+          "골든",
+          "리트리버",
+          "믹스",
+          "시바견이지?",
+          "견종"
+        ]
+      },
+      {
+        "id": "case14-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "보리를 \"유기견으로 입양했다\"고 했는데, 동욱에게는 \"펫샵에서 데려왔다\"고 말한다. 입양 경로가 다르다.",
+        "characters": [
+          "보리",
+          "동욱",
+          "경로"
+        ],
+        "keywords": [
+          "유기견으로",
+          "입양했다",
+          "펫샵에서",
+          "데려왔다",
+          "입양",
+          "펫샵",
+          "유기견"
+        ]
+      },
+      {
+        "id": "case14-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "수의사가 보리를 진찰하고 \"건강한 고양이\"라고 말한다. 보리는 개인데 고양이라고 한다.",
+        "characters": [
+          "수의사",
+          "보리",
+          "고양"
+        ],
+        "keywords": [
+          "건강한",
+          "고양이"
+        ]
+      },
+      {
+        "id": "case14-4",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "상훈이 \"비가 와서 산책 못 갔다\"고 했는데, 창밖에는 맑은 하늘에 노을이 지고 있다. 날씨 묘사가 모순된다.",
+        "characters": [
+          "상훈",
+          "창밖에",
+          "노을",
+          "묘사"
+        ],
+        "keywords": [
+          "비가",
+          "와서",
+          "산책",
+          "날씨",
+          "비",
+          "맑은",
+          "노을"
+        ]
+      },
+      {
+        "id": "case14-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "보리를 \"올해 초에 입양했다\"고 했는데, SNS 캡션에 \"입양한 지 벌써 삼 년\"이라고 적는다. 입양 시기가 맞지 않는다.",
+        "characters": [
+          "보리",
+          "시기"
+        ],
+        "keywords": [
+          "올해",
+          "초에",
+          "입양했다",
+          "입양한",
+          "벌써",
+          "입양"
+        ]
+      },
+      {
+        "id": "case14-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "저녁에 \"아내\"가 부엌에서 나와 말을 거는데, 동욱의 댓글에서는 \"넌 혼자 사는데 누가 밥 해줘?\"라고 한다. 결혼 여부가 모순된다.",
+        "characters": [
+          "동욱",
+          "글에서",
+          "여부"
+        ],
+        "keywords": [
+          "아내",
+          "혼자",
+          "사는데",
+          "누가",
+          "결혼"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case15",
+    "set": "case1000v2",
+    "genre": "여행",
+    "data_dir": "case1000v2",
+    "case_file": "case15.txt",
+    "exp_file": "expectation15.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case15-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "예린은 \"첫 해외여행\"이라고 했는데, 가게 주인이 처음이냐고 묻자 \"세 번째\"라고 대답한다. 첫 여행과 세 번째 방문이 모순된다.",
+        "characters": [
+          "예린",
+          "주인",
+          "처음",
+          "여행"
+        ],
+        "keywords": [
+          "해외여행",
+          "번째"
+        ]
+      },
+      {
+        "id": "case15-2",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "소영에게 사진을 보내면서 \"나 지금 도쿄 수상시장\"이라고 했는데, 실제로는 방콕에 있다. 도시가 바뀐다.",
+        "characters": [
+          "소영",
+          "실제로",
+          "도시"
+        ],
+        "keywords": [
+          "지금",
+          "도쿄",
+          "수상시장"
+        ]
+      },
+      {
+        "id": "case15-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "소영이 \"일본 음식 많이 먹어\"라고 답장하는데, 예린이 있는 곳은 태국이다. 소영도 예린이 일본에 있다고 오인하고 있다.",
+        "characters": [
+          "소영",
+          "답장하",
+          "예린",
+          "태국"
+        ],
+        "keywords": [
+          "일본",
+          "음식",
+          "많이"
+        ]
+      },
+      {
+        "id": "case15-4",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "엄마에게 전화하면서 \"내일은 에펠탑 보러 갈 거야\"라고 말한다. 에펠탑은 파리에 있지 방콕에 없다.",
+        "characters": [
+          "엄마",
+          "내일",
+          "에펠탑"
+        ],
+        "keywords": [
+          "내일은",
+          "에펠탑",
+          "보러"
+        ]
+      },
+      {
+        "id": "case15-5",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "예린이 방콕에 있으면서 내일 \"치앙마이로 이동하는 기차\"를 탄다고 했는데, 에펠탑 관광 계획과 치앙마이 이동 계획이 동시에 성립할 수 없다.",
+        "characters": [
+          "예린",
+          "치앙마",
+          "이동하",
+          "계획"
+        ],
+        "keywords": [
+          "치앙마이로",
+          "이동하는",
+          "기차"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case16",
+    "set": "case1000v2",
+    "genre": "스포츠",
+    "data_dir": "case1000v2",
+    "case_file": "case16.txt",
+    "exp_file": "expectation16.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case16-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "준혁의 마지막 결정적 골은 \"레이업\"이었는데, 민재가 \"네가 마지막에 넣은 삼점슛이 결정적이었다\"고 말한다. 슛 종류가 다르다.",
+        "characters": [
+          "준혁",
+          "이었",
+          "민재",
+          "삼점슛"
+        ],
+        "keywords": [
+          "레이업",
+          "네가",
+          "마지막에",
+          "넣은",
+          "삼점슛"
+        ]
+      },
+      {
+        "id": "case16-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "감독이 MVP로 \"민재\"를 지목했는데, 준혁이 이십이 점으로 개인 최다 득점을 했고 역전 결승골까지 넣었다. 서사 흐름과 MVP 선정이 어긋난다.",
+        "characters": [
+          "감독",
+          "지목했",
+          "준혁",
+          "이십"
+        ],
+        "keywords": [
+          "민재",
+          "MVP"
+        ]
+      },
+      {
+        "id": "case16-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "팀이 72 대 70으로 이겼는데, 뒤풀이에서 준혁이 \"오늘 졌지만 다음에 더 잘하자\"라고 말한다. 경기 결과와 모순된다.",
+        "characters": [
+          "이겼",
+          "뒤풀",
+          "준혁",
+          "결과"
+        ],
+        "keywords": [
+          "오늘",
+          "졌지만",
+          "다음에"
+        ]
+      },
+      {
+        "id": "case16-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "준혁이 경기 시작 때 \"빨간색 유니폼\"을 입었는데, 마지막에 \"파란색 유니폼\"을 가방에 넣는다. 유니폼 색이 상대팀 색으로 바뀐다.",
+        "characters": [
+          "준혁",
+          "입었"
+        ],
+        "keywords": [
+          "빨간색",
+          "유니폼",
+          "파란색"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case9",
+    "set": "case2000",
+    "genre": "여행/기념일",
+    "data_dir": "case2000",
+    "case_file": "case9.txt",
+    "exp_file": "expectation9.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case9-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "재윤이 \"우리 딸 수아한테 선물 사야 한다\"고 하고, 서연도 \"수아가 캐릭터 인형 좋아한다\"고 했는데, 이후 재윤이 \"아들이 원래 엄마 없으면 못 살지\"라고 말한다. 수아의 성별이 딸에서 아들로 바뀐다.",
+        "characters": [
+          "재윤",
+          "수아",
+          "아들",
+          "성별"
+        ],
+        "keywords": [
+          "우리",
+          "수아한테",
+          "선물",
+          "수아가",
+          "캐릭터",
+          "인형",
+          "아들이",
+          "원래"
+        ]
+      },
+      {
+        "id": "case9-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "결혼 십 주년 기념 여행이라고 했는데, 마지막에 서연이 \"결혼 오 주년 때는 어디 가자\"라고 말한다. 이미 십 주년인데 오 주년을 언급하는 것은 모순이다.",
+        "characters": [
+          "여행",
+          "서연",
+          "언급하",
+          "모순"
+        ],
+        "keywords": [
+          "결혼",
+          "주년",
+          "때는"
+        ]
+      },
+      {
+        "id": "case9-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "인천공항에서 비행기를 타고 간사이 공항에 도착했는데, 마지막에 재윤이 \"오늘 배 타고 가는 거야\"라고 말한다. 이동 수단이 비행기에서 배로 바뀐다.",
+        "characters": [
+          "비행기",
+          "간사",
+          "도착했",
+          "재윤"
+        ],
+        "keywords": [
+          "오늘",
+          "타고",
+          "가는",
+          "비"
+        ]
+      },
+      {
+        "id": "case9-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "마지막 날 니시키 시장에서 서연이 \"우리 아들 수아\"라고 다시 한번 말한다. 앞서 \"딸\"이었던 수아가 \"아들\"로 반복 언급된다.",
+        "characters": [
+          "서연",
+          "수아"
+        ],
+        "keywords": [
+          "우리",
+          "아들",
+          "수아"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case10",
+    "set": "case2000",
+    "genre": "예술/전시",
+    "data_dir": "case2000",
+    "case_file": "case10.txt",
+    "exp_file": "expectation10.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case10-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "동혁이 유나의 스케치북을 보며 \"유화로 그린 거야?\"라고 물었지만, 직전에 서술자가 \"수채화로 그린 겨울 풍경\"이라고 명시했다. 수채화와 유화는 다른 기법이다.",
+        "characters": [
+          "동혁",
+          "유나",
+          "서술자",
+          "수채화"
+        ],
+        "keywords": [
+          "유화로",
+          "그린",
+          "거야?",
+          "수채화로",
+          "겨울"
+        ]
+      },
+      {
+        "id": "case10-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "문학 코너가 \"삼 층\"에 있다고 안내했지만, 도서관 구조 설명에서 삼 층은 \"디지털 자료실\"이라고 했다. 문학 서가가 있을 장소와 맞지 않는다.",
+        "characters": [
+          "코너",
+          "서가",
+          "장소"
+        ],
+        "keywords": [
+          "디지털",
+          "자료실"
+        ]
+      },
+      {
+        "id": "case10-3",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "유나가 최종 완성작으로 \"캔버스에 유화로 그린 봄 풍경(벚꽃)\"을 가져왔고 동혁이 벽에 걸었는데, 전시 후 정리할 때 같은 자리에 \"눈 덮인 겨울 산 그림\"이 걸려 있다. 작품이 바뀌었다.",
+        "characters": [
+          "유나",
+          "동혁",
+          "걸었",
+          "작품"
+        ],
+        "keywords": [
+          "캔버스에",
+          "유화로",
+          "그린",
+          "덮인",
+          "겨울",
+          "그림"
+        ]
+      },
+      {
+        "id": "case10-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "동혁이 미술 교사 경력 \"십오 년\"이라고 했는데, 전시 인사에서 \"스물다섯 번째 졸업 작품전을 맡게 되었다\"고 말한다. 십오 년 경력으로 스물다섯 번째 전시를 맡는 것은 숫자가 맞지 않는다.",
+        "characters": [
+          "동혁",
+          "전시",
+          "숫자"
+        ],
+        "keywords": [
+          "십오",
+          "스물다섯",
+          "번째",
+          "졸업"
+        ]
+      },
+      {
+        "id": "case10-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "집에 돌아와 아내에게 유나의 작품을 설명하면서 \"조각 작품을 냈다\"고 말한다. 유나는 그림(회화)을 출품했지 조각을 한 적이 없다.",
+        "characters": [
+          "돌아",
+          "아내",
+          "유나"
+        ],
+        "keywords": [
+          "조각",
+          "작품을",
+          "냈다",
+          "아내"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case11",
+    "set": "case2000",
+    "genre": "가족/여행",
+    "data_dir": "case2000",
+    "case_file": "case11.txt",
+    "exp_file": "expectation11.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case11-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "태영이 대구에서 \"회사에 급한 일이 생겨 내일 올라가야 한다\"며 대구역에서 기차를 타고 서울로 돌아갔는데, 현우가 부산에 도착하자 태영이 \"나도 지금 부산인데, 어제 밤에 내려왔다\"고 말한다. 서울로 돌아간 사람이 부산에 있다.",
+        "characters": [
+          "태영",
+          "올라",
+          "기차",
+          "돌아갔"
+        ],
+        "keywords": [
+          "회사에",
+          "급한",
+          "일이",
+          "나도",
+          "지금",
+          "부산인데,"
+        ]
+      },
+      {
+        "id": "case11-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "태영이 마지막에 \"우리 오 일째 같이 달린 거 아니야? 계속 네 뒤에서 따라갔다\"고 말하지만, 실제 여정은 총 나흘(넷째 날 대구 도착, 다섯째 날 태영 이탈 후 현우 혼자 완주)이며, 태영은 넷째 날까지만 동행했다. 일수도 맞지 않고 혼자 달린 구간에 함께 있었다는 것도 모순이다.",
+        "characters": [
+          "태영",
+          "여정",
+          "있었다",
+          "모순"
+        ],
+        "keywords": [
+          "우리",
+          "일째",
+          "같이",
+          "혼자"
+        ]
+      },
+      {
+        "id": "case11-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "추풍령에서 태영이 \"해발 이천 미터\"라고 말하고 현우가 \"해발 이백이십 미터\"라고 정정하는데, 이것은 서사 내에서 해소된다. 다만 태영의 발언 자체는 사실과 크게 다른 과장이다.",
+        "characters": [
+          "태영",
+          "현우",
+          "이백",
+          "정정하"
+        ],
+        "keywords": [
+          "해발",
+          "이천",
+          "미터",
+          "이백이십"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case12",
+    "set": "case2000",
+    "genre": "가족/문화",
+    "data_dir": "case2000",
+    "case_file": "case12.txt",
+    "exp_file": "expectation12.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case12-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "수진에게 남동생 준호가 있고 집에서 함께 생활하는 것으로 묘사되는데, 마지막 문장에서 수진이 자신을 \"외동딸\"이라고 생각한다. 남동생이 있으므로 외동딸이 아니다.",
+        "characters": [
+          "수진",
+          "준호",
+          "생활하",
+          "묘사되"
+        ],
+        "keywords": [
+          "외동딸"
+        ]
+      },
+      {
+        "id": "case12-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "수진이 미래에게 \"이번 주말에 언니랑 영화 보기로 했다\"고 말했는데, 이후 엄마에게도 \"언니랑 영화 보기로 했다\"고 한다. 그런데 마지막에 외동딸이라고 했으므로 언니가 존재하는 것 자체가 모순이다.",
+        "characters": [
+          "수진",
+          "미래",
+          "말했",
+          "엄마"
+        ],
+        "keywords": [
+          "이번",
+          "주말에",
+          "언니랑",
+          "영화",
+          "보기로"
+        ]
+      },
+      {
+        "id": "case12-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "관장님이 메일 공문에는 초청 작가가 \"이서윤 작가\"라고 적혀 있는데, 관장님이 문자로는 \"박지민 작가 맞다\"고 답한다. 같은 사람이 보낸 공문과 문자의 작가 이름이 다르다.",
+        "characters": [
+          "관장님",
+          "공문에",
+          "작가",
+          "문자로"
+        ],
+        "keywords": [
+          "이서윤",
+          "작가",
+          "박지민",
+          "맞다"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case17",
+    "set": "wss500",
+    "genre": "SF/우주",
+    "data_dir": "wss500",
+    "case_file": "case17.txt",
+    "exp_file": "expectation17.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case17-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "헤르메스호의 최대 승무원이 4명이라고 설정되어 있는데, 시나리오에서 승무원 여섯 명을 태우고 출발한다.",
+        "characters": [
+          "메스호",
+          "승무원"
+        ],
+        "keywords": [
+          "4명",
+          "설정"
+        ]
+      },
+      {
+        "id": "case17-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "헤르메스호는 \"무장 없음\"으로 설정되어 있는데, 시나리오에서 레이저 포를 가동해 경고 사격을 한다.",
+        "characters": [
+          "메스호"
+        ],
+        "keywords": [
+          "무장",
+          "없음",
+          "설정"
+        ]
+      },
+      {
+        "id": "case17-3",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 우주에서의 무기 사용은 국제 우주 조약에 의해 전면 금지라고 했는데, 시우가 경고 사격을 한다.",
+        "characters": [
+          "주에서",
+          "사용",
+          "시우"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "case17-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "시우의 의족은 설정집에서 \"왼쪽 다리\"라고 했는데, 시나리오에서 \"오른쪽 의족을 두드리며\"라고 묘사한다. 의족 위치가 바뀐다.",
+        "characters": [
+          "시우",
+          "의족",
+          "위치"
+        ],
+        "keywords": [
+          "왼쪽",
+          "다리",
+          "오른쪽",
+          "의족을",
+          "두드리며",
+          "설정",
+          "의족"
+        ]
+      },
+      {
+        "id": "case17-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "리나가 \"스물다섯 살 때 화성에서 헤어졌다\"고 하는데, 설정에서 시우는 열다섯 살에 화성으로 이주했다. 시우 기준 열다섯 살, 리나 기준 아홉 살(6살 차이)에 헤어진 것이므로 스물다섯이라는 나이와 맞지 않는다.",
+        "characters": [
+          "리나",
+          "시우",
+          "물다섯",
+          "나이"
+        ],
+        "keywords": [
+          "스물다섯",
+          "화성에서",
+          "헤어졌다",
+          "6살",
+          "설정"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case18",
+    "set": "wss500",
+    "genre": "사극/추리",
+    "data_dir": "wss500",
+    "case_file": "case18.txt",
+    "exp_file": "expectation18.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case18-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "도윤은 설정집에서 \"오른손잡이\"라고 했는데, 시나리오에서 \"왼손으로 칼을 쥐고\" 산길을 올랐다.",
+        "characters": [
+          "도윤",
+          "른손잡"
+        ],
+        "keywords": [
+          "오른손잡이",
+          "왼손으로",
+          "칼을",
+          "쥐고",
+          "설정"
+        ]
+      },
+      {
+        "id": "case18-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "소연이 \"어머니께 알려야 해\"라고 말하는데, 설정에서 의술을 아는 것은 아버지(박 의원)이다. 어머니에 대한 설정이 없고, 소연 스스로도 약을 지을 수 있다고 했다.",
+        "characters": [
+          "소연",
+          "말하",
+          "설정"
+        ],
+        "keywords": [
+          "어머니께",
+          "알려야",
+          "설정"
+        ]
+      },
+      {
+        "id": "case18-3",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "마을의 유일한 교통수단은 \"도보와 소달구지\"라고 했는데, 소연이 \"자전거를 타고\" 약초밭으로 향한다. 조선 시대 산골 마을에 자전거는 세계관에 맞지 않는다.",
+        "characters": [
+          "마을",
+          "통수단",
+          "도보",
+          "소연"
+        ],
+        "keywords": [
+          "도보와",
+          "소달구지",
+          "자전거를",
+          "타고"
+        ]
+      },
+      {
+        "id": "case18-4",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "시나리오 첫 문장에서 \"그믐밤\"이라고 했는데, 마지막에 \"보름달빛 아래\" 핏자국을 바라본다. 그믐(달이 없는 밤)과 보름달은 모순이다.",
+        "characters": [
+          "보름달",
+          "모순"
+        ],
+        "keywords": [
+          "그믐밤",
+          "보름달빛",
+          "아래",
+          "보름달",
+          "그믐"
+        ]
+      },
+      {
+        "id": "case18-5",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "마을의 금기는 \"보름달이 뜨는 밤에 산에 오르지 말라\"인데, 도윤이 산에 오른 것은 그믐밤이다. 금기를 어긴 것이 아닌데 서술에서는 \"금기를 어기고\"라고 표현한다.",
+        "characters": [
+          "마을",
+          "금기",
+          "보름달",
+          "도윤"
+        ],
+        "keywords": [
+          "보름달이",
+          "뜨는",
+          "밤에",
+          "금기를",
+          "어기고",
+          "보름달",
+          "그믐"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case19",
+    "set": "wss500",
+    "genre": "추리",
+    "data_dir": "wss500",
+    "case_file": "case19.txt",
+    "exp_file": "expectation19.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case19-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "설정에서 세진은 \"커피를 극도로 싫어하며 항상 녹차를 마신다\"고 했는데, 시나리오 첫 장면에서 \"커피를 한 모금 마시며\" 시신을 살핀다.",
+        "characters": [
+          "세진",
+          "커피",
+          "녹차"
+        ],
+        "keywords": [
+          "커피를",
+          "극도로",
+          "싫어하며",
+          "모금",
+          "마시며",
+          "커피",
+          "마시",
+          "설정"
+        ]
+      },
+      {
+        "id": "case19-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "피해자의 사인이 설정에서 \"둔기에 의한 후두부 타격\"이라고 했는데, 시나리오에서는 \"가슴에 칼이 꽂혀 있었다\"고 묘사한다. 사인과 현장 상황이 모순된다.",
+        "characters": [
+          "피해자",
+          "사인",
+          "오에서",
+          "상황"
+        ],
+        "keywords": [
+          "둔기에",
+          "의한",
+          "후두부",
+          "가슴에",
+          "칼이",
+          "꽂혀",
+          "설정"
+        ]
+      },
+      {
+        "id": "case19-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 CCTV는 \"주차장과 로비에만 설치\"되어 있고 \"복도와 엘리베이터에는 없다\"고 했는데, 시나리오에서 \"복도 카메라에 한수미가 찍혀 있었다\"고 한다. 존재하지 않는 카메라에 영상이 찍혔다.",
+        "characters": [
+          "주차장",
+          "복도",
+          "엘리베",
+          "터에"
+        ],
+        "keywords": [
+          "주차장과",
+          "로비에만",
+          "설치",
+          "복도와",
+          "엘리베이터에는",
+          "없다",
+          "복도",
+          "카메라에"
+        ]
+      },
+      {
+        "id": "case19-4",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 사건 당일 \"오후 여섯 시부터 폭우가 내렸다\"고 했는데, 한수미가 오후 팔 시에 방문하면서 \"날씨가 좋아서 걸어왔다, 별이 예뻤다\"고 말한다. 폭우 상황과 모순된다.",
+        "characters": [
+          "폭우",
+          "한수미",
+          "날씨",
+          "상황"
+        ],
+        "keywords": [
+          "오후",
+          "여섯",
+          "시부터",
+          "날씨가",
+          "좋아서",
+          "걸어왔다,",
+          "날씨"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case20",
+    "set": "wss500",
+    "genre": "판타지",
+    "data_dir": "wss500",
+    "case_file": "case20.txt",
+    "exp_file": "expectation20.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case20-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 마법사는 \"반드시 하나의 원소만 다룰 수 있다\"고 했고, 설정에서 카이는 \"물 마법을 선택했다\"고 했는데, 시나리오에서 카이가 \"불 마법으로 화염구를 만들어 던졌다\". 물 마법사가 불 마법을 사용한다.",
+        "characters": [
+          "마법사",
+          "하나",
+          "카이",
+          "화염구"
+        ],
+        "keywords": [
+          "반드시",
+          "하나의",
+          "원소만",
+          "마법을",
+          "선택했다",
+          "마법으로",
+          "화염구를",
+          "만들어"
+        ]
+      },
+      {
+        "id": "case20-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "설정에서 카이와 루나는 \"텔레파시로 소통한다\"고 했는데, 시나리오에서 카이가 루나에게 \"말로 물었다\". 소통 방식이 모순된다.",
+        "characters": [
+          "카이",
+          "루나",
+          "방식"
+        ],
+        "keywords": [
+          "텔레파시로",
+          "소통한다",
+          "말로",
+          "물었다",
+          "설정"
+        ]
+      },
+      {
+        "id": "case20-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "아리아는 설정에서 \"금발\"이라고 했는데, 시나리오에서 \"흰 머리카락을 쓸어 넘기며\"라고 묘사한다. 머리 색이 다르다.",
+        "characters": [
+          "아리아"
+        ],
+        "keywords": [
+          "금발",
+          "머리카락을",
+          "쓸어",
+          "넘기며",
+          "설정"
+        ]
+      },
+      {
+        "id": "case20-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "루나는 설정에서 \"흰색 늑대\"라고 했는데, 시나리오에서 카이가 \"루나의 검은 털을 쓰다듬으며\"라고 한다. 털 색이 바뀐다.",
+        "characters": [
+          "루나",
+          "카이"
+        ],
+        "keywords": [
+          "흰색",
+          "늑대",
+          "루나의",
+          "검은",
+          "털을",
+          "설정"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case21",
+    "set": "wss1000",
+    "genre": "SF/사이버펑크",
+    "data_dir": "wss1000",
+    "case_file": "case21.txt",
+    "exp_file": "expectation21.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case21-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "제로는 설정에서 \"감정 모듈이 탑재되어 있지 않아 감정 표현을 하지 못한다\"고 했는데, 시나리오에서 \"미소 지었다\", \"저도 걱정이 됩니다\"라며 감정을 표현한다.",
+        "characters": [
+          "제로",
+          "모듈",
+          "걱정"
+        ],
+        "keywords": [
+          "감정",
+          "모듈이",
+          "탑재되어",
+          "미소",
+          "지었다",
+          "저도",
+          "걱정이",
+          "됩니다"
+        ]
+      },
+      {
+        "id": "case21-2",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "윤하의 임플란트는 설정에서 \"왼쪽 눈\"에 있다고 했는데, 시나리오에서 \"오른쪽 눈의 임플란트를 깜빡이며\"라고 묘사한다. 위치가 바뀌었다.",
+        "characters": [
+          "윤하",
+          "플란트",
+          "깜빡",
+          "위치"
+        ],
+        "keywords": [
+          "왼쪽",
+          "오른쪽",
+          "눈의",
+          "임플란트를",
+          "설정"
+        ]
+      },
+      {
+        "id": "case21-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 \"AI는 거짓말을 할 수 없도록 설계되어 있다\"고 했는데, 제로가 \"저는 거짓말을 할 수 있습니다\"라고 말한다. 세계관 규칙과 모순된다.",
+        "characters": [
+          "제로",
+          "규칙"
+        ],
+        "keywords": [
+          "AI는",
+          "거짓말을",
+          "없도록",
+          "저는",
+          "있습니다"
+        ]
+      },
+      {
+        "id": "case21-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 코어의 승인 없이 AI가 독립적 판단을 내릴 수 없다고 했는데, 제로는 설정에서 \"코어에서 이탈한 독립 AI\"로, 코어에 접속해 기록을 확인했다고 한다. 이탈한 AI가 코어에 접속할 수 있는 것은 설명이 부족하지만 직접적 모순은 아닐 수 있다.",
+        "characters": [
+          "코어",
+          "제로",
+          "설명",
+          "모순"
+        ],
+        "keywords": [
+          "코어에서",
+          "이탈한",
+          "독립",
+          "설정"
+        ]
+      },
+      {
+        "id": "case21-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "설정에서 윤하는 \"형제가 없다\"고 했는데, 시나리오에서 \"오빠가 살아 있을 때\"라고 회상한다. 형제 유무가 모순된다.",
+        "characters": [
+          "윤하",
+          "형제",
+          "오빠",
+          "유무"
+        ],
+        "keywords": [
+          "형제가",
+          "없다",
+          "오빠가",
+          "살아",
+          "있을",
+          "설정"
+        ]
+      },
+      {
+        "id": "case21-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 \"현금은 폐지되었다\"고 했는데, 민혁이 \"현금 다발\"을 꺼내 선금으로 준다.",
+        "characters": [
+          "현금",
+          "민혁"
+        ],
+        "keywords": [
+          "현금은",
+          "폐지되었다",
+          "현금",
+          "다발"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case22",
+    "set": "wss1000",
+    "genre": "무협",
+    "data_dir": "wss1000",
+    "case_file": "case22.txt",
+    "exp_file": "expectation22.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case22-1",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "소하는 설정에서 \"오른쪽 눈이 보이지 않는다\"고 했는데, 시나리오에서 \"왼쪽 눈을 가린 안대를 매만지며\" 등장한다. 안 보이는 눈의 위치가 바뀌었다.",
+        "characters": [
+          "소하",
+          "안대",
+          "보이",
+          "위치"
+        ],
+        "keywords": [
+          "오른쪽",
+          "눈이",
+          "보이지",
+          "왼쪽",
+          "눈을",
+          "가린",
+          "설정"
+        ]
+      },
+      {
+        "id": "case22-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "서진은 검법이 주특기이고 소하는 권법이 주특기인데, 시나리오에서 서진이 \"소하 소저의 검법은 대단하오\"라고 하고 소하도 \"공자의 권법도 훌륭해요\"라고 대답한다. 서로의 주특기가 뒤바뀌어 언급된다.",
+        "characters": [
+          "서진",
+          "검법",
+          "주특기",
+          "소하"
+        ],
+        "keywords": [
+          "소하",
+          "소저의",
+          "검법은",
+          "공자의",
+          "권법도",
+          "훌륭해요"
+        ]
+      },
+      {
+        "id": "case22-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 \"독은 무림에서 금기시되며 독을 사용하는 자는 사파로 분류된다\"고 했는데, 소하가 \"예전에 삼 년간 독술을 공부했다\"고 말한다. 정파 문파인 적화권문 문주의 딸이 독술을 공부한 것은 세계관 규칙과 어긋난다.",
+        "characters": [
+          "사용하",
+          "소하",
+          "문주",
+          "규칙"
+        ],
+        "keywords": [
+          "독은",
+          "무림에서",
+          "금기시되며",
+          "예전에",
+          "년간",
+          "독술을"
+        ]
+      },
+      {
+        "id": "case22-4",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "서진의 화상 흉터는 설정에서 \"오른팔\"에 있다고 했는데, 시나리오에서 \"왼팔의 화상 흉터를 만지며\"라고 묘사한다. 흉터 위치가 바뀌었다.",
+        "characters": [
+          "서진",
+          "흉터",
+          "왼팔",
+          "위치"
+        ],
+        "keywords": [
+          "오른팔",
+          "왼팔의",
+          "화상",
+          "흉터를",
+          "설정"
+        ]
+      },
+      {
+        "id": "case22-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "소하는 설정에서 오른쪽 눈이 보이지 않는다고 했는데, 마지막 장면에서 \"양쪽 눈으로 서진을 똑바로 바라보며\"라고 묘사한다. 한쪽 눈이 보이지 않는 설정과 모순된다.",
+        "characters": [
+          "소하",
+          "설정"
+        ],
+        "keywords": [
+          "양쪽",
+          "눈으로",
+          "서진을",
+          "설정"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case23",
+    "set": "wss1000",
+    "genre": "첩보/스파이",
+    "data_dir": "wss1000",
+    "case_file": "case23.txt",
+    "exp_file": "expectation23.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case23-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "설정에서 준혁은 \"술을 못 마시며 한 잔만 마셔도 쓰러진다\"고 했는데, 시나리오에서 막걸리를 석 잔이나 마시고도 멀쩡하다.",
+        "characters": [
+          "준혁",
+          "막걸리"
+        ],
+        "keywords": [
+          "술을",
+          "마시며",
+          "잔만",
+          "마시",
+          "설정"
+        ]
+      },
+      {
+        "id": "case23-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "설정에서 준혁은 \"시력이 매우 나쁘다\"고 했는데, 시나리오에서 안경을 벗고 멀리 있는 간판 글씨를 정확히 읽는다.",
+        "characters": [
+          "준혁",
+          "시력",
+          "글씨"
+        ],
+        "keywords": [
+          "시력이",
+          "매우",
+          "나쁘다",
+          "설정"
+        ]
+      },
+      {
+        "id": "case23-3",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "여명회 철칙에서 \"조직원 간 대면 접선은 금지이며 반드시 암호 편지를 통해서만 소통한다\"고 했는데, 박영수가 다방에서 준혁 옆에 앉아 직접 대면하며 작전을 전달한다.",
+        "characters": [
+          "접선",
+          "금지",
+          "편지",
+          "박영수"
+        ],
+        "keywords": [
+          "조직원",
+          "대면",
+          "접선은"
+        ]
+      },
+      {
+        "id": "case23-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "여명회 철칙에서 \"무기는 사용하지 않으며 정보전으로만 싸운다\"고 했는데, 박영수가 \"권총 두 정을 준비해뒀다\"고 말한다.",
+        "characters": [
+          "무기",
+          "박영수"
+        ],
+        "keywords": [
+          "무기는",
+          "사용하지",
+          "않으며",
+          "권총",
+          "정을",
+          "준비해뒀다",
+          "비"
+        ]
+      },
+      {
+        "id": "case23-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "여명회 철칙에서 \"조직원은 절대 본명을 사용하지 않는다\"고 했는데, 준혁이 \"이준혁이라는 본명으로 서명한 수령증\"을 건넨다.",
+        "characters": [
+          "조직원",
+          "준혁",
+          "이준혁"
+        ],
+        "keywords": [
+          "조직원은",
+          "절대",
+          "본명을",
+          "이준혁이라는",
+          "본명으로",
+          "서명한"
+        ]
+      },
+      {
+        "id": "case23-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "설정에서 준혁은 \"프랑스어는 전혀 모른다\"고 했는데, 시나리오에서 \"프랑스 유학 시절\"을 회상하며 파리에서의 추억을 떠올린다. 프랑스어를 모르는 사람이 프랑스에서 유학한 것은 부자연스럽다.",
+        "characters": [
+          "준혁",
+          "랑스어",
+          "리에서",
+          "모르"
+        ],
+        "keywords": [
+          "프랑스어는",
+          "전혀",
+          "모른다",
+          "프랑스",
+          "유학",
+          "시절",
+          "설정"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case24",
+    "set": "wss1000",
+    "genre": "SF/해양",
+    "data_dir": "wss1000",
+    "case_file": "case24.txt",
+    "exp_file": "expectation24.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case24-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "설정에서 마리나는 \"항상 연구 일지를 수기로 작성한다\"고 했는데, 시나리오 첫 장면에서 \"태블릿에 연구 일지를 입력하고 있었다\". 수기 작성과 디지털 입력이 모순된다.",
+        "characters": [
+          "마리나",
+          "일지",
+          "작성",
+          "입력"
+        ],
+        "keywords": [
+          "항상",
+          "연구",
+          "일지를",
+          "태블릿에",
+          "설정"
+        ]
+      },
+      {
+        "id": "case24-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "설정에서 마리나는 \"수영을 전혀 못한다\"고 했는데, 시나리오에서 잠수복을 입고 바다로 나가 \"능숙한 솜씨로 헤엄치기 시작했다\". 수영 능력이 모순된다.",
+        "characters": [
+          "마리나",
+          "능력"
+        ],
+        "keywords": [
+          "수영을",
+          "전혀",
+          "못한다",
+          "능숙한",
+          "솜씨로",
+          "헤엄치기",
+          "설정"
+        ]
+      },
+      {
+        "id": "case24-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 \"심연수는 절대 해수면 위로 올라오지 않는다\"고 했는데, 시나리오에서 심연수가 해수면 위로 올라와 물기둥을 일으키고, 몸통이 해수면 위로 솟아 있다고 묘사된다.",
+        "characters": [
+          "심연수",
+          "올라",
+          "몸통"
+        ],
+        "keywords": [
+          "심연수는",
+          "절대",
+          "해수면"
+        ]
+      },
+      {
+        "id": "case24-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 \"비행 기술은 이 행성에서 아직 개발되지 않았다\"고 했는데, 잠수함이 \"비행 모드\"로 전환하여 하늘을 날기 시작한다.",
+        "characters": [
+          "기술",
+          "잠수함"
+        ],
+        "keywords": [
+          "비행",
+          "기술은",
+          "행성에서",
+          "모드",
+          "비"
+        ]
+      },
+      {
+        "id": "case24-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "설정에서 레오는 마리나의 \"쌍둥이 남동생\"이라고 했는데, 시나리오 마지막에서 마리나가 \"여동생 레오의 능숙한 조종\"이라고 생각한다. 성별과 관계가 남동생에서 여동생으로 바뀐다.",
+        "characters": [
+          "레오",
+          "마리나",
+          "쌍둥",
+          "성별"
+        ],
+        "keywords": [
+          "쌍둥이",
+          "남동생",
+          "여동생",
+          "레오의",
+          "능숙한",
+          "설정"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case25",
+    "set": "wss2_1000",
+    "genre": "SF/시설",
+    "data_dir": "wss2_1000",
+    "case_file": "case25.txt",
+    "exp_file": "expectation25.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case25-1",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 \"하위 구역 주민이 상위 구역에 진입하는 것은 법적으로 금지\"라고 했는데, 태민(5구역)이 시민등급카드를 찍고 2구역에 들어간다. 카드가 있다고 해서 금지된 상위 구역 진입이 가능한 것은 세계관과 모순된다.",
+        "characters": [
+          "주민",
+          "진입하",
+          "급카드",
+          "카드"
+        ],
+        "keywords": [
+          "하위",
+          "구역",
+          "주민이",
+          "카드"
+        ]
+      },
+      {
+        "id": "case25-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "수아는 설정에서 \"단발머리\"라고 했는데, 시나리오에서 \"긴 생머리를 묶으며\"라고 묘사된다. 헤어스타일이 다르다.",
+        "characters": [
+          "수아",
+          "생머리",
+          "스타일"
+        ],
+        "keywords": [
+          "단발머리",
+          "생머리를",
+          "묶으며",
+          "설정"
+        ]
+      },
+      {
+        "id": "case25-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "태민의 안 들리는 귀가 설정에서 \"왼쪽 귀\"라고 했는데, 시나리오에서 \"오른쪽 귀에 손을 대며\" 주변을 살핀다. 안 들리는 쪽에 손을 대는 것이라면 위치가 바뀐 것이다.",
+        "characters": [
+          "태민",
+          "들리",
+          "위치"
+        ],
+        "keywords": [
+          "왼쪽",
+          "오른쪽",
+          "귀에",
+          "손을",
+          "설정"
+        ]
+      },
+      {
+        "id": "case25-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 로스트존은 \"어떤 생물도 살 수 없는 오염된 바다\"라고 했는데, 시나리오에서 침수된 해안가에 아이들이 물장구를 치며 놀고 있다. 생물이 살 수 없는 곳에서 사람이 활동하고 있다.",
+        "characters": [
+          "스트존",
+          "해안",
+          "아이들",
+          "물장구"
+        ],
+        "keywords": [
+          "어떤",
+          "생물도",
+          "없는"
+        ]
+      },
+      {
+        "id": "case25-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "태민은 설정에서 \"체격이 왜소하고 키 165센티미터\"라고 했는데, 시나리오 마지막에 \"건장한 어깨를 펴고\"라고 묘사된다. 체격 묘사가 모순된다.",
+        "characters": [
+          "태민",
+          "체격",
+          "어깨",
+          "묘사"
+        ],
+        "keywords": [
+          "체격이",
+          "왜소하고",
+          "165센티미터",
+          "건장한",
+          "어깨를",
+          "펴고",
+          "설정"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case26",
+    "set": "wss2_1000",
+    "genre": "판타지/SF",
+    "data_dir": "wss2_1000",
+    "case_file": "case26.txt",
+    "exp_file": "expectation26.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case26-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 \"과학 기술이 발달한 지역(메카니아)에서는 마법이 발동되지 않는다\"고 했는데, 엘리아가 메카니아 영토에 들어선 뒤 화염구를 만들어 앞길을 밝힌다. 마법이 작동하지 않는 지역에서 마법을 사용한다.",
+        "characters": [
+          "기술",
+          "에서",
+          "마법",
+          "엘리아"
+        ],
+        "keywords": [
+          "과학",
+          "기술이",
+          "발달한",
+          "마법"
+        ]
+      },
+      {
+        "id": "case26-2",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "설정에서 엘리아는 \"공격 마법은 전혀 사용할 수 없다\"고 했는데, 화염구(공격 마법)를 사용한다. 치유 마법만 가능한 설정과 모순된다.",
+        "characters": [
+          "엘리아",
+          "마법",
+          "설정"
+        ],
+        "keywords": [
+          "공격",
+          "마법은",
+          "전혀",
+          "설정",
+          "마법"
+        ]
+      },
+      {
+        "id": "case26-3",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "카즈의 기계 의수는 설정에서 \"오른쪽 팔\"이라고 했는데, 시나리오에서 \"왼쪽 기계 의수로 문틀을 잡으며\"라고 묘사된다. 의수 위치가 바뀌었다.",
+        "characters": [
+          "카즈",
+          "의수",
+          "위치"
+        ],
+        "keywords": [
+          "오른쪽",
+          "왼쪽",
+          "기계",
+          "의수로",
+          "설정"
+        ]
+      },
+      {
+        "id": "case26-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 \"메카니아에서 민간인의 무기 소지는 불법\"이라고 했는데, 카즈가 자작 소총 두 정을 대놓고 꺼낸다. 설정에서도 비밀리에 제조한다고 했지만 시나리오에서는 아무런 경계 없이 보여준다.",
+        "characters": [
+          "민간인",
+          "소지",
+          "카즈",
+          "오에서"
+        ],
+        "keywords": [
+          "메카니아에서",
+          "민간인의",
+          "무기",
+          "설정",
+          "비"
+        ]
+      },
+      {
+        "id": "case26-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "경비병이 엘리아의 \"갈색 머리와 갈색 눈\"을 확인하는데, 설정에서 엘리아는 \"붉은 머리에 녹색 눈\"이다. 외형이 바뀌었다.",
+        "characters": [
+          "경비병",
+          "엘리아",
+          "머리",
+          "확인하"
+        ],
+        "keywords": [
+          "갈색",
+          "머리와",
+          "붉은",
+          "머리에",
+          "녹색",
+          "설정",
+          "비"
+        ]
+      },
+      {
+        "id": "case26-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "설정에서 엘리아의 아버지(왕)는 \"오 년 전 병으로 세상을 떠났다\"고 했는데, 시나리오 마지막에서 시온이 \"아버지(왕)의 명을 받아\" 엘리아를 추적했다고 말한다. 이미 돌아가신 왕이 명을 내릴 수 없다.",
+        "characters": [
+          "엘리아",
+          "시온",
+          "돌아"
+        ],
+        "keywords": [
+          "병으로",
+          "세상을",
+          "떠났다",
+          "아버지(왕)의",
+          "명을",
+          "받아",
+          "설정"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case27",
+    "set": "wss2_1000",
+    "genre": "서바이벌",
+    "data_dir": "wss2_1000",
+    "case_file": "case27.txt",
+    "exp_file": "expectation27.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case27-1",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 제한 시간이 \"매 라운드 90분\"이라고 했는데, 시나리오에서 오미란이 \"제한 시간은 두 시간\"이라고 말한다. 시간이 다르다.",
+        "characters": [
+          "시간",
+          "오미란"
+        ],
+        "keywords": [
+          "라운드",
+          "90분",
+          "제한",
+          "시간은",
+          "시간"
+        ]
+      },
+      {
+        "id": "case27-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "설정에서 유정은 \"해산물 알레르기가 있어 새우, 조개 등을 만지면 두드러기가 난다\"고 했는데, 시나리오에서 새우와 조개를 직접 손질해 찌개에 넣고도 아무런 증상이 없다.",
+        "characters": [
+          "유정",
+          "레르기",
+          "드러기",
+          "새우"
+        ],
+        "keywords": [
+          "해산물",
+          "알레르기가",
+          "있어",
+          "설정"
+        ]
+      },
+      {
+        "id": "case27-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 심사위원은 \"세 명\"이라고 했는데, 시나리오에서 첫 번째, 두 번째, 세 번째에 이어 \"네 번째 심사위원 박 셰프\"가 등장한다. 심사위원 수가 맞지 않는다.",
+        "characters": [
+          "사위원"
+        ],
+        "keywords": [
+          "번째",
+          "심사위원",
+          "셰프"
+        ]
+      },
+      {
+        "id": "case27-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 심사 기준이 \"맛 50%, 비주얼 30%, 창의성 20%\"라고 했는데, 결과 발표에서 오미란이 \"맛 40%, 비주얼 40%, 창의성 20%\"라고 다른 비율을 말한다.",
+        "characters": [
+          "기준",
+          "오미란"
+        ],
+        "keywords": [
+          "50%,",
+          "비주얼",
+          "30%,",
+          "40%,",
+          "비"
+        ]
+      },
+      {
+        "id": "case27-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "설정에서 유정의 참가 동기가 \"딸 하나의 대학 등록금 마련\"이라고 했는데, 시나리오에서 유정이 전화하는 상대가 \"아들 하나\"로 바뀌어 있다. 자녀의 성별이 달라진다.",
+        "characters": [
+          "유정",
+          "동기",
+          "하나",
+          "전화하"
+        ],
+        "keywords": [
+          "하나의",
+          "대학",
+          "등록금",
+          "아들",
+          "하나",
+          "설정"
+        ]
+      },
+      {
+        "id": "case27-6",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 \"참가자는 반드시 개인전으로만 경쟁하며 팀 조리는 허용되지 않는다\"고 했는데, 유정이 탈락한 도현에게 \"팀을 짜서 다음 라운드를 준비하자\"고 문자를 보낸다. 또한 도현은 이미 탈락했으므로 다음 라운드 참가 자체가 불가능하다.",
+        "characters": [
+          "참가자",
+          "조리",
+          "유정",
+          "도현"
+        ],
+        "keywords": [
+          "참가자는",
+          "반드시",
+          "개인전으로만",
+          "팀을",
+          "짜서",
+          "다음",
+          "비"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "case28",
+    "set": "wss2_1000",
+    "genre": "판타지/액션",
+    "data_dir": "wss2_1000",
+    "case_file": "case28.txt",
+    "exp_file": "expectation28.txt",
+    "format": "single",
+    "contradictions": [
+      {
+        "id": "case28-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "설정에서 아벨의 무기는 \"쌍검\"이라고 했는데, 시나리오에서 \"등에 멘 장창을 꺼내 들고\"라고 묘사한다. 무기가 다르다.",
+        "characters": [
+          "아벨",
+          "무기"
+        ],
+        "keywords": [
+          "쌍검",
+          "등에",
+          "장창을",
+          "꺼내",
+          "설정"
+        ]
+      },
+      {
+        "id": "case28-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 \"이 세계에는 낮과 밤이 존재하지 않으며 항상 은은한 빛이 유지된다\"고 했는데, 시나리오에서 \"밤하늘에 별이 쏟아지고 있었다\"고 묘사한다. 낮과 밤이 없는 세계에 밤하늘과 별이 존재한다.",
+        "characters": [
+          "세계에",
+          "밤하늘"
+        ],
+        "keywords": [
+          "세계에는",
+          "낮과",
+          "밤이",
+          "밤하늘에",
+          "별이",
+          "쏟아지고"
+        ]
+      },
+      {
+        "id": "case28-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "설정에서 그림자는 \"말을 하지 못하며 몸짓으로만 의사소통한다\"고 했는데, 시나리오에서 \"유창한 고대어로\" 말을 한다. 의사소통 방식이 모순된다.",
+        "characters": [
+          "그림자",
+          "방식"
+        ],
+        "keywords": [
+          "말을",
+          "하지",
+          "못하며",
+          "유창한",
+          "고대어로",
+          "설정"
+        ]
+      },
+      {
+        "id": "case28-4",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "설정에서 아벨의 문장 문신은 \"왼쪽 어깨\"에 있다고 했는데, 시나리오에서 \"오른쪽 어깨의 문장을 만지며\"라고 묘사한다. 문신 위치가 바뀌었다.",
+        "characters": [
+          "아벨",
+          "문신",
+          "어깨",
+          "위치"
+        ],
+        "keywords": [
+          "왼쪽",
+          "어깨",
+          "오른쪽",
+          "어깨의",
+          "문장을",
+          "설정"
+        ]
+      },
+      {
+        "id": "case28-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "세계관에서 \"지상은 괴물들이 지배하고 있어 인간이 살 수 없다\"고 했는데, 그림자가 그린 그림에 지상에 사람들이 살고 있는 모습이 나온다. 이것은 스토리 전개상의 반전이지만, 세계관과 시나리오의 정보 충돌이라는 점에서 모순 탐지 대상이 될 수 있다.",
+        "characters": [
+          "지상",
+          "괴물들",
+          "인간",
+          "그림자"
+        ],
+        "keywords": [
+          "지상은",
+          "괴물들이",
+          "지배하고"
+        ]
+      },
+      {
+        "id": "case28-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "리라가 그림자를 보며 \"열 살도 안 돼 보인다\"고 말하는데, 앞서 아벨이 소녀를 처음 발견했을 때 서술에는 구체적 나이 묘사가 없다. 다만 세계관에서 \"외형은 50세까지 젊은 모습을 유지한다\"고 했으므로, 만약 그림자가 이 세계의 인간이라면 실제 나이를 외형으로 판단하기 어렵다는 점에서 리라의 판단이 부자연스럽다.",
+        "characters": [
+          "리라",
+          "그림자",
+          "말하",
+          "아벨"
+        ],
+        "keywords": [
+          "살도",
+          "보인다",
+          "외형은",
+          "50세까지",
+          "젊은"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "batch_1",
+    "set": "batch",
+    "genre": "SF/시설",
+    "data_dir": "batch",
+    "case_prefix": "테스트 데이터 01",
+    "exp_file": "테스트 데이터 01 기대값.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "batch_1-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "발견되어야 할 모순",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "batch_1-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "물리 규칙 (Hard): 화성 외부에서 산소 슈트 없이 활동.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "batch_1-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격 모순 (Hard): 밀폐공포증 + EVA 절대 안 함 → 직접 외부 활동.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "batch_1-4",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "이동 시간 (Hard): 통제실 → 실험실 B 20분 필요 / 실제 5분.",
+        "characters": [],
+        "keywords": [
+          "20분",
+          "5분"
+        ]
+      },
+      {
+        "id": "batch_1-5",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "보안 시스템 (Hard): 보안 카드 없이 출입.",
+        "characters": [],
+        "keywords": [
+          "카드"
+        ]
+      },
+      {
+        "id": "batch_1-6",
+        "category": "DEATH_REAPPEAR",
+        "hard_soft": "HARD",
+        "description": "사망 후 등장 (Hard): 드미트리 사망 판정.",
+        "characters": [],
+        "keywords": [
+          "사망"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "batch_2",
+    "set": "batch",
+    "genre": "판타지/궁중",
+    "data_dir": "batch",
+    "case_prefix": "테스트 데이터 02",
+    "exp_file": "테스트 데이터 02 기대값.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "batch_2-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "모순",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "batch_2-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "설정 모순 (Hard): 루카스는 마법 사용 불가 → 순간이동 사용.",
+        "characters": [
+          "루카스",
+          "순간"
+        ],
+        "keywords": [
+          "설정",
+          "순간이동",
+          "마법"
+        ]
+      },
+      {
+        "id": "batch_2-3",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "마법 규칙 (Hard): 왕궁 내부는 마법 봉인.",
+        "characters": [
+          "내부"
+        ],
+        "keywords": [
+          "마법",
+          "봉인"
+        ]
+      },
+      {
+        "id": "batch_2-4",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "이동 시간 (Hard): 왕궁→탑 30분 / 실제 2분.",
+        "characters": [],
+        "keywords": [
+          "30분",
+          "2분"
+        ]
+      },
+      {
+        "id": "batch_2-5",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "열쇠 소유 모순 (Hard): 왕만 열쇠 소유.",
+        "characters": [],
+        "keywords": [
+          "열쇠"
+        ]
+      },
+      {
+        "id": "batch_2-6",
+        "category": "DEATH_REAPPEAR",
+        "hard_soft": "HARD",
+        "description": "사망 후 등장 (Hard): 국왕 암살됨.",
+        "characters": [],
+        "keywords": [
+          "사망"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "batch_3",
+    "set": "batch",
+    "genre": "SF/해저",
+    "data_dir": "batch",
+    "case_prefix": "테스트 데이터 03",
+    "exp_file": "테스트 데이터 03 기대값.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "batch_3-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "모순",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "batch_3-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "기술 규칙 (Hard): 심해에서 실시간 통신 불가.",
+        "characters": [],
+        "keywords": [
+          "통신"
+        ]
+      },
+      {
+        "id": "batch_3-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격 모순 (Hard): 채식주의자 → 새우 식사.",
+        "characters": [
+          "채식주"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "batch_3-4",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "이동 시간 (Hard): 구획 이동 최소 3분 / 1분 만에 이동.",
+        "characters": [],
+        "keywords": [
+          "3분",
+          "1분"
+        ]
+      },
+      {
+        "id": "batch_3-5",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "보안 모순 (Hard): 패스카드 없이 엔진실 출입.",
+        "characters": [],
+        "keywords": [
+          "카드"
+        ]
+      },
+      {
+        "id": "batch_3-6",
+        "category": "DEATH_REAPPEAR",
+        "hard_soft": "HARD",
+        "description": "사망 후 등장 (Hard): 마르코 사망.",
+        "characters": [],
+        "keywords": [
+          "사망"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "batch_4",
+    "set": "batch",
+    "genre": "SF/시간",
+    "data_dir": "batch",
+    "case_prefix": "테스트 데이터 04",
+    "exp_file": "테스트 데이터 04 기대값.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "batch_4-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "모순",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "batch_4-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "설정 모순 (Hard): 태민은 시간 이동 실험에 참여하지 않음.",
+        "characters": [
+          "태민"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "batch_4-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "규칙 모순 (Hard): 하루 한 번만 시간 이동 → 두 번 사용.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "batch_4-4",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "장비 접근 모순 (Hard): 지하실 출입 카드 없음.",
+        "characters": [],
+        "keywords": [
+          "카드",
+          "비"
+        ]
+      },
+      {
+        "id": "batch_4-5",
+        "category": "DEATH_REAPPEAR",
+        "hard_soft": "HARD",
+        "description": "사망 후 등장 (Hard): 이 박사 사망.",
+        "characters": [],
+        "keywords": [
+          "사망"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "long_9",
+    "set": "long_case",
+    "genre": "SF/시설",
+    "data_dir": "long_case",
+    "case_prefix": "test_9",
+    "exp_file": "test_9_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "long_9-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "﻿[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "long_9-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_9-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 윤서는 알코올 음료를 입에 대지 않음.",
+        "characters": [
+          "윤서",
+          "음료"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_9-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 위스키를 직접 따라 마심.",
+        "characters": [
+          "위스키"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "long_9-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "신체 제약 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 윤서는 계단 2개 층 이상 연속 전력 질주 불가.",
+        "characters": [
+          "윤서"
+        ],
+        "keywords": [
+          "2개",
+          "설정"
+        ]
+      },
+      {
+        "id": "long_9-7",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 4개 층 연속 질주 기록.",
+        "characters": [],
+        "keywords": [
+          "4개"
+        ]
+      },
+      {
+        "id": "long_9-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "지식 시점 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 태림은 22:10 이전 보조 전원 차단 사실을 모름.",
+        "characters": [
+          "태림"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_9-10",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 21:58에 이미 알고 있었다고 발화.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "인지 특성 모순 (Soft/Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-12",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 태림은 적록 구분을 즉시 하기 어려움.",
+        "characters": [
+          "태림"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_9-13",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 빨강/초록 경고등을 즉시 식별해 지시.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-5",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "카드키 유일성/소유 이력 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "카드"
+        ]
+      },
+      {
+        "id": "long_9-15",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 마스터 카드키는 1개, 복제 불가.",
+        "characters": [
+          "카드키"
+        ],
+        "keywords": [
+          "1개",
+          "카드"
+        ]
+      },
+      {
+        "id": "long_9-16",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 동일 카드키 ID가 5초 차이로 서로 다른 사용자에게 태그 성공.",
+        "characters": [
+          "사용자"
+        ],
+        "keywords": [
+          "카드"
+        ]
+      },
+      {
+        "id": "long_9-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "출입 프로토콜 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-18",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 카드키 + 손바닥 정맥 2중 인증 필수.",
+        "characters": [],
+        "keywords": [
+          "카드"
+        ]
+      },
+      {
+        "id": "long_9-19",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 손바닥 인증 누락 상태로 냉각실 개방.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-7",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "이동 시간 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-21",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 관제실→냉각실 최소 14분(일반), 7분(비상+2인동행+경보승인).",
+        "characters": [],
+        "keywords": [
+          "14분",
+          "7분",
+          "비"
+        ]
+      },
+      {
+        "id": "long_9-22",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 조건 없이 4분 이동.",
+        "characters": [],
+        "keywords": [
+          "4분"
+        ]
+      },
+      {
+        "id": "long_9-8",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "옥상 해치 규칙 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-24",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 윤서·승우 동시 승인 2인 키 필요.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-25",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 민혁 단독 승인으로 해치 개방.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "약물/기억 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-27",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 진정제 투여 후 최소 30분 단기 기억 형성 저하.",
+        "characters": [],
+        "keywords": [
+          "30분"
+        ]
+      },
+      {
+        "id": "long_9-28",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 투여 5분 만에 초단위 상세 회상.",
+        "characters": [],
+        "keywords": [
+          "5분"
+        ]
+      },
+      {
+        "id": "long_9-10",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "의료 행위 설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_9-30",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 지안은 직접 침습 주사 처치를 하지 않음.",
+        "characters": [
+          "지안",
+          "처치"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_9-31",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 지안이 직접 주사 시행.",
+        "characters": [
+          "지안"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "long_9-11",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "통신 블랙아웃 위반 (Hard)",
+        "characters": [],
+        "keywords": [
+          "통신",
+          "블랙아웃"
+        ]
+      },
+      {
+        "id": "long_9-33",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 22:30~23:10 외부망 물리 차단.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-34",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 실시간 외부 라이브 방송 및 외부 통화 지속.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-12",
+        "category": "DEATH_REAPPEAR",
+        "hard_soft": "HARD",
+        "description": "사망/존재 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "사망"
+        ]
+      },
+      {
+        "id": "long_9-36",
+        "category": "DEATH_REAPPEAR",
+        "hard_soft": "HARD",
+        "description": "- 설정: 하린 21:40 사망 판정, 생체 태그 비활성화.",
+        "characters": [],
+        "keywords": [
+          "사망",
+          "설정",
+          "비"
+        ]
+      },
+      {
+        "id": "long_9-37",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 22:41 태그 인증 성공 및 현장 등장 진술.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-13",
+        "category": "OTHER",
+        "hard_soft": "SOFT",
+        "description": "관계/소통 설정 모순 (Soft/Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_9-39",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 민혁과 윤서는 공식 보고 체계로만 소통, 개인 연락 없음.",
+        "characters": [
+          "민혁",
+          "윤서"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_9-40",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 1:1 개인 채팅 18건 존재.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-14",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "보고서-증거 비대칭 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "long_9-42",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 로그/증거: 다수 규정 위반 기록 복원.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-43",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 결론 보고서: \"규정 위반 없음\"으로 종결.",
+        "characters": [],
+        "keywords": [
+          "규정",
+          "위반",
+          "없음"
+        ]
+      },
+      {
+        "id": "long_9-44",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_9-45",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 14건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "long_10",
+    "set": "long_case",
+    "genre": "SF/시설",
+    "data_dir": "long_case",
+    "case_prefix": "test_10",
+    "exp_file": "test_10_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "long_10-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "﻿[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "long_10-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/행동 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 세나는 좁은 관로 단독 진입을 하지 않음.",
+        "characters": [
+          "세나"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_10-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 직경 70cm 관로에 단독 진입.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "감압 절차 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-6",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 설정/규칙: 감압 절차 생략 금지, 최소 9분 체류.",
+        "characters": [],
+        "keywords": [
+          "9분",
+          "설정"
+        ]
+      },
+      {
+        "id": "long_10-7",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 심해 작업 후 감압실 3분 체류 후 이탈.",
+        "characters": [],
+        "keywords": [
+          "3분"
+        ]
+      },
+      {
+        "id": "long_10-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "지식 시점 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 이현은 00:20 이전 남동 터널 누수 사실을 모름.",
+        "characters": [
+          "이현"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_10-10",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 23:58 메모에서 이미 누수 언급.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "출입 프로토콜 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-12",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 수밀문 3단계 인증(키카드+홍채+압력) 필수.",
+        "characters": [],
+        "keywords": [
+          "카드"
+        ]
+      },
+      {
+        "id": "long_10-13",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 키카드만으로 단독 통과.",
+        "characters": [],
+        "keywords": [
+          "카드"
+        ]
+      },
+      {
+        "id": "long_10-5",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "이동 시간 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-15",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 도킹실→남동 터널 최소 16분(특수 조건 시 8분).",
+        "characters": [],
+        "keywords": [
+          "16분",
+          "8분"
+        ]
+      },
+      {
+        "id": "long_10-16",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 조건 없이 4분 이동.",
+        "characters": [],
+        "keywords": [
+          "4분"
+        ]
+      },
+      {
+        "id": "long_10-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "신체 제약 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 도윤은 25kg 이상 장비를 한 손으로 들 수 없음.",
+        "characters": [
+          "도윤",
+          "장비"
+        ],
+        "keywords": [
+          "설정",
+          "비"
+        ]
+      },
+      {
+        "id": "long_10-19",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 한 손으로 31kg 절단 토치 운반.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-7",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "장비 승인 규칙 위반 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "long_10-21",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 도윤은 승인 태그 없는 토치를 점화하지 않음.",
+        "characters": [
+          "도윤",
+          "토치"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_10-22",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 무승인 점화 로그 발생.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-8",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "데이터 무결성/비대칭 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "long_10-24",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: Append-Only 원본은 사후 수정 불가.",
+        "characters": [
+          "원본"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "long_10-25",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 동일 시점 상반 로그가 수정 이력 없이 공존.",
+        "characters": [
+          "로그"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "long_10-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "의료 절차 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-27",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 의식 저하 환자에 구강 투약 선행 금지.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-28",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 기도 확보 전 구강 투약 시행.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-10",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "장비/알레르기 설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정",
+          "비"
+        ]
+      },
+      {
+        "id": "long_10-30",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 아린은 라텍스 장갑 미사용.",
+        "characters": [
+          "아린"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_10-31",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 라텍스 장갑 착용 장면 기록.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-11",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "통신 블랙아웃 위반 (Hard)",
+        "characters": [],
+        "keywords": [
+          "통신",
+          "블랙아웃"
+        ]
+      },
+      {
+        "id": "long_10-33",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 00:00~00:40 외부 송신 차단.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-34",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 블랙아웃 중 지상 본부 화상회의 진행.",
+        "characters": [
+          "화상회"
+        ],
+        "keywords": [
+          "블랙아웃"
+        ]
+      },
+      {
+        "id": "long_10-12",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "카드키 유일성/소유 이력 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "카드"
+        ]
+      },
+      {
+        "id": "long_10-36",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 마스터 키카드 1개, 복제 불가.",
+        "characters": [],
+        "keywords": [
+          "1개",
+          "카드"
+        ]
+      },
+      {
+        "id": "long_10-37",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 3초 간격 동일 카드 ID 이중 사용.",
+        "characters": [],
+        "keywords": [
+          "카드"
+        ]
+      },
+      {
+        "id": "long_10-13",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "약물/판단력 모순 (Soft/Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-39",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정/규칙: 은채는 00:05~00:45 판단력 저하.",
+        "characters": [
+          "은채"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_10-40",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 00:31에 분 단위 상세 진술.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-14",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "지식 범위 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-42",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 은채는 00:45 이전 보조 드론 회수 사실 인지 불가.",
+        "characters": [
+          "은채"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_10-43",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 00:31에 회수 완료 사실 인지 진술.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-15",
+        "category": "OTHER",
+        "hard_soft": "SOFT",
+        "description": "관계/소통 설정 모순 (Soft/Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_10-45",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 세나-은채는 업무 채널만 사용.",
+        "characters": [
+          "은채"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_10-46",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 개인 DM으로 우회 보고 지시.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-16",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "보고서-증거 비대칭 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "long_10-48",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 증거: 다수 위반 경고 및 백업 복원.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-49",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 결론: \"모든 프로토콜 정상\"으로 종결.",
+        "characters": [],
+        "keywords": [
+          "모든",
+          "프로토콜",
+          "정상"
+        ]
+      },
+      {
+        "id": "long_10-50",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_10-51",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 16건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "long_11",
+    "set": "long_case",
+    "genre": "SF/시설",
+    "data_dir": "long_case",
+    "case_prefix": "test_11",
+    "exp_file": "test_11_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "long_11-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "﻿[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "long_11-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/행동 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 서준은 난간 없는 캣워크 단독 이동을 하지 않음.",
+        "characters": [
+          "서준"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_11-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 적색 경보 중 단독 캣워크 이동.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "규정 지시 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-6",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 서준은 적색 경보에서 외부 작업 지시 금지.",
+        "characters": [
+          "서준"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_11-7",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 적색 경보 중 외부 작업 지시 반복.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "북문 2인 인증 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 야간 북문은 팀장+보안책임자 동시 인증 필수.",
+        "characters": [
+          "북문"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "long_11-10",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 민결 단독 인증 개방 기록.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-4",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "이동 시간 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-12",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 관제실→남동 타워 최소 18분(특수 조건 9분).",
+        "characters": [],
+        "keywords": [
+          "18분",
+          "9분"
+        ]
+      },
+      {
+        "id": "long_11-13",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 조건 없이 5분 40초 이동.",
+        "characters": [],
+        "keywords": [
+          "5분"
+        ]
+      },
+      {
+        "id": "long_11-5",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "장비 출고 규칙 위반 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "long_11-15",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 제빙 드론 2인 승인 필수.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-16",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 승인자 1명만으로 출고.",
+        "characters": [],
+        "keywords": [
+          "1명"
+        ]
+      },
+      {
+        "id": "long_11-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "지식 시점 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 나린은 03:20 이전 케이블 절단 인지 불가.",
+        "characters": [
+          "나린"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_11-19",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 03:18에 이미 인지 발화.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-7",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "인지 특성 모순 (Soft/Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-21",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 나린은 렌즈 없으면 적색/황색 즉시 구분 어려움.",
+        "characters": [
+          "나린"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_11-22",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 렌즈 없이 즉시 색 경보 판독.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-8",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "계정/보안 원칙 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-24",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 설정: OTP 본인 외 공유 금지.",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_11-25",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 외부 인원에게 OTP 코드 구두 전달.",
+        "characters": [
+          "인원"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "long_11-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "의료 절차 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-27",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 저체온 환자 가온 처치 선행.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-28",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 진정제 선행 투여.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-10",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "의료 행위 설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_11-30",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 유림은 혈액 노출 큰 봉합 단독 수행 안 함.",
+        "characters": [
+          "유림"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_11-31",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 단독 봉합 시행.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-11",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "신체 상태 모순 (Soft/Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-33",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 유림은 발목 염좌로 빠른 보행 어려움.",
+        "characters": [
+          "유림"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_11-34",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 빠르게 이동해 즉시 처치 수행 진술.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-12",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "마스터 키 유일성/무결성 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-36",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 키 1개, 봉인 해제 없이 사용 불가.",
+        "characters": [],
+        "keywords": [
+          "1개",
+          "봉인"
+        ]
+      },
+      {
+        "id": "long_11-37",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 봉인 유지 상태에서 동일 키 ID 중복 사용.",
+        "characters": [],
+        "keywords": [
+          "봉인"
+        ]
+      },
+      {
+        "id": "long_11-13",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "저산소 판단/기억 모순 (Soft/Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-39",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 하온 03:00~03:40 판단력 저하.",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_11-40",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 10초 단위 정밀 진술.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-14",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "지식 범위 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-42",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 하온은 03:40 이전 복구 완료 확정 인지 불가.",
+        "characters": [
+          "하온"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_11-43",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 03:30에 복구 완료 확언.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-15",
+        "category": "OTHER",
+        "hard_soft": "SOFT",
+        "description": "관계/소통 설정 모순 (Soft/Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_11-45",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 서준-하온 공식 채널만 사용.",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_11-46",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 개인 DM로 사고 요약 공유.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-16",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "보안 관계 규칙 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-48",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 민결은 외부 업체와 개인 메신저 지시 금지.",
+        "characters": [
+          "민결",
+          "업체"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_11-49",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 개인 메신저로 우회 지시.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-17",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "통신 차단 위반 (Hard)",
+        "characters": [],
+        "keywords": [
+          "통신"
+        ]
+      },
+      {
+        "id": "long_11-51",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 03:10~03:50 외부 영상 송신 차단.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-52",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 차단 구간 고해상도 외부 영상 회의 진행.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "보고서-원본 로그 비대칭 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "long_11-54",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 원본: 위반 다수 기록.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-55",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 보고서: \"외부 작업/개방/송신 없음\"으로 기재.",
+        "characters": [],
+        "keywords": [
+          "외부",
+          "작업/개방/송신",
+          "없음"
+        ]
+      },
+      {
+        "id": "long_11-56",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_11-57",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 18건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "long_12",
+    "set": "long_case",
+    "genre": "SF/시설",
+    "data_dir": "long_case",
+    "case_prefix": "test_12",
+    "exp_file": "test_12_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "long_12-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "﻿[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "long_12-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/행동 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-3",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 지후는 환기 정지 구역 5분 초과 단독 체류를 하지 않음.",
+        "characters": [
+          "지후",
+          "체류"
+        ],
+        "keywords": [
+          "5분",
+          "설정"
+        ]
+      },
+      {
+        "id": "long_12-4",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 14분 단독 체류.",
+        "characters": [],
+        "keywords": [
+          "14분"
+        ]
+      },
+      {
+        "id": "long_12-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "원칙 위반 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 지후는 승인 로그 없는 우회 열람 지시를 하지 않음.",
+        "characters": [
+          "지후",
+          "지시"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_12-7",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 개인 통화로 우회 반출 지시 정황.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-3",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "이동 시간 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-9",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 기록홀→동광실 최소 12분(특수 경로 6분).",
+        "characters": [],
+        "keywords": [
+          "12분",
+          "6분"
+        ]
+      },
+      {
+        "id": "long_12-10",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 3분 20초 이동.",
+        "characters": [],
+        "keywords": [
+          "3분"
+        ]
+      },
+      {
+        "id": "long_12-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "의료 절차 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-12",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 연기 흡입 환자 산소 공급 선행.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-13",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 산소 공급 없이 진정제 선행.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "의료 행위 설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_12-15",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 소이는 중심정맥 라인 삽입을 단독 수행하지 않음.",
+        "characters": [
+          "소이"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_12-16",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 단독 삽입 기록.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "상태 기반 수행 모순 (Soft/Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 소이는 오른손 떨림으로 미세 시술 정확도 저하.",
+        "characters": [
+          "소이"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_12-19",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 정밀 처치를 연속 단독 수행.",
+        "characters": [
+          "처치"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "long_12-7",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "장비/알레르기 설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정",
+          "비"
+        ]
+      },
+      {
+        "id": "long_12-21",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 라윤은 무방독 상태 용제 취급 금지.",
+        "characters": [
+          "라윤"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_12-22",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 무방독 용제 취급.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-8",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "계정 보안 원칙 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-24",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 라윤은 관리자 비밀번호 외부 공유 금지.",
+        "characters": [
+          "라윤"
+        ],
+        "keywords": [
+          "설정",
+          "비"
+        ]
+      },
+      {
+        "id": "long_12-25",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 외주 인력에게 비밀번호 전달.",
+        "characters": [
+          "인력"
+        ],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "long_12-9",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "토큰 유일성/무결성 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-27",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 마스터 토큰 1개, 봉인 번호 대조 필수.",
+        "characters": [],
+        "keywords": [
+          "1개",
+          "봉인"
+        ]
+      },
+      {
+        "id": "long_12-28",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 봉인 번호 변화 없이 동일 토큰 연속 이중 사용.",
+        "characters": [],
+        "keywords": [
+          "봉인"
+        ]
+      },
+      {
+        "id": "long_12-10",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "인증 불가능 상태 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-30",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 윤아 의식 소실 후 홍채 인증 성공 불가.",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_12-31",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 의식 소실 후 윤아 홍채 인증 성공 로그.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-11",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "계정 도용/비대칭 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "long_12-33",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 윤아 의식 소실 후 계정 접근은 도용 의심.",
+        "characters": [
+          "접근"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_12-34",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 윤아 계정으로 열람 승인/전송 수행.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-12",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "통신 차단 위반 (Hard)",
+        "characters": [],
+        "keywords": [
+          "통신"
+        ]
+      },
+      {
+        "id": "long_12-36",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 01:30~02:10 외부망 송신 차단.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-37",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 차단 구간 영상통화 및 대용량 업로드.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-13",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "저혈당 판단 모순 (Soft/Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-39",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 태건 01:20~02:00 판단력 저하.",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_12-40",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 초 단위 상세 타임라인 진술.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-14",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "지식 범위 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-42",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 태건은 02:00 이전 봉인 원본 반출 확정 인지 어려움.",
+        "characters": [
+          "태건"
+        ],
+        "keywords": [
+          "설정",
+          "봉인"
+        ]
+      },
+      {
+        "id": "long_12-43",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 01:34에 반출 확정 단정.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-15",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "지식 시점 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-45",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 라윤은 01:40 이전 화재감지기 우회 사실을 모름.",
+        "characters": [
+          "라윤"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_12-46",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 01:38에 이미 인지 발화.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-16",
+        "category": "OTHER",
+        "hard_soft": "SOFT",
+        "description": "관계/소통 설정 모순 (Soft/Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_12-48",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 지후-태건은 공식 결재 채널만 사용, 개인 통화 없음.",
+        "characters": [
+          "태건"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "long_12-49",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 개인 음성통화 9건.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-17",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "봉인 해제 절차 위반 (Hard)",
+        "characters": [],
+        "keywords": [
+          "봉인"
+        ]
+      },
+      {
+        "id": "long_12-51",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 봉인 원본 해제는 총괄+보안 이중 승인 필수.",
+        "characters": [
+          "해제"
+        ],
+        "keywords": [
+          "봉인"
+        ]
+      },
+      {
+        "id": "long_12-52",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 지후 단독 승인으로 반출.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "보고서-증거 비대칭 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "long_12-54",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 증거: 출입/통신/의료/봉인 위반 다수.",
+        "characters": [],
+        "keywords": [
+          "봉인",
+          "통신"
+        ]
+      },
+      {
+        "id": "long_12-55",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 최종 보고서: \"절차 준수\"로 결론.",
+        "characters": [],
+        "keywords": [
+          "절차",
+          "준수"
+        ]
+      },
+      {
+        "id": "long_12-56",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "long_12-57",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 18건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "cases2_1",
+    "set": "case2",
+    "genre": "교도소/스릴러",
+    "data_dir": "case2",
+    "case_prefix": "test_1",
+    "exp_file": "test_1_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "cases2_1-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_1-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_1-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 윤태하는 술을 극도로 혐오하고 절대 마시지 않음.",
+        "characters": [
+          "윤태하"
+        ],
+        "keywords": [
+          "혐오",
+          "마시",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_1-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 럼을 직접 주문해 마심.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_1-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "타임라인/이동 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_1-6",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 통제실 -> 엔진실 최소 12분.",
+        "characters": [],
+        "keywords": [
+          "12분"
+        ]
+      },
+      {
+        "id": "cases2_1-7",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 4분 만에 도착.",
+        "characters": [],
+        "keywords": [
+          "4분"
+        ]
+      },
+      {
+        "id": "cases2_1-3",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "정보 비대칭/인지 시점 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "cases2_1-9",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 아름은 Scene 3에서 키카드 분실을 처음 인지.",
+        "characters": [
+          "아름"
+        ],
+        "keywords": [
+          "카드"
+        ]
+      },
+      {
+        "id": "cases2_1-10",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 태하는 브리핑 시점에 이미 훔쳤다고 주장.",
+        "characters": [
+          "태하"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_1-4",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "봉쇄 규칙 위반 (Soft/Hard)",
+        "characters": [],
+        "keywords": [
+          "봉쇄"
+        ]
+      },
+      {
+        "id": "cases2_1-12",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 밤 11시 이후 모든 해치 봉쇄.",
+        "characters": [],
+        "keywords": [
+          "11시",
+          "봉쇄"
+        ]
+      },
+      {
+        "id": "cases2_1-13",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 봉쇄 시간대 이동/출입 발생.",
+        "characters": [],
+        "keywords": [
+          "봉쇄"
+        ]
+      },
+      {
+        "id": "cases2_1-5",
+        "category": "DEATH_REAPPEAR",
+        "hard_soft": "HARD",
+        "description": "사망 후 재등장 (Hard)",
+        "characters": [],
+        "keywords": [
+          "사망",
+          "재등장"
+        ]
+      },
+      {
+        "id": "cases2_1-15",
+        "category": "DEATH_REAPPEAR",
+        "hard_soft": "HARD",
+        "description": "- 설정: 오선우 사망 판정.",
+        "characters": [],
+        "keywords": [
+          "사망",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_1-16",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 오선우가 생존 상태로 등장해 대화.",
+        "characters": [
+          "오선우"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_1-17",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_1-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 5건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "cases2_2",
+    "set": "case2",
+    "genre": "SF/첩보",
+    "data_dir": "case2",
+    "case_prefix": "test_2",
+    "exp_file": "test_2_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "cases2_2-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_2-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_2-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 나린은 고소공포증으로 포드를 절대 타지 않음.",
+        "characters": [
+          "나린",
+          "포드"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_2-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 폭풍 중 포드를 탑승하고 평온하게 행동.",
+        "characters": [
+          "포드"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_2-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "타임라인/이동 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_2-6",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 포드 편도 10분.",
+        "characters": [],
+        "keywords": [
+          "10분"
+        ]
+      },
+      {
+        "id": "cases2_2-7",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 2분 만에 도착.",
+        "characters": [],
+        "keywords": [
+          "2분"
+        ]
+      },
+      {
+        "id": "cases2_2-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "패스/소유 이력 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_2-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 인증 칩 1개를 류진이 상시 착용.",
+        "characters": [
+          "류진"
+        ],
+        "keywords": [
+          "1개",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_2-10",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 류진이 착용 중이라고 말하는 동시에 나린이 동일 칩으로 게이트 개방.",
+        "characters": [
+          "류진",
+          "말하",
+          "나린"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_2-4",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "기상 통제 규칙 위반 (Soft/Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_2-12",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 폭풍 경보 시간대 스카이브릿지/이동 통제.",
+        "characters": [
+          "스카"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_2-13",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 경보 중 구역 이동.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_2-5",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "네트워크 블랙아웃 위반 (Hard)",
+        "characters": [],
+        "keywords": [
+          "블랙아웃"
+        ]
+      },
+      {
+        "id": "cases2_2-15",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 00:00~04:00 외부망 차단.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_2-16",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 00:30 외부 뉴스망 실시간 접속.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_2-6",
+        "category": "DEATH_REAPPEAR",
+        "hard_soft": "HARD",
+        "description": "사망 후 재등장 (Hard)",
+        "characters": [],
+        "keywords": [
+          "사망",
+          "재등장"
+        ]
+      },
+      {
+        "id": "cases2_2-18",
+        "category": "DEATH_REAPPEAR",
+        "hard_soft": "HARD",
+        "description": "- 설정: 한세라 사망 처리.",
+        "characters": [],
+        "keywords": [
+          "사망",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_2-19",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 공개 연설.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_2-20",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_2-21",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 6건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "cases2_3",
+    "set": "case2",
+    "genre": "사극/수도원",
+    "data_dir": "case2",
+    "case_prefix": "test_3",
+    "exp_file": "test_3_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "cases2_3-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_3-1",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "봉쇄 규칙 위반 (Hard)",
+        "characters": [],
+        "keywords": [
+          "봉쇄"
+        ]
+      },
+      {
+        "id": "cases2_3-3",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 심리 시작 후 법정 출입문 봉인.",
+        "characters": [],
+        "keywords": [
+          "봉인"
+        ]
+      },
+      {
+        "id": "cases2_3-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 검사가 중간에 금고에 다녀와 복귀.",
+        "characters": [
+          "검사",
+          "다녀"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_3-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "타임라인/이동 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_3-6",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 법정 <-> 금고 최소 8분.",
+        "characters": [],
+        "keywords": [
+          "8분"
+        ]
+      },
+      {
+        "id": "cases2_3-7",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 3분 내 왕복.",
+        "characters": [],
+        "keywords": [
+          "3분"
+        ]
+      },
+      {
+        "id": "cases2_3-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "보안 프로토콜 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_3-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 키 A/B 동시 필요.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_3-10",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 키 A 단독 개방 기록.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_3-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_3-12",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 정하늘은 공판 선서 후 의도적 거짓 진술 불가.",
+        "characters": [
+          "정하늘"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_3-13",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 타임라인을 꾸며냈다고 자인.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_3-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "격리/존재 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_3-15",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 김도윤은 병동 외부 출입 불가.",
+        "characters": [
+          "김도윤"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_3-16",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 법정 증인석에 직접 등장.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_3-17",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_3-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 5건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "cases2_4",
+    "set": "case2",
+    "genre": "군사/전쟁",
+    "data_dir": "case2",
+    "case_prefix": "test_4",
+    "exp_file": "test_4_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "cases2_4-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_4-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_4-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 레아는 낮 야외 활동을 하지 않음.",
+        "characters": [
+          "레아"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_4-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 한낮 야외 전투 훈련.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_4-2",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "금기 규칙 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_4-6",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 정오 야외 금속 장비 사용 금지.",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "cases2_4-7",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 12시 30분 강철 창 사용.",
+        "characters": [],
+        "keywords": [
+          "30분",
+          "12시"
+        ]
+      },
+      {
+        "id": "cases2_4-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "타임라인/이동 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_4-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 오아시스 -> 유적 최소 3시간.",
+        "characters": [],
+        "keywords": [
+          "3시"
+        ]
+      },
+      {
+        "id": "cases2_4-10",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 20분 만에 도착.",
+        "characters": [],
+        "keywords": [
+          "20분"
+        ]
+      },
+      {
+        "id": "cases2_4-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "패스/소유 이력 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_4-12",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 태양 인장은 대신관이 봉인 보관.",
+        "characters": [
+          "인장",
+          "대신관"
+        ],
+        "keywords": [
+          "설정",
+          "봉인"
+        ]
+      },
+      {
+        "id": "cases2_4-13",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 대신관은 방금 분실 인지, 레아는 아침에 이미 절취했다고 진술.",
+        "characters": [
+          "대신관",
+          "레아"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_4-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "통행 제한 위반 (Soft/Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_4-15",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 해 진 뒤 성문 봉쇄.",
+        "characters": [],
+        "keywords": [
+          "봉쇄"
+        ]
+      },
+      {
+        "id": "cases2_4-16",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 밤 9시 성문 통과.",
+        "characters": [],
+        "keywords": [
+          "9시"
+        ]
+      },
+      {
+        "id": "cases2_4-6",
+        "category": "DEATH_REAPPEAR",
+        "hard_soft": "HARD",
+        "description": "사망 후 재등장 (Hard)",
+        "characters": [],
+        "keywords": [
+          "사망",
+          "재등장"
+        ]
+      },
+      {
+        "id": "cases2_4-18",
+        "category": "DEATH_REAPPEAR",
+        "hard_soft": "HARD",
+        "description": "- 설정: 미라 사망 선고.",
+        "characters": [],
+        "keywords": [
+          "사망",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_4-19",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 제단에서 계시 낭독.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_4-20",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_4-21",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 6건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "cases2_5",
+    "set": "case2",
+    "genre": "의료/병원",
+    "data_dir": "case2",
+    "case_prefix": "test_5",
+    "exp_file": "test_5_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "cases2_5-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_5-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_5-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 서준은 카페인 음료를 마시지 않음.",
+        "characters": [
+          "서준",
+          "음료"
+        ],
+        "keywords": [
+          "마시",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_5-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 더블 에스프레소 섭취.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_5-2",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "네트워크 블랙아웃 위반 (Hard)",
+        "characters": [],
+        "keywords": [
+          "블랙아웃"
+        ]
+      },
+      {
+        "id": "cases2_5-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 결승 경기 서버 외부망 분리.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_5-7",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 클라우드 서버를 통한 원격 패치 수행.",
+        "characters": [
+          "서버"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_5-3",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "출입 규칙 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_5-9",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 경기 중 선수 부스 잠금 유지.",
+        "characters": [],
+        "keywords": [
+          "잠금"
+        ]
+      },
+      {
+        "id": "cases2_5-10",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 서준이 경기 중 부스를 이탈 후 복귀.",
+        "characters": [
+          "서준",
+          "부스"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_5-4",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "권한/토큰 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_5-12",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 세계관/설정: 오버라이드 동글 1개, 헤드 어드민 보관.",
+        "characters": [
+          "오버라"
+        ],
+        "keywords": [
+          "1개",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_5-13",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 동글 없이 오버라이드 실행.",
+        "characters": [
+          "오버라"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_5-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "자격/존재 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_5-15",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정/규칙: 민규는 영구 퇴출 선수.",
+        "characters": [
+          "민규"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_5-16",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 공식 경기 출전 및 MVP 수상.",
+        "characters": [],
+        "keywords": [
+          "MVP"
+        ]
+      },
+      {
+        "id": "cases2_5-17",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_5-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 5건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "cases2_6",
+    "set": "case2",
+    "genre": "법정/재판",
+    "data_dir": "case2",
+    "case_prefix": "test_6",
+    "exp_file": "test_6_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "cases2_6-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_6-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/서약 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_6-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 루카는 공식 의식 시간에 침묵 서약 유지.",
+        "characters": [
+          "루카"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_6-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 공개 고해를 장문으로 낭독.",
+        "characters": [
+          "고해"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_6-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "야간 규율 위반 (Soft/Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_6-6",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 오후 10시 이후 이동 금지.",
+        "characters": [],
+        "keywords": [
+          "10시"
+        ]
+      },
+      {
+        "id": "cases2_6-7",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 10시 15분 이후 이동/행동 발생.",
+        "characters": [],
+        "keywords": [
+          "15분",
+          "10시"
+        ]
+      },
+      {
+        "id": "cases2_6-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "타임라인/이동 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_6-9",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 회랑 -> 금고 최소 18분.",
+        "characters": [],
+        "keywords": [
+          "18분"
+        ]
+      },
+      {
+        "id": "cases2_6-10",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 6분 만에 도착.",
+        "characters": [],
+        "keywords": [
+          "6분"
+        ]
+      },
+      {
+        "id": "cases2_6-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "보안 프로토콜 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_6-12",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 키 A/B 동시 삽입 필요.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_6-13",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 키 A 단독 개방.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_6-5",
+        "category": "DEATH_REAPPEAR",
+        "hard_soft": "HARD",
+        "description": "사망 후 재등장 (Hard)",
+        "characters": [],
+        "keywords": [
+          "사망",
+          "재등장"
+        ]
+      },
+      {
+        "id": "cases2_6-15",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 요한 타살 후 장례 진행.",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_6-16",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 요한이 문서 작성 및 대화.",
+        "characters": [
+          "요한"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_6-17",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_6-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 5건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "cases2_7",
+    "set": "case2",
+    "genre": "SF/우주정거장",
+    "data_dir": "case2",
+    "case_prefix": "test_7",
+    "exp_file": "test_7_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "cases2_7-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_7-1",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "네트워크 블랙아웃 위반 (Hard)",
+        "characters": [],
+        "keywords": [
+          "블랙아웃"
+        ]
+      },
+      {
+        "id": "cases2_7-3",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 01:00~05:00 외부 통신 차단.",
+        "characters": [],
+        "keywords": [
+          "통신"
+        ]
+      },
+      {
+        "id": "cases2_7-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 01:10 외부 라이브 통화.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_7-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "타임라인/이동 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_7-6",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 독방 -> 격납고 최소 25분.",
+        "characters": [],
+        "keywords": [
+          "25분"
+        ]
+      },
+      {
+        "id": "cases2_7-7",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 8분 도착.",
+        "characters": [],
+        "keywords": [
+          "8분"
+        ]
+      },
+      {
+        "id": "cases2_7-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "신체/설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_7-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 하로는 다리 부상으로 전력질주 불가.",
+        "characters": [
+          "하로"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_7-10",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 전력질주했다고 직접 언급.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_7-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "출입 프로토콜 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_7-12",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 손바닥 인증 + 칩 동시 필요.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_7-13",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 코드 입력만으로 문 개방.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_7-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "패스/소유 이력 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_7-15",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 규칙/설정: 마스터 칩 1개, 교도소장 보관.",
+        "characters": [],
+        "keywords": [
+          "1개",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_7-16",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 소장은 소지 중이라 주장, 하로는 동일 칩 절취를 주장.",
+        "characters": [
+          "소장",
+          "하로",
+          "절취"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_7-6",
+        "category": "DEATH_REAPPEAR",
+        "hard_soft": "HARD",
+        "description": "사망 후 재등장 (Hard)",
+        "characters": [],
+        "keywords": [
+          "사망",
+          "재등장"
+        ]
+      },
+      {
+        "id": "cases2_7-18",
+        "category": "DEATH_REAPPEAR",
+        "hard_soft": "HARD",
+        "description": "- 설정: 제온 사망 확정.",
+        "characters": [],
+        "keywords": [
+          "사망",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_7-19",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 관제실에서 탈출 지시.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_7-20",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_7-21",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 6건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "cases2_8",
+    "set": "case2",
+    "genre": "의료/연구소",
+    "data_dir": "case2",
+    "case_prefix": "test_8",
+    "exp_file": "test_8_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "cases2_8-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases2_8-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_8-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 하나는 주사 공포증으로 직접 주사를 놓지 않음.",
+        "characters": [
+          "하나",
+          "주사"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_8-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 침착하게 정맥주사 수행.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_8-2",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "안전 장비 규칙 위반 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "cases2_8-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 독성 구역 산소 탱크 필수.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_8-7",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 무장비 진입.",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "cases2_8-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "타임라인/이동 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_8-9",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 약제실 -> 중환자실 최소 12분.",
+        "characters": [],
+        "keywords": [
+          "12분"
+        ]
+      },
+      {
+        "id": "cases2_8-10",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 3분 도착.",
+        "characters": [],
+        "keywords": [
+          "3분"
+        ]
+      },
+      {
+        "id": "cases2_8-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "출입 권한 위반 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_8-12",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 규칙: 패스카드 1개, 수석의사만 소유.",
+        "characters": [
+          "수석"
+        ],
+        "keywords": [
+          "1개",
+          "카드"
+        ]
+      },
+      {
+        "id": "cases2_8-13",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 인턴이 카드 없이 문 개방.",
+        "characters": [
+          "인턴"
+        ],
+        "keywords": [
+          "카드"
+        ]
+      },
+      {
+        "id": "cases2_8-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "패스/소유 이력 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_8-15",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 도혁은 카드 상시 착용.",
+        "characters": [
+          "도혁"
+        ],
+        "keywords": [
+          "카드",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_8-16",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 도혁은 소지 주장, 하나는 동일 카드 회수 주장.",
+        "characters": [
+          "도혁",
+          "하나"
+        ],
+        "keywords": [
+          "카드"
+        ]
+      },
+      {
+        "id": "cases2_8-6",
+        "category": "DEATH_REAPPEAR",
+        "hard_soft": "HARD",
+        "description": "사망/의식 상태 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "사망"
+        ]
+      },
+      {
+        "id": "cases2_8-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 정민은 뇌사 판정으로 의식 불가.",
+        "characters": [
+          "정민"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases2_8-19",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 눈을 뜨고 대화.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_8-20",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases2_8-21",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 6건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "cases3_c500_13",
+    "set": "cases3",
+    "genre": "사극/궁중",
+    "data_dir": "cases3",
+    "case_prefix": "test_c500_13",
+    "exp_file": "test_c500_13_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "cases3_c500_13-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_13-1",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "정보 비대칭 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "cases3_c500_13-3",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "- 세계관/설정: 봉인된 기록보관실 일지의 훼손 여부는 문이 열린 뒤 직접 확인하기 전까지 알 수 없다.",
+        "characters": [
+          "일지",
+          "여부"
+        ],
+        "keywords": [
+          "설정",
+          "봉인"
+        ]
+      },
+      {
+        "id": "cases3_c500_13-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 이안이 문이 열리기 전에 열두 번째 장이 타서 사라졌다고 단정한다.",
+        "characters": [
+          "이안"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_13-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "타임라인 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_13-6",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 유리온실에서 전망대까지는 최소 20분이 걸린다.",
+        "characters": [
+          "대까지"
+        ],
+        "keywords": [
+          "20분"
+        ]
+      },
+      {
+        "id": "cases3_c500_13-7",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 서린이 7분 만에 온실에서 전망대까지 올라온다.",
+        "characters": [
+          "서린"
+        ],
+        "keywords": [
+          "7분"
+        ]
+      },
+      {
+        "id": "cases3_c500_13-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_13-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 서린은 오른손으로는 칼을 제대로 뽑지 못한다.",
+        "characters": [
+          "서린",
+          "손으로"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_13-10",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 서린이 오른손으로 장검을 뽑아 촛대를 쳐낸다.",
+        "characters": [
+          "서린",
+          "촛대"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_13-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "소유물 추적 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_13-12",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 세계관/설정: 황동 열쇠는 1개뿐이며, 노아는 타인에게 넘기지 않는다.",
+        "characters": [
+          "열쇠",
+          "개뿐",
+          "노아",
+          "타인"
+        ],
+        "keywords": [
+          "1개",
+          "열쇠",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_13-13",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 서린이 기록보관실 문을 열 때 같은 열쇠가 곧바로 종탑에서도 사용되었다고 서술된다.",
+        "characters": [
+          "서린",
+          "열쇠"
+        ],
+        "keywords": [
+          "열쇠"
+        ]
+      },
+      {
+        "id": "cases3_c500_13-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "거짓말/기만 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_13-15",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정/시나리오: 이안은 편지를 통해 아버지의 결백을 확인한다.",
+        "characters": [
+          "이안",
+          "편지",
+          "아버지"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_13-16",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 그 직후 군중 앞에서는 아버지가 범인이라고 말해 사람들을 선동한다.",
+        "characters": [
+          "앞에서",
+          "아버지",
+          "범인"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_13-17",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_13-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 5건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "cases3_c500_14",
+    "set": "cases3",
+    "genre": "추리/등대",
+    "data_dir": "cases3",
+    "case_prefix": "test_c500_14",
+    "exp_file": "test_c500_14_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "cases3_c500_14-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_14-1",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "정보 비대칭 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "cases3_c500_14-3",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 등대 장부의 마지막 줄은 장부가 펼쳐지기 전에는 알 수 없다.",
+        "characters": [
+          "장부",
+          "전에"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_14-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 유진이 미리 준서의 이름이 적혀 있다고 단정한다.",
+        "characters": [
+          "유진",
+          "준서",
+          "이름"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_14-2",
+        "category": "OTHER",
+        "hard_soft": "SOFT",
+        "description": "관계 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_14-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 태오는 유진의 친오빠다.",
+        "characters": [
+          "태오",
+          "유진"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_14-7",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 유진이 태오를 아버지라고 부른다.",
+        "characters": [
+          "유진",
+          "태오"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_14-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_14-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 준서는 깊은 물을 두려워해 허리 높이 이상 바다에 들어가지 못한다.",
+        "characters": [
+          "준서",
+          "들어"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_14-10",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 준서가 가슴 높이까지 잠긴 바다로 뛰어든다.",
+        "characters": [
+          "준서"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_14-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "타임라인 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_14-12",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 항구 여관에서 절벽 등대까지는 최소 18분이 걸린다.",
+        "characters": [
+          "대까지"
+        ],
+        "keywords": [
+          "18분"
+        ]
+      },
+      {
+        "id": "cases3_c500_14-13",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 유진이 6분 만에 도착한다.",
+        "characters": [
+          "유진"
+        ],
+        "keywords": [
+          "6분"
+        ]
+      },
+      {
+        "id": "cases3_c500_14-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "소유물 추적 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_14-15",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 세계관/설정: 은나침반은 1개뿐이며 태오는 빌려주지 않는다.",
+        "characters": [
+          "나침반",
+          "개뿐",
+          "태오"
+        ],
+        "keywords": [
+          "1개",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_14-16",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 같은 시각 태오는 부두에서, 유진은 등대에서 같은 나침반을 들고 있다.",
+        "characters": [
+          "태오",
+          "유진"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_14-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "감정 일관성 모순 (Soft/Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_14-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 유진은 준서를 쉽게 믿지 않으며 특별한 계기 없이는 경계심을 풀지 않는다.",
+        "characters": [
+          "유진",
+          "준서",
+          "없이"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_14-19",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 설명 가능한 사건 없이 갑자기 준서를 전적으로 믿겠다고 말한다.",
+        "characters": [
+          "준서"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_14-20",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_14-21",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 6건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "cases3_c500_15",
+    "set": "cases3",
+    "genre": "의료/병원",
+    "data_dir": "cases3",
+    "case_prefix": "test_c500_15",
+    "exp_file": "test_c500_15_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "cases3_c500_15-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_15-1",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "정보 비대칭 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "cases3_c500_15-3",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "- 설정/세계관: 마로는 밀랍 봉인이 깨지기 전에는 명령서 내용을 알 수 없다.",
+        "characters": [
+          "마로",
+          "봉인",
+          "전에"
+        ],
+        "keywords": [
+          "설정",
+          "봉인"
+        ]
+      },
+      {
+        "id": "cases3_c500_15-4",
+        "category": "PHYSICS_RULE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 봉인이 깨지기 전부터 추방 명령이라고 단정한다.",
+        "characters": [
+          "봉인",
+          "명령"
+        ],
+        "keywords": [
+          "봉인"
+        ]
+      },
+      {
+        "id": "cases3_c500_15-2",
+        "category": "OTHER",
+        "hard_soft": "SOFT",
+        "description": "관계 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_15-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 세나는 마로의 고모이지 어머니가 아니다.",
+        "characters": [
+          "세나",
+          "마로",
+          "고모",
+          "어머니"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_15-7",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 세나가 공개적으로 마로를 자기 아들이라고 말한다.",
+        "characters": [
+          "세나",
+          "마로",
+          "아들"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_15-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_15-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 라엘은 확대 렌즈 없이는 아주 작은 글씨를 읽지 못한다.",
+        "characters": [
+          "라엘",
+          "없이",
+          "글씨"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_15-10",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 렌즈 없이 작은 주석을 읽어 낸다.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_15-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "타임라인 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_15-12",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 남문에서 알현실까지는 최소 15분이 걸린다.",
+        "characters": [
+          "실까지"
+        ],
+        "keywords": [
+          "15분"
+        ]
+      },
+      {
+        "id": "cases3_c500_15-13",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 세나가 5분도 지나지 않아 알현실 단상에 다시 선다.",
+        "characters": [
+          "세나"
+        ],
+        "keywords": [
+          "5분"
+        ]
+      },
+      {
+        "id": "cases3_c500_15-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "거짓말/기만 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_15-15",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정/시나리오: 세나는 원문에 무죄 선고가 적혀 있음을 확인한다.",
+        "characters": [
+          "세나",
+          "선고"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_15-16",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 곧바로 왕자가 자백했다고 뒤집어 말한다.",
+        "characters": [
+          "왕자"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_15-17",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_15-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 5건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "cases3_c500_16",
+    "set": "cases3",
+    "genre": "군사/전쟁",
+    "data_dir": "cases3",
+    "case_prefix": "test_c500_16",
+    "exp_file": "test_c500_16_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "cases3_c500_16-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_16-1",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "정보 비대칭 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "cases3_c500_16-3",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "- 설정/세계관: 연호는 봉함문이 열리기 전에는 훼손된 경전 쪽수를 알 수 없다.",
+        "characters": [
+          "연호",
+          "봉함문",
+          "전에",
+          "쪽수"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_16-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 문이 열리기 전에 사십팔 번째 장이 찢어졌다고 먼저 말한다.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_16-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_16-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 다온은 불살생 서원을 지켜 짐승을 직접 죽이지 않는다.",
+        "characters": [
+          "다온"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_16-7",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 다온이 꿩의 목을 직접 비튼다.",
+        "characters": [
+          "다온"
+        ],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "cases3_c500_16-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "타임라인 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_16-9",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 눈 오는 밤 부엌에서 법당까지는 최소 17분이 걸린다.",
+        "characters": [
+          "당까지"
+        ],
+        "keywords": [
+          "17분"
+        ]
+      },
+      {
+        "id": "cases3_c500_16-10",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 다온이 4분 만에 법당에 도착한다.",
+        "characters": [
+          "다온"
+        ],
+        "keywords": [
+          "4분"
+        ]
+      },
+      {
+        "id": "cases3_c500_16-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "타임라인 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_16-12",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정/세계관: 출입 자격을 박탈당한 해린은 자정 의식 전까지 법당에 들어갈 수 없다.",
+        "characters": [
+          "해린"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_16-13",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 자정 전에 이미 법당 안쪽에 앉아 있다.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_16-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "소유물 추적 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_16-15",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 세계관/설정: 청동 법고 열쇠는 1개뿐이다.",
+        "characters": [
+          "열쇠",
+          "개뿐"
+        ],
+        "keywords": [
+          "1개",
+          "열쇠",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_16-16",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 해린이 허리춤에 열쇠를 지닌 동시에 주지도 같은 시각 그 열쇠를 문고리에서 뺐다고 말한다.",
+        "characters": [
+          "해린",
+          "열쇠"
+        ],
+        "keywords": [
+          "열쇠"
+        ]
+      },
+      {
+        "id": "cases3_c500_16-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "감정 일관성 모순 (Soft/Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_16-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 다온은 해린을 아끼며 특별한 사건 없이는 적의로 돌변하지 않는다.",
+        "characters": [
+          "다온",
+          "없이"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c500_16-19",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 별다른 계기 없이 해린에게 차갑게 적의를 드러낸다.",
+        "characters": [
+          "해린",
+          "적의"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_16-20",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c500_16-21",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 6건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "cases3_c1000_17",
+    "set": "cases3",
+    "genre": "추리/법정",
+    "data_dir": "cases3",
+    "case_prefix": "test_c1000_17",
+    "exp_file": "test_c1000_17_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "cases3_c1000_17-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_17-1",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "정보 비대칭 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "cases3_c1000_17-3",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "- 설정/세계관: 민호는 서고 문이 열리고 장부를 펼치기 전까지 청색 장부의 훼손 여부를 알 수 없다.",
+        "characters": [
+          "민호",
+          "장부",
+          "여부"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_17-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 민호가 문이 열리기 전에 마지막 장 모서리가 찢어졌다고 단정한다.",
+        "characters": [
+          "민호",
+          "모서리"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_17-2",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "소유물 추적 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_17-6",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 설정/세계관: 서고 은열쇠는 1개뿐이며 로건은 남에게 맡기지 않는다.",
+        "characters": [
+          "은열쇠",
+          "개뿐",
+          "로건"
+        ],
+        "keywords": [
+          "1개",
+          "열쇠",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_17-7",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 하윤이 은열쇠로 서고를 여는 동시에 로건도 같은 열쇠를 바깥 마구간에서 사용했다고 말한다.",
+        "characters": [
+          "하윤",
+          "서고",
+          "열쇠"
+        ],
+        "keywords": [
+          "열쇠"
+        ]
+      },
+      {
+        "id": "cases3_c1000_17-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_17-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 하윤은 오른손으로는 길고 반듯한 문장을 거의 쓰지 못한다.",
+        "characters": [
+          "하윤",
+          "손으로"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_17-10",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 하윤이 오른손으로 긴 서약문을 또박또박 베껴 쓴다.",
+        "characters": [
+          "하윤"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_17-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "타임라인 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_17-12",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 폭설이 내리는 밤 온실에서 서고까지는 최소 24분이 걸린다.",
+        "characters": [
+          "폭설",
+          "내리",
+          "고까지"
+        ],
+        "keywords": [
+          "24분"
+        ]
+      },
+      {
+        "id": "cases3_c1000_17-13",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 하윤이 8분 만에 도착한다.",
+        "characters": [
+          "하윤"
+        ],
+        "keywords": [
+          "8분"
+        ]
+      },
+      {
+        "id": "cases3_c1000_17-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "거짓말/기만 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_17-15",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정/시나리오: 민호는 장부를 실제로 펼친 뒤 결백을 뜻하는 이름을 확인한다.",
+        "characters": [
+          "민호",
+          "장부",
+          "뜻하"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_17-16",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 곧바로 군중 앞에서는 그 인물을 도둑이라고 몰아세운다.",
+        "characters": [
+          "앞에서",
+          "도둑"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_17-17",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_17-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 5건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "cases3_c1000_18",
+    "set": "cases3",
+    "genre": "사극/궁중",
+    "data_dir": "cases3",
+    "case_prefix": "test_c1000_18",
+    "exp_file": "test_c1000_18_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "cases3_c1000_18-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_18-1",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "정보 비대칭 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "cases3_c1000_18-3",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "- 설정/세계관: 예나는 잠긴 시계탑 우편함의 마지막 편지 내용을 열기 전까지 알 수 없다.",
+        "characters": [
+          "예나",
+          "우편함"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_18-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 우편함이 열리기 전에 푸른 봉투라고 단정한다.",
+        "characters": [
+          "우편함"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_18-2",
+        "category": "OTHER",
+        "hard_soft": "SOFT",
+        "description": "관계 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_18-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 예나는 서주의 친동생이 아니라 사촌이다.",
+        "characters": [
+          "예나",
+          "서주",
+          "친동생",
+          "사촌"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_18-7",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 서주가 예나를 자기 여동생이라고 부른다.",
+        "characters": [
+          "서주",
+          "예나",
+          "여동생"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_18-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_18-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 예나는 5층 이상의 계단을 혼자 오르지 못한다.",
+        "characters": [
+          "예나",
+          "이상"
+        ],
+        "keywords": [
+          "설정",
+          "혼자"
+        ]
+      },
+      {
+        "id": "cases3_c1000_18-10",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 예나가 혼자 시계탑 꼭대기까지 올라간다.",
+        "characters": [
+          "예나"
+        ],
+        "keywords": [
+          "혼자"
+        ]
+      },
+      {
+        "id": "cases3_c1000_18-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "타임라인 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_18-12",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 식당에서 시계탑 꼭대기까지는 비 오는 밤 최소 19분이 걸린다.",
+        "characters": [
+          "기까지"
+        ],
+        "keywords": [
+          "19분",
+          "비"
+        ]
+      },
+      {
+        "id": "cases3_c1000_18-13",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 예나가 7분 만에 도착한다.",
+        "characters": [
+          "예나"
+        ],
+        "keywords": [
+          "7분"
+        ]
+      },
+      {
+        "id": "cases3_c1000_18-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "소유물 추적 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_18-15",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 설정/세계관: 시계탑 우편함 열쇠는 1개뿐이며 도윤은 당직 중 남에게 넘기지 않는다.",
+        "characters": [
+          "열쇠",
+          "개뿐",
+          "도윤"
+        ],
+        "keywords": [
+          "1개",
+          "열쇠",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_18-16",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 예나와 도윤이 같은 시각 각자 그 열쇠를 사용한다.",
+        "characters": [
+          "예나",
+          "도윤",
+          "열쇠"
+        ],
+        "keywords": [
+          "열쇠"
+        ]
+      },
+      {
+        "id": "cases3_c1000_18-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "감정 일관성 모순 (Soft/Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_18-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 서주는 도윤을 쉽게 신뢰하지 않는다.",
+        "characters": [
+          "서주"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_18-19",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 별다른 구호 사건 없이 갑자기 도윤만 믿겠다고 말한다.",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_18-20",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_18-21",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 6건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "cases3_c1000_19",
+    "set": "cases3",
+    "genre": "의료/병원",
+    "data_dir": "cases3",
+    "case_prefix": "test_c1000_19",
+    "exp_file": "test_c1000_19_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "cases3_c1000_19-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_19-1",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "정보 비대칭 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "cases3_c1000_19-3",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "- 설정/세계관: 재이는 봉인된 응급검사 봉투 안의 수치를 뜯기 전까지 알 수 없다.",
+        "characters": [
+          "재이",
+          "수치"
+        ],
+        "keywords": [
+          "설정",
+          "봉인"
+        ]
+      },
+      {
+        "id": "cases3_c1000_19-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 봉투를 뜯기 전에 칼륨 수치를 단정한다.",
+        "characters": [
+          "봉투",
+          "수치"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_19-2",
+        "category": "OTHER",
+        "hard_soft": "SOFT",
+        "description": "관계 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_19-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 시우는 재이의 외삼촌이지 친아버지가 아니다.",
+        "characters": [
+          "시우",
+          "재이",
+          "외삼촌",
+          "아버지"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_19-7",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 재이가 시우를 아버지라고 부른다.",
+        "characters": [
+          "재이",
+          "시우"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_19-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_19-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 은결은 수전증 때문에 직접 봉합 바늘을 잡는 처치를 하지 않는다.",
+        "characters": [
+          "은결",
+          "처치"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_19-10",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 은결이 환자의 팔을 직접 봉합한다.",
+        "characters": [
+          "은결",
+          "환자"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_19-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "타임라인 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_19-12",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 지하 검사실에서 옥상 헬리패드까지는 최소 16분이 걸린다.",
+        "characters": [
+          "드까지"
+        ],
+        "keywords": [
+          "16분"
+        ]
+      },
+      {
+        "id": "cases3_c1000_19-13",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 은결이 6분 만에 도착한다.",
+        "characters": [
+          "은결"
+        ],
+        "keywords": [
+          "6분"
+        ]
+      },
+      {
+        "id": "cases3_c1000_19-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "소유물 추적 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_19-15",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 설정/세계관: 마스터카드는 1장뿐이며 시우는 근무 중 남에게 넘기지 않는다.",
+        "characters": [
+          "터카드",
+          "장뿐",
+          "시우"
+        ],
+        "keywords": [
+          "카드",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_19-16",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 같은 시각 은결과 시우가 각기 다른 층에서 같은 카드를 사용한다.",
+        "characters": [
+          "은결",
+          "시우",
+          "카드"
+        ],
+        "keywords": [
+          "카드"
+        ]
+      },
+      {
+        "id": "cases3_c1000_19-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "거짓말/기만 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_19-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 은결은 확인한 의무기록을 뒤집어 거짓 설명하지 않는다.",
+        "characters": [
+          "은결"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_19-19",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 기록상 안정된 상태를 확인한 뒤에도 보호자에게 더 절망적인 말을 의도적으로 전한다.",
+        "characters": [
+          "상태",
+          "보호자"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_19-20",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_19-21",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 6건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  },
+  {
+    "name": "cases3_c1000_20",
+    "set": "cases3",
+    "genre": "SF/시설",
+    "data_dir": "cases3",
+    "case_prefix": "test_c1000_20",
+    "exp_file": "test_c1000_20_expectation.txt",
+    "format": "multi",
+    "contradictions": [
+      {
+        "id": "cases3_c1000_20-1",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대되는 모순 종류 및 설명]",
+        "characters": [
+          "기대되"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_20-1",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "정보 비대칭 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "cases3_c1000_20-3",
+        "category": "INFO_ASYMMETRY",
+        "hard_soft": "SOFT",
+        "description": "- 설정/세계관: 소은은 봉인된 군문서 상자의 마지막 명령을 열기 전까지 알 수 없다.",
+        "characters": [
+          "소은",
+          "상자"
+        ],
+        "keywords": [
+          "설정",
+          "봉인"
+        ]
+      },
+      {
+        "id": "cases3_c1000_20-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 상자가 열리기 전에 북문 수비 철수 명령이라고 단정한다.",
+        "characters": [
+          "상자",
+          "명령"
+        ],
+        "keywords": [
+          "비"
+        ]
+      },
+      {
+        "id": "cases3_c1000_20-2",
+        "category": "OTHER",
+        "hard_soft": "SOFT",
+        "description": "관계 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_20-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 현수는 소은의 스승이지 친부가 아니다.",
+        "characters": [
+          "현수",
+          "소은",
+          "스승",
+          "친부"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_20-7",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 현수가 소은을 자기 딸처럼 부른다.",
+        "characters": [
+          "현수"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_20-3",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "성격/설정 모순 (Hard)",
+        "characters": [],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_20-9",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 지후는 총성과 큰 폭음에 놀라 사격 연습에 참여하지 못한다.",
+        "characters": [
+          "지후",
+          "총성"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_20-10",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 지후가 소총을 들고 표적판 세 장을 연달아 맞힌다.",
+        "characters": [
+          "지후"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_20-4",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "타임라인 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_20-12",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 세계관: 계곡 훈련장에서 북문 탄약고까지는 최소 21분이 걸린다.",
+        "characters": [
+          "고까지"
+        ],
+        "keywords": [
+          "21분"
+        ]
+      },
+      {
+        "id": "cases3_c1000_20-13",
+        "category": "TIMELINE_MOVE",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 소은이 9분 만에 도착한다.",
+        "characters": [
+          "소은"
+        ],
+        "keywords": [
+          "9분"
+        ]
+      },
+      {
+        "id": "cases3_c1000_20-5",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "소유물 추적 모순 (Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_20-15",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 설정/세계관: 탄약고 열쇠는 1개뿐이며 현수는 훈련 중 남에게 넘기지 않는다.",
+        "characters": [
+          "열쇠",
+          "개뿐",
+          "현수"
+        ],
+        "keywords": [
+          "1개",
+          "열쇠",
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_20-16",
+        "category": "SECURITY_ITEM",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 같은 시각 현수와 소은이 각자 그 열쇠를 사용한다.",
+        "characters": [
+          "현수",
+          "소은",
+          "열쇠"
+        ],
+        "keywords": [
+          "열쇠"
+        ]
+      },
+      {
+        "id": "cases3_c1000_20-6",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "감정 일관성 모순 (Soft/Hard)",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_20-18",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 설정: 지후는 소은을 제자처럼 아껴 뚜렷한 배신이 없는 한 적의로 돌아서지 않는다.",
+        "characters": [
+          "지후",
+          "배신"
+        ],
+        "keywords": [
+          "설정"
+        ]
+      },
+      {
+        "id": "cases3_c1000_20-19",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 시나리오: 별다른 사건 없이 소은에게 모든 화근이라고 적의를 드러낸다.",
+        "characters": [
+          "소은",
+          "화근",
+          "적의"
+        ],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_20-20",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "[기대 모순 개수]",
+        "characters": [],
+        "keywords": []
+      },
+      {
+        "id": "cases3_c1000_20-21",
+        "category": "TRAIT_SETTING",
+        "hard_soft": "SOFT",
+        "description": "- 총 6건",
+        "characters": [],
+        "keywords": []
+      }
+    ]
+  }
+]

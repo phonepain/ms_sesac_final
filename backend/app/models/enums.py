@@ -18,6 +18,7 @@ class FactCategory(str, Enum):
     PLOT_SECRET = "plot_secret"
     CHARACTER_INFO = "character_info"
     WORLD_FACT = "world_fact"
+    NARRATION_FACT = "narration_fact"
     RELATIONSHIP_FACT = "relationship_fact"
     EVENT_FACT = "event_fact"
 

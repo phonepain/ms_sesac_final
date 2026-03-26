@@ -211,6 +211,17 @@ class _ViolationMixin:
         """의도 처리(confirmed_intentional)된 엣지인지 확인"""
         return edge.get("confirmed_intentional") in (True, "True", "true", 1)
 
+    # ── chunk_id 조회 헬퍼 ─────────────────────────────────────
+    def _vertex_chunk_id(self, vertex_id: Optional[str] = None, vertex: Optional[Dict] = None) -> Optional[str]:
+        """vertex의 chunk_id를 반환. vertex dict 또는 vertex_id로 조회."""
+        if vertex:
+            return vertex.get("chunk_id") or None
+        if vertex_id:
+            v = self.get_character(vertex_id)
+            if v and v.get("chunk_id"):
+                return v["chunk_id"]
+        return None
+
     # ── 특성-이벤트 탐지 상수 ─────────────────────────────────
     _PROHIBITIVE_MARKERS = [
         "혐오", "절대", "하지 않", "않는다", "못하", "안 마", "마시지 않",
@@ -279,7 +290,8 @@ class _ViolationMixin:
             m_so = float(m_so)
             l_so = learn_index.get((cid, fid))
             if l_so is not None and m_so < l_so:
-                char_name = (self.get_character(cid) or {}).get("name", cid)
+                char_v = self.get_character(cid) or {}
+                char_name = char_v.get("name", cid)
                 violations.append(_make_violation(
                     vtype=ContradictionType.ASYMMETRY,
                     severity=Severity.CRITICAL,
@@ -295,6 +307,7 @@ class _ViolationMixin:
                     ],
                     dialogue=_prop(e, "dialogue_text"),
                     suggestion="MENTIONS 시점을 LEARNS 이후로 수정하거나 LEARNS 시점을 앞당기세요.",
+                    chunk_id=self._vertex_chunk_id(vertex=char_v),
                 ))
 
         # (b) Cross-character 비대칭: B가 A에게서 배웠는데 A가 그 시점에 아직 몰랐던 경우
@@ -319,7 +332,8 @@ class _ViolationMixin:
             if vkey in seen_cross:
                 continue
             seen_cross.add(vkey)
-            student_name = (self.get_character(student_id) or {}).get("name", student_id)
+            student_v = self.get_character(student_id) or {}
+            student_name = student_v.get("name", student_id)
             teacher_name = (self.get_character(teacher_id) or {}).get("name", teacher_id)
             violations.append(_make_violation(
                 vtype=ContradictionType.ASYMMETRY,
@@ -344,6 +358,7 @@ class _ViolationMixin:
                     f"'{teacher_name}'이(가) 사실을 알기 전에 '{student_name}'에게 "
                     "가르쳐줄 수 없습니다. 정보 전달 시점 또는 출처를 수정하세요."
                 ),
+                chunk_id=self._vertex_chunk_id(vertex=student_v),
             ))
         return violations
 
@@ -373,7 +388,8 @@ class _ViolationMixin:
                 if key in seen_violation:
                     continue
                 seen_violation.add(key)
-                char_name = (self.get_character(cid) or {}).get("name", cid)
+                char_v = self.get_character(cid) or {}
+                char_name = char_v.get("name", cid)
                 edge_label = _prop(e, "label") or "AT_LOCATION"
                 violations.append(_make_violation(
                     vtype=ContradictionType.TIMELINE,
@@ -384,6 +400,7 @@ class _ViolationMixin:
                     evidence=[{"death_at": death_so, "appears_at": so, "edge": edge_label}],
                     dialogue=_prop(e, "dialogue_text"),
                     suggestion="사망 이벤트 또는 이후 등장 시점을 수정하세요.",
+                    chunk_id=self._vertex_chunk_id(vertex=char_v),
                 ))
 
         # 사망 후 이벤트 참여 체크 (characters_involved 기반)
@@ -426,6 +443,7 @@ class _ViolationMixin:
                         evidence=[{"death_at": death_so, "appears_at": so, "event": desc[:80]}],
                         dialogue=desc,
                         suggestion="사망 이벤트 또는 이후 등장 시점을 수정하세요.",
+                        chunk_id=ev.get("chunk_id") or self._vertex_chunk_id(vertex_id=cid),
                     ))
 
         time_char_locs: Dict[Tuple[str, float], List[str]] = defaultdict(list)
@@ -435,7 +453,8 @@ class _ViolationMixin:
                 time_char_locs[(cid, float(so))].append(loc)
         for (cid, so), locs in time_char_locs.items():
             if len(set(locs)) > 1:
-                char_name = (self.get_character(cid) or {}).get("name", cid)
+                char_v = self.get_character(cid) or {}
+                char_name = char_v.get("name", cid)
                 violations.append(_make_violation(
                     vtype=ContradictionType.TIMELINE,
                     severity=Severity.CRITICAL,
@@ -444,6 +463,7 @@ class _ViolationMixin:
                     character_id=cid, character_name=char_name,
                     evidence=[{"locations": locs, "story_order": so}],
                     suggestion="동시 위치 중 하나의 story_order를 조정하세요.",
+                    chunk_id=self._vertex_chunk_id(vertex=char_v),
                 ))
 
         # "resurrection" event_type → 추출 모델이 사망한 캐릭터의 재등장을 감지한 것 → HARD 모순
@@ -481,6 +501,7 @@ class _ViolationMixin:
                     evidence=[{"resurrection_event": _prop(ev, "id"), "story_order": so, "description": desc}],
                     dialogue=desc,
                     suggestion="사망 시점 이후 해당 캐릭터의 등장 장면을 제거하거나 사망 시점을 조정하세요.",
+                    chunk_id=ev.get("chunk_id") or self._vertex_chunk_id(vertex_id=cid),
                 ))
             if not raw_involved:
                 violations.append(_make_violation(
@@ -492,6 +513,7 @@ class _ViolationMixin:
                     evidence=[{"resurrection_event": _prop(ev, "id"), "story_order": so}],
                     dialogue=desc,
                     suggestion="사망 이벤트 또는 재등장 장면을 확인하세요.",
+                    chunk_id=ev.get("chunk_id"),
                 ))
         return violations
 
@@ -514,6 +536,7 @@ class _ViolationMixin:
                     except ValueError:
                         continue
                     level = RELATIONSHIP_CONFLICT_MATRIX.get(frozenset([r1, r2]))
+                    pair_chunk = self._vertex_chunk_id(vertex_id=pair_list[0] if pair_list else None)
                     if level == "critical":
                         violations.append(_make_violation(
                             vtype=ContradictionType.RELATIONSHIP,
@@ -522,6 +545,7 @@ class _ViolationMixin:
                             confidence=0.95,
                             evidence=[{"pair": pair_list, "relationship_types": rtypes}],
                             suggestion=f"관계 '{rt1}'과 '{rt2}' 중 하나를 수정하세요.",
+                            chunk_id=pair_chunk,
                         ))
                     elif level == "warning":
                         violations.append(_make_violation(
@@ -532,6 +556,7 @@ class _ViolationMixin:
                             evidence=[{"pair": pair_list, "relationship_types": rtypes}],
                             needs_user_input=True,
                             confirmation_type=ConfirmationType.RELATIONSHIP_AMBIGUITY,
+                            chunk_id=pair_chunk,
                         ))
         return violations
 
@@ -560,7 +585,8 @@ class _ViolationMixin:
             values = [e["value"] for e in entries]
             if len(set(str(v) for v in values)) > 1:
                 is_imm = any(e["is_immutable"] for e in entries)
-                char_name = (self.get_character(cid) or {}).get("name", cid)
+                char_v = self.get_character(cid) or {}
+                char_name = char_v.get("name", cid)
                 violations.append(_make_violation(
                     vtype=ContradictionType.TRAIT,
                     severity=Severity.CRITICAL if is_imm else Severity.MAJOR,
@@ -571,6 +597,7 @@ class _ViolationMixin:
                     needs_user_input=not is_imm,
                     confirmation_type=ConfirmationType.INTENTIONAL_CHANGE if not is_imm else None,
                     suggestion=f"'{trait_key}' 특성 값을 통일하거나 변화 이유를 명시하세요.",
+                    chunk_id=self._vertex_chunk_id(vertex=char_v),
                 ))
         return violations
 
@@ -596,7 +623,8 @@ class _ViolationMixin:
                 prev, curr = sorted_h[i - 1], sorted_h[i]
                 pair = frozenset([str(_prop(prev, "emotion")), str(_prop(curr, "emotion"))])
                 if pair in OPPOSITES and not _prop(curr, "trigger_event_id"):
-                    char_name = (self.get_character(fid) or {}).get("name", fid)
+                    char_v = self.get_character(fid) or {}
+                    char_name = char_v.get("name", fid)
                     violations.append(_make_violation(
                         vtype=ContradictionType.EMOTION,
                         severity=Severity.MAJOR,
@@ -611,6 +639,7 @@ class _ViolationMixin:
                         confirmation_type=ConfirmationType.EMOTION_SHIFT,
                         dialogue=_prop(curr, "dialogue_text"),
                         suggestion="감정 변화를 유발한 이벤트를 명시하거나 감정 추이를 자연스럽게 조정하세요.",
+                        chunk_id=self._vertex_chunk_id(vertex=char_v),
                     ))
         return violations
 
@@ -654,6 +683,7 @@ class _ViolationMixin:
                         confidence=0.95,
                         evidence=[{"item_id": item_id, "story_order": so, "owners": owners}],
                         suggestion="동시 소유 중 하나의 story_order를 조정하거나 소유권 이전을 추가하세요.",
+                        chunk_id=self._vertex_chunk_id(vertex_id=owners[0] if owners else None),
                     ))
 
             last_loses: Dict[str, float] = {}
@@ -664,7 +694,8 @@ class _ViolationMixin:
                     cid, so = h["char_id"], float(h["story_order"])
                     lost_at = last_loses.get(cid)
                     if lost_at is not None and so > lost_at:
-                        char_name = (self.get_character(cid) or {}).get("name", cid)
+                        char_v = self.get_character(cid) or {}
+                        char_name = char_v.get("name", cid)
                         violations.append(_make_violation(
                             vtype=ContradictionType.ITEM,
                             severity=Severity.MAJOR,
@@ -677,6 +708,7 @@ class _ViolationMixin:
                             evidence=[{"lost_at": lost_at, "repossessed_at": so}],
                             needs_user_input=True,
                             confirmation_type=ConfirmationType.ITEM_DISCREPANCY,
+                            chunk_id=self._vertex_chunk_id(vertex=char_v),
                         ))
 
             # 유일 아이템: 이전 소유자가 잃지 않았는데 다른 사람이 소유
@@ -690,7 +722,8 @@ class _ViolationMixin:
                     curr = possesses_only[i]
                     if prev["char_id"] != curr["char_id"] and prev["char_id"] not in lose_chars:
                         prev_name = (self.get_character(prev["char_id"]) or {}).get("name", prev["char_id"])
-                        curr_name = (self.get_character(curr["char_id"]) or {}).get("name", curr["char_id"])
+                        curr_v = self.get_character(curr["char_id"]) or {}
+                        curr_name = curr_v.get("name", curr["char_id"])
                         violations.append(_make_violation(
                             vtype=ContradictionType.ITEM,
                             severity=Severity.CRITICAL,
@@ -706,6 +739,7 @@ class _ViolationMixin:
                             needs_user_input=True,
                             confirmation_type=ConfirmationType.ITEM_DISCREPANCY,
                             suggestion="소유권 이전 이벤트(양도/분실)를 추가하거나 소유자를 수정하세요.",
+                            chunk_id=self._vertex_chunk_id(vertex=curr_v),
                         ))
         return violations
 
@@ -752,7 +786,8 @@ class _ViolationMixin:
             so = float(so)
             truth_so = truth_learn.get((cid, fid))
             if truth_so is not None and so > truth_so:
-                char_name = (self.get_character(cid) or {}).get("name", cid)
+                char_v = self.get_character(cid) or {}
+                char_name = char_v.get("name", cid)
                 violations.append(_make_violation(
                     vtype=ContradictionType.DECEPTION,
                     severity=Severity.CRITICAL,
@@ -765,10 +800,12 @@ class _ViolationMixin:
                     dialogue=_prop(e, "dialogue_text"),
                     evidence=[{"truth_learned_at": truth_so, "false_mention_at": so}],
                     suggestion="진실 인지 후 거짓 정보 전달의 의도를 명시하거나 제거하세요.",
+                    chunk_id=self._vertex_chunk_id(vertex=char_v),
                 ))
 
         for (cid, fid), so in believed_false.items():
-            char_name = (self.get_character(cid) or {}).get("name", cid)
+            char_v = self.get_character(cid) or {}
+            char_name = char_v.get("name", cid)
             fact_content = _prop(facts.get(fid, {}), "content") or ""
             violations.append(_make_violation(
                 vtype=ContradictionType.DECEPTION,
@@ -780,6 +817,7 @@ class _ViolationMixin:
                 dialogue=fact_content,
                 needs_user_input=True,
                 confirmation_type=ConfirmationType.UNRELIABLE_NARRATOR,
+                chunk_id=self._vertex_chunk_id(vertex=char_v),
             ))
         return violations
 
@@ -905,6 +943,7 @@ class _ViolationMixin:
                                 f"'{trait['key']}' 특성과 모순되는 행동을 수정하거나 "
                                 "특성 변화 근거를 명시하세요."
                             ),
+                            chunk_id=ev.get("chunk_id") or self._vertex_chunk_id(vertex_id=cid),
                         ))
                         break
 
@@ -946,6 +985,7 @@ class _ViolationMixin:
                             suggestion=(
                                 f"특성과 모순되는 행동을 수정하거나 변화 근거를 명시하세요."
                             ),
+                            chunk_id=ev.get("chunk_id") or self._vertex_chunk_id(vertex_id=cid),
                         ))
                         break
         return violations
@@ -1015,6 +1055,10 @@ class _ViolationMixin:
                          and ev_val["type"] == "clock_time"
                          and ev_val["value"] >= constraint["value"])
                     )
+                    # fact의 chunk_id 또는 event의 chunk_id
+                    fact_v = next((f for f in all_facts if _prop(f, "id") == constraint.get("fact_id")), None)
+                    ev_v = next((e for e in self._vertices_by_label("event") if _prop(e, "id") == cand_id), None)
+                    v_chunk = (fact_v.get("chunk_id") if fact_v else None) or (ev_v.get("chunk_id") if ev_v else None)
                     violations.append(_make_violation(
                         vtype=ContradictionType.TIMELINE,
                         severity=Severity.CRITICAL if is_definite else Severity.MAJOR,
@@ -1033,6 +1077,7 @@ class _ViolationMixin:
                             "세계 규칙의 수치 제약과 이벤트 내용을 일치시키거나 "
                             "예외 상황을 명시하세요."
                         ),
+                        chunk_id=v_chunk,
                     ))
         return violations
 
@@ -1243,6 +1288,7 @@ class _ViolationMixin:
                 seen.add(vkey)
                 # 타임스탬프 차이가 제약보다 확실히 작으면 Hard
                 is_definite = diff < cval
+                curr_ev = next((e for e in self._vertices_by_label("event") if _prop(e, "id") == curr.get("id")), None)
                 violations.append(_make_violation(
                     vtype=ContradictionType.TIMELINE,
                     severity=Severity.CRITICAL if is_definite else Severity.MAJOR,
@@ -1262,6 +1308,7 @@ class _ViolationMixin:
                     needs_user_input=not is_definite,
                     confirmation_type=ConfirmationType.TIMELINE_AMBIGUITY if not is_definite else None,
                     suggestion="이동 시간 또는 장면 시각을 수정하세요.",
+                    chunk_id=(curr_ev.get("chunk_id") if curr_ev else None),
                 ))
         return violations
 
@@ -2147,8 +2194,8 @@ class GremlinGraphService(_ViolationMixin):
             # 10. Fact에서 아이템 유일성 힌트 추출 → is_unique 업데이트
             _UNIQUE_KW = ["하나뿐", "유일", "단 하나", "오직 하나", "1개뿐", "한 개뿐"]
             try:
-                items_raw = self._submit("g.V().hasLabel('item').valueMap(true).toList()")
-                facts_raw = self._submit("g.V().hasLabel('fact').valueMap(true).toList()")
+                items_raw = self._submit("g.V().hasLabel('item').valueMap(true)")
+                facts_raw = self._submit("g.V().hasLabel('fact').valueMap(true)")
                 for item_r in items_raw:
                     iname = self._prop(item_r.get("name"))
                     is_uniq = self._prop(item_r.get("is_unique"))
