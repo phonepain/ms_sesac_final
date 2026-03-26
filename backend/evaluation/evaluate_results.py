@@ -58,26 +58,37 @@ def load_results(results_dir: str) -> List[Dict[str, Any]]:
 def result_to_violations(result: Dict[str, Any]) -> List[Dict[str, Any]]:
     """테스트 결과 JSON에서 violations 리스트로 변환.
 
-    details 문자열을 파싱하여 description, is_hard 등을 추출.
+    details가 문자열 리스트 또는 dict 리스트 모두 처리.
     """
     violations = []
     for detail in result.get("details", []):
-        is_hard = "[HARD]" in detail
-        is_conf = "[CONF]" in detail
-
-        # "[HARD] (0.98) timeline: 설명..." 형식 파싱
-        desc = detail
-        # 괄호 뒤 설명 부분 추출
-        parts = detail.split(": ", 1)
-        if len(parts) > 1:
-            desc = parts[1]
-
-        violations.append({
-            "description": desc,
-            "is_hard": is_hard,
-            "is_confirmation": is_conf,
-            "raw": detail,
-        })
+        if isinstance(detail, dict):
+            # dict 형태: {kind, confidence, type, description/desc}
+            kind = detail.get("kind", "")
+            desc = detail.get("description", "") or detail.get("desc", "")
+            is_hard = kind.upper() == "HARD" or detail.get("severity", "") == "critical"
+            is_conf = kind.upper() == "CONF"
+            raw = f"[{kind.upper()}] ({detail.get('confidence', '')}) {detail.get('type', '')}: {desc}"
+            violations.append({
+                "description": desc,
+                "is_hard": is_hard,
+                "is_confirmation": is_conf,
+                "raw": raw,
+            })
+        else:
+            # 문자열 형태: "[HARD] (0.98) timeline: 설명..."
+            is_hard = "[HARD]" in detail
+            is_conf = "[CONF]" in detail
+            desc = detail
+            parts = detail.split(": ", 1)
+            if len(parts) > 1:
+                desc = parts[1]
+            violations.append({
+                "description": desc,
+                "is_hard": is_hard,
+                "is_confirmation": is_conf,
+                "raw": detail,
+            })
     return violations
 
 
@@ -165,6 +176,45 @@ def print_category_breakdown(m: DetectionMetrics):
         print(f"    {cat.value:20s} {bar} {recall:.0%} ({tp}/{total})")
 
 
+# ── 이름 매핑 (테스트 스크립트 name → Gold Standard name) ─────
+
+_NAME_MAP = {
+    # batch_e2e_test.py → gold "batch_N"
+    "테스트 01: 화성 연구 기지": "batch_1",
+    "테스트 02: 마법 왕국": "batch_2",
+    "테스트 03: 심해 잠수정": "batch_3",
+    "테스트 04: 시간 연구소": "batch_4",
+    # case2_e2e_test.py → gold "cases2_N"
+    "test_1: 심해 관측기지 아비스-9": "cases2_1",
+    "test_2: 공중도시 루멘 아크": "cases2_2",
+    "test_3: 중앙지방법원 12호 법정": "cases2_3",
+    "test_4: 사막왕국 아샤르": "cases2_4",
+    "test_5: e스포츠 아레나 제로돔": "cases2_5",
+    "test_6: 수도원 은종회랑": "cases2_6",
+    "test_7: 궤도 교도소 헬릭스 (시나리오 단독)": "cases2_7",
+    "test_8: 격리 병원 화이트돔 (시나리오 단독)": "cases2_8",
+    # cases3_e2e_test.py → gold "cases3_*"
+    "test_c500_13": "cases3_c500_13",
+    "test_c500_14": "cases3_c500_14",
+    "test_c500_15": "cases3_c500_15",
+    "test_c500_16": "cases3_c500_16",
+    "test_c1000_17": "cases3_c1000_17",
+    "test_c1000_18": "cases3_c1000_18",
+    "test_c1000_19": "cases3_c1000_19",
+    "test_c1000_20": "cases3_c1000_20",
+    # long_case_e2e_test.py → gold "long_N"
+    "test_9: 연구소 야간 사건": "long_9",
+    "test_10": "long_10",
+    "test_11": "long_11",
+    "test_12": "long_12",
+}
+
+
+def _resolve_gold_name(case_name: str) -> str:
+    """테스트 결과의 case_name을 Gold Standard name으로 변환."""
+    return _NAME_MAP.get(case_name, case_name)
+
+
 # ── 메인 ──────────────────────────────────────────────────────
 
 def main():
@@ -214,8 +264,9 @@ def main():
             print(f"  SKIP: {group}/{case_name} (에러: {r['error'][:50]})")
             continue
 
-        # Gold 매칭
-        gold = gold_by_name.get(case_name)
+        # Gold 매칭 (이름 매핑 적용)
+        gold_name = _resolve_gold_name(case_name)
+        gold = gold_by_name.get(gold_name)
         if not gold:
             unmatched_results.append((group, case_name, r))
             continue

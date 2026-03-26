@@ -1,11 +1,25 @@
 # ContiCheck 온톨로지 설계 문서
 
-> **버전**: 2.2  
-> **목적**: 시나리오 정합성 검증을 위한 지식 그래프 스키마 정의  
-> **범위**: 7가지 모순 유형 + Hard/Soft 형식 구분 + 이중 시간 축 + 사용자 확인 플로우 + 임시 그래프 격리  
-> **v2.1→v2.2 변경**: 이중 시간 축(discourse_order/story_order) 도입, Hard Contradiction vs Soft Inconsistency 형식 구분, 임시 그래프 격리 모델(In-Memory 스냅샷) 정의, is_flashback/flashback_target_order 제거(이중 축으로 대체)  
-> **v2→v2.1 변경**: 거짓말·기만(Fact.is_true, LEARNS.believed_true), 장면 환경 제약(Event.environment), 세력·조직(Organization, BELONGS_TO), 목표·동기(Trait category 확장), Fact vs Trait 구분 기준, 아이템 소유 세분화(possession_type, location_id)  
-> **v1→v2 변경**: 감정/위치/소유물 추적을 확장에서 메인으로 승격, 사용자 확인 플로우 강화, 과거 회상 감지, 다중 소스 충돌 해결, wiki 제거  
+> **이 문서는 v2.2 (초기 설계)입니다.**
+> **최신 버전은 [`conticheck-ontology-schema-v3.md`](./conticheck-ontology-schema-v3.md) (v3.1, 2026-03-26)를 참고하세요.**
+>
+> v3.1 주요 차이:
+> - FactCategory 6종 (`narration_fact` 추가)
+> - Source vertex: `original_file_path` 추가
+> - UserConfirmation: `original_text`, `dialogue` 추가
+> - RELATIONSHIP_CONFLICT_MATRIX 4개 → 8개 확장
+> - 모순 탐지 11종 구조적 쿼리 + LLM 2종
+> - LEARNS `via_character_id` → `via_character` (이름 저장)
+> - RELATED_TO `relationship_detail` → `detail`
+
+---
+
+> **버전**: 2.2 (초기 설계 — 아카이브용)
+> **목적**: 시나리오 정합성 검증을 위한 지식 그래프 스키마 정의
+> **범위**: 7가지 모순 유형 + Hard/Soft 형식 구분 + 이중 시간 축 + 사용자 확인 플로우 + 임시 그래프 격리
+> **v2.1→v2.2 변경**: 이중 시간 축(discourse_order/story_order) 도입, Hard Contradiction vs Soft Inconsistency 형식 구분, 임시 그래프 격리 모델(In-Memory 스냅샷) 정의, is_flashback/flashback_target_order 제거(이중 축으로 대체)
+> **v2→v2.1 변경**: 거짓말·기만(Fact.is_true, LEARNS.believed_true), 장면 환경 제약(Event.environment), 세력·조직(Organization, BELONGS_TO), 목표·동기(Trait category 확장), Fact vs Trait 구분 기준, 아이템 소유 세분화(possession_type, location_id)
+> **v1→v2 변경**: 감정/위치/소유물 추적을 확장에서 메인으로 승격, 사용자 확인 플로우 강화, 과거 회상 감지, 다중 소스 충돌 해결, wiki 제거
 
 ---
 

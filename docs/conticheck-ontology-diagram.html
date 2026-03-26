@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>ContiCheck 온톨로지 v2.2</title>
+<title>ContiCheck 온톨로지 v3.1</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}body{font-family:'Noto Sans KR',-apple-system,sans-serif;background:#0a0a0f;color:#e4e4e7;overflow:hidden;height:100vh}
 .app{display:flex;height:100vh}.sb{width:300px;border-right:1px solid rgba(63,63,70,.25);background:rgba(9,9,14,.95);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
@@ -28,6 +28,7 @@
 .hs{display:inline-block;padding:1px 4px;border-radius:2px;font-size:7px;font-weight:700;margin-left:4px}
 .hard{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.2)}
 .soft{background:rgba(250,204,21,.08);color:#fbbf24;border:1px solid rgba(250,204,21,.15)}
+.llm{background:rgba(139,92,246,.1);color:#a78bfa;border:1px solid rgba(139,92,246,.2)}
 @keyframes su{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 </style>
 </head>
@@ -35,46 +36,55 @@
 <div id="root"></div>
 <script>
 const NODES=[
-  {id:'character',label:'Character',desc:'캐릭터',color:'#34d399',attrs:[{k:'name',t:'string',d:'이름'},{k:'aliases',t:'string[]',d:'별명'},{k:'tier',t:'1~4',d:'중요도'}]},
-  {id:'fact',label:'KnowledgeFact',desc:'사실/정보',color:'#38bdf8',attrs:[{k:'content',t:'string',d:'사실 내용'},{k:'is_secret',t:'bool',d:'비밀 여부'},{k:'is_true',t:'bool',d:'실제로 참인지 (거짓말 추적)'}]},
-  {id:'event',label:'Event',desc:'이벤트/장면',color:'#c084fc',attrs:[{k:'discourse_order',t:'float',d:'텍스트 등장 순서 (항상 단조 증가)'},{k:'story_order',t:'float|null',d:'서사 세계 실제 시점 (null=미확정)'},{k:'is_linear',t:'bool',d:'discourse=story 방향 일치'},{k:'event_type',t:'enum',d:'9종'},{k:'environment',t:'object',d:'시간/날씨/조명/특수조건'}]},
-  {id:'trait',label:'Trait',desc:'캐릭터 특성/설정',color:'#f472b6',attrs:[{k:'key',t:'string',d:'속성 키'},{k:'value',t:'string',d:'속성 값'},{k:'is_immutable',t:'bool',d:'불변 여부'},{k:'category',t:'enum',d:'+goal/motivation'}]},
-  {id:'organization',label:'Organization',desc:'세력/조직',color:'#14b8a6',attrs:[{k:'name',t:'string',d:'조직 이름'},{k:'org_type',t:'enum',d:'7종'}]},
-  {id:'location',label:'Location',desc:'장소',color:'#fb923c',attrs:[{k:'name',t:'string',d:'장소명'},{k:'location_type',t:'enum',d:'6종'},{k:'travel_constraints',t:'string',d:'이동 제약'}]},
-  {id:'item',label:'Item',desc:'소유물/아이템',color:'#facc15',attrs:[{k:'name',t:'string',d:'아이템명'},{k:'is_unique',t:'bool',d:'유일 여부'},{k:'location_id',t:'string',d:'아이템 위치'}]},
-  {id:'source',label:'Source',desc:'데이터 출처',color:'#71717a',attrs:[{k:'source_type',t:'enum',d:'worldview/settings/scenario/manuscript'},{k:'name',t:'string',d:'파일명'}]},
-  {id:'confirmation',label:'UserConfirmation',desc:'사용자 확인 요청',color:'#f87171',attrs:[{k:'confirmation_type',t:'enum',d:'9종'},{k:'status',t:'enum',d:'pending/confirmed/deferred'},{k:'source_excerpts',t:'list',d:'원본 발췌 (필수)'}]},
+  {id:'character',label:'Character',desc:'캐릭터',color:'#34d399',attrs:[{k:'name',t:'string',d:'이름'},{k:'aliases',t:'string[]',d:'별명'},{k:'tier',t:'1~4',d:'중요도'},{k:'description',t:'string',d:'캐릭터 요약'}]},
+  {id:'fact',label:'KnowledgeFact',desc:'사실/정보',color:'#38bdf8',attrs:[{k:'content',t:'string',d:'사실 내용'},{k:'category',t:'enum',d:'plot_secret/character_info/world_fact/narration_fact/relationship_fact/event_fact (6종)'},{k:'importance',t:'enum',d:'critical/major/minor'},{k:'is_secret',t:'bool',d:'비밀 여부'},{k:'is_true',t:'bool',d:'실제로 참인지 (거짓말 추적)'},{k:'established_order',t:'float',d:'최초 확립 시점'}]},
+  {id:'event',label:'Event',desc:'이벤트/장면',color:'#c084fc',attrs:[{k:'discourse_order',t:'float',d:'텍스트 등장 순서 (항상 단조 증가)'},{k:'story_order',t:'float|null',d:'서사 세계 실제 시점 (null=미확정)'},{k:'is_linear',t:'bool',d:'discourse=story 방향 일치'},{k:'event_type',t:'enum',d:'scene/death/resurrection/location_change/status_change/relationship_change/trait_change/item_transfer/emotion_shift (9종)'},{k:'environment',t:'dict',d:'{time_of_day, weather, lighting, special_conditions}'},{k:'location',t:'string',d:'장소'},{k:'chunk_id',t:'string',d:'원본 청크 ID (original_text 조회용)'}]},
+  {id:'trait',label:'Trait',desc:'캐릭터 특성/설정',color:'#f472b6',attrs:[{k:'key',t:'string',d:'속성 키 (예: 식습관, 혈액형)'},{k:'value',t:'string',d:'속성 값'},{k:'is_immutable',t:'bool',d:'불변 여부 (true→Hard)'},{k:'category',t:'enum',d:'personality/physical/ability/preference/background/rule/goal/motivation (8종)'}]},
+  {id:'organization',label:'Organization',desc:'세력/조직',color:'#14b8a6',attrs:[{k:'name',t:'string',d:'조직 이름'},{k:'org_type',t:'enum',d:'government/military/criminal/corporate/religious/secret/other (7종)'}]},
+  {id:'location',label:'Location',desc:'장소',color:'#fb923c',attrs:[{k:'name',t:'string',d:'장소명'},{k:'location_type',t:'enum',d:'region/city/building/room/outdoor/abstract (6종)'},{k:'travel_constraints',t:'string',d:'이동 제약'},{k:'parent_location_id',t:'string',d:'상위 장소 ID'}]},
+  {id:'item',label:'Item',desc:'소유물/아이템',color:'#facc15',attrs:[{k:'name',t:'string',d:'아이템명'},{k:'is_unique',t:'bool',d:'유일 여부 (true→동시소유=Hard)'},{k:'location_id',t:'string',d:'아이템 위치 (보유 중이면 null)'}]},
+  {id:'source',label:'Source',desc:'데이터 출처',color:'#71717a',attrs:[{k:'source_type',t:'enum',d:'worldview/settings/scenario/manuscript (4종)'},{k:'name',t:'string',d:'파일명'},{k:'status',t:'string',d:'소스 상태 (active 등)'},{k:'file_path',t:'string',d:'저장 경로 (Push 시 최신 스냅샷으로 갱신)'},{k:'original_file_path',t:'string',d:'최초 업로드 경로 (불변 — diff 기준점)'}]},
+  {id:'confirmation',label:'UserConfirmation',desc:'사용자 확인 요청',color:'#f87171',attrs:[{k:'confirmation_type',t:'enum',d:'flashback_check/intentional_change/foreshadowing/source_conflict/unreliable_narrator/timeline_ambiguity/relationship_ambiguity/emotion_shift/item_discrepancy (9종)'},{k:'status',t:'enum',d:'pending/confirmed_contradiction/confirmed_intentional/deferred'},{k:'source_excerpts',t:'list',d:'원본 발췌 (필수)'},{k:'original_text',t:'string',d:'Soft confirmation 원문 (수정 UI 지원)'},{k:'dialogue',t:'string',d:'관련 대사/서술'}]},
 ];
 const EDGES=[
-  {id:'learns',label:'LEARNS',from:'character',to:'fact',color:'#34d399',cat:'정보 비대칭',desc:'사실을 알게 됨',hs:'hard',query:'MENTIONS.story_order < LEARNS.story_order → HARD\nbelieved_true로 거짓말에 속은 상태 추적\nstory_order=null → 판단 보류'},
-  {id:'mentions',label:'MENTIONS',from:'character',to:'fact',color:'#fbbf24',cat:'정보 비대칭',desc:'사실을 언급함',hs:'both',query:'story_order 확정 시 → HARD\nstory_order 미확정/추론 가능 → SOFT'},
+  {id:'learns',label:'LEARNS',from:'character',to:'fact',color:'#34d399',cat:'정보 비대칭',desc:'사실을 알게 됨',hs:'hard',query:'MENTIONS.story_order < LEARNS.story_order → HARD\nbelieved_true로 거짓말에 속은 상태 추적\nvia_character: 캐릭터 이름 문자열 (ID 아님)\nstory_order=null → 판단 보류'},
+  {id:'mentions',label:'MENTIONS',from:'character',to:'fact',color:'#fbbf24',cat:'정보 비대칭',desc:'사실을 언급함',hs:'both',query:'story_order 확정 시 → HARD\nstory_order 미확정/추론 가능 → SOFT\ncross-character: 아직 모르는 캐릭터에게서 배움 포함'},
   {id:'participates',label:'PARTICIPATES_IN',from:'character',to:'event',color:'#c084fc',cat:'타임라인',desc:'이벤트에 참여',hs:'hard',query:'사망 후 등장(story_order 확정) → HARD\nstory_order=null → SOFT(사용자 확인)\n환경 제약 위반 → SOFT'},
-  {id:'has_status',label:'HAS_STATUS',from:'character',to:'event',color:'#a78bfa',cat:'타임라인',desc:'상태 변화',hs:'hard',query:'dead 후 등장(story_order 확정, 부활 없음) → HARD'},
-  {id:'at_location',label:'AT_LOCATION',from:'character',to:'location',color:'#fb923c',cat:'타임라인',desc:'위치 추적',hs:'both',query:'같은 story_order 다른 장소 → HARD\n비현실적 이동 → SOFT(세계관 확인)'},
-  {id:'related_to',label:'RELATED_TO',from:'character',to:'character',color:'#fb923c',cat:'관계',desc:'캐릭터 간 관계',hs:'both',query:'CONFLICT_MATRIX critical → HARD\nCONFLICT_MATRIX warning → SOFT'},
+  {id:'has_status',label:'HAS_STATUS',from:'character',to:'event',color:'#a78bfa',cat:'타임라인',desc:'상태 변화',hs:'hard',query:'status_type=dead의 story_order 이후 캐릭터 재등장 → HARD\nresurrection 이벤트 있으면 허용\n엣지에 story_order 필드 있음 (사망 탐지 기준)'},
+  {id:'at_location',label:'AT_LOCATION',from:'character',to:'location',color:'#fb923c',cat:'타임라인',desc:'위치 추적',hs:'both',query:'같은 story_order 다른 장소 → HARD\n비현실적 이동 → SOFT(세계관 확인)\n_find_timestamp_violations: 연속 이동 소요시간 검증'},
+  {id:'related_to',label:'RELATED_TO',from:'character',to:'character',color:'#fb923c',cat:'관계',desc:'캐릭터 간 관계',hs:'both',query:'CONFLICT_MATRIX (8쌍):\ncritical → HARD: parent+sibling, parent+spouse, friend+enemy\nwarning → SOFT: sibling+spouse, parent+romantic, colleague+enemy, mentor+enemy, romantic+enemy\ndetail 필드로 관계 상세 기술'},
   {id:'belongs_to',label:'BELONGS_TO',from:'character',to:'organization',color:'#14b8a6',cat:'관계',desc:'조직 소속',hs:'both',query:'적대 조직 동시 공개 소속 → HARD\n비밀 소속 누출 → SOFT'},
-  {id:'feels',label:'FEELS',from:'character',to:'character',color:'#ec4899',cat:'감정',desc:'감정 추적',hs:'soft',query:'이벤트 없이 감정 급변 → SOFT\n감정-행동 불일치 → SOFT'},
-  {id:'has_trait',label:'HAS_TRAIT',from:'character',to:'trait',color:'#f472b6',cat:'성격·설정',desc:'특성 보유',hs:'both',query:'immutable 충돌 → HARD\nmutable 변화 → SOFT'},
-  {id:'violates_trait',label:'VIOLATES_TRAIT',from:'event',to:'trait',color:'#ef4444',cat:'성격·설정',desc:'설정 위반 (결과)',hs:'both',query:'confidence≥0.8 → 자동(warning)\nconfidence<0.8 → SOFT(사용자 확인)'},
-  {id:'possesses',label:'POSSESSES',from:'character',to:'item',color:'#facc15',cat:'소유물',desc:'아이템 소유',hs:'both',query:'unique 중복 소유 → HARD\ncan_access 없이 사용 → HARD\n상실 후 사용 → SOFT'},
-  {id:'loses',label:'LOSES',from:'character',to:'item',color:'#a3a3a3',cat:'소유물',desc:'아이템 상실',hs:'soft',query:'상실 후 사용 → SOFT(같은 아이템?)'},
-  {id:'sourced_from',label:'SOURCED_FROM',from:'(all)',to:'source',color:'#52525b',cat:'출처',desc:'원본 출처 추적',hs:null,query:'근거 제시 시 원본 위치 표시'},
+  {id:'feels',label:'FEELS',from:'character',to:'character',color:'#ec4899',cat:'감정',desc:'감정 추적',hs:'soft',query:'trigger_event_id 없이 반대 감정 급변 → SOFT\n감정-행동 불일치 → SOFT\n11종: love/hate/trust/distrust/fear/jealousy/gratitude/resentment/admiration/contempt/neutral'},
+  {id:'has_trait',label:'HAS_TRAIT',from:'character',to:'trait',color:'#f472b6',cat:'성격·설정',desc:'특성 보유',hs:'both',query:'동일 key에 복수 value:\nis_immutable=true → HARD\nis_immutable=false → SOFT(intentional_change 확인)\nvalid_from/valid_until로 변경 이력 관리'},
+  {id:'violates_trait',label:'VIOLATES_TRAIT',from:'event',to:'trait',color:'#ef4444',cat:'성격·설정',desc:'설정 위반 (결과)',hs:'both',query:'confidence>=0.8 → 자동(warning)\nconfidence<0.8 → SOFT(사용자 확인)\nfind_trait_event_violations: 금지/혐오 키워드 매칭'},
+  {id:'possesses',label:'POSSESSES',from:'character',to:'item',color:'#facc15',cat:'소유물',desc:'아이템 소유',hs:'both',query:'unique 중복 소유 → HARD\ncan_access 없이 사용 → HARD\npossession_type: owns/holds/can_access/guards\n상실 후 재소유 → SOFT'},
+  {id:'loses',label:'LOSES',from:'character',to:'item',color:'#a3a3a3',cat:'소유물',desc:'아이템 상실',hs:'soft',query:'상실 후 사용 → SOFT(같은 아이템?)\nmethod: gave_away/lost/destroyed/stolen_from/used_up'},
+  {id:'sourced_from',label:'SOURCED_FROM',from:'(all)',to:'source',color:'#52525b',cat:'출처',desc:'원본 출처 추적',hs:null,query:'근거 제시 시 원본 위치 표시\nchunk_id로 원본 청크 직접 조회 가능'},
 ];
 const CONFIRM_TYPES=[
-  {id:'intentional_change',label:'의도적 변화',color:'#f472b6',desc:'설정 변화가 캐릭터 성장인지',hs:'soft'},
-  {id:'foreshadowing',label:'복선 여부',color:'#fbbf24',desc:'모순인지 의도적 장치인지',hs:'soft'},
-  {id:'source_conflict',label:'소스 충돌',color:'#f87171',desc:'다중 소스 정보 다름 → 원본 나란히',hs:'soft'},
-  {id:'emotion_shift',label:'감정 변화',color:'#ec4899',desc:'이벤트 없이 감정 급변',hs:'soft'},
-  {id:'relationship_ambiguity',label:'관계 모호성',color:'#fb923c',desc:'관계 충돌이 의도적인지',hs:'soft'},
-  {id:'item_discrepancy',label:'아이템 불일치',color:'#facc15',desc:'소유 이력과 사용 불일치',hs:'soft'},
-  {id:'timeline_ambiguity',label:'시간/공간',color:'#a78bfa',desc:'story_order 미확정 또는 비현실적 이동',hs:'soft'},
-  {id:'unreliable_narrator',label:'신뢰성',color:'#71717a',desc:'화자의 서술 신뢰 여부',hs:'soft'},
+  {id:'flashback_check',label:'회상/비선형 확인',color:'#c084fc',desc:'서사 흐름이 과거로 점프 → story_order 확정 + is_linear=false + 재탐지',hs:'soft'},
+  {id:'intentional_change',label:'의도적 변화',color:'#f472b6',desc:'mutable 설정 변화가 캐릭터 성장인지 → valid_until 설정',hs:'soft'},
+  {id:'foreshadowing',label:'복선 여부',color:'#fbbf24',desc:'모순인지 의도적 장치인지 (LLM confidence 0.5~0.8)',hs:'soft'},
+  {id:'source_conflict',label:'소스 충돌',color:'#f87171',desc:'다중 소스 정보 다름 → 원본 나란히 → 비정본 비활성화',hs:'soft'},
+  {id:'emotion_shift',label:'감정 변화',color:'#ec4899',desc:'이벤트 없이 감정 급변 → 사용자가 의도 판정',hs:'soft'},
+  {id:'relationship_ambiguity',label:'관계 모호성',color:'#fb923c',desc:'관계 warning 충돌이 의도적인지 → 사용자가 정본 판정',hs:'soft'},
+  {id:'item_discrepancy',label:'아이템 불일치',color:'#facc15',desc:'소유 이력과 사용 불일치 → 동일 아이템 여부 판정',hs:'soft'},
+  {id:'timeline_ambiguity',label:'시간/공간',color:'#a78bfa',desc:'story_order 미확정 또는 비현실적 이동 → 세계관 규칙 판정',hs:'soft'},
+  {id:'unreliable_narrator',label:'신뢰성',color:'#71717a',desc:'화자의 서술 신뢰 여부 → 사용자가 화자 신뢰도 판정',hs:'soft'},
+];
+const DETECT_TYPES=[
+  {id:'d_structural',label:'구조적 쿼리 (11종)',color:'#34d399',desc:'find_knowledge_violations, find_timeline_violations, find_relationship_violations, find_trait_violations, find_emotion_violations, find_item_violations, find_deception_violations, find_trait_event_violations, find_fact_event_violations, _find_timestamp_violations, find_world_rule_violations'},
+  {id:'d_world_rule',label:'LLM: 세계 규칙 검증',color:'#a78bfa',desc:'_check_world_rules_with_llm — world_fact를 fact/event 내용과 LLM으로 비교. 구조적 쿼리로 잡기 어려운 의미적 위반 탐지. 프롬프트: world_rule_check.py'},
+  {id:'d_event_consistency',label:'LLM: 이벤트 일관성',color:'#818cf8',desc:'_check_event_consistency_with_llm — 이벤트 간 시간/장소/상태 일관성을 LLM으로 검증. 캐릭터별 이벤트 체인 분석. 프롬프트: event_consistency_check.py'},
+  {id:'d_dedup',label:'중복 제거 전략',color:'#71717a',desc:'1) hard 우선 정렬: hard→soft 순으로 처리\n2) exact dedup: (type, sorted_korean_words) 기반\n3) Jaccard dedup: 동일 (type, character_id)에서 key_parts 유사도 >50%'},
 ];
 const DESIGN=[
   {id:'dual_time',label:'이중 시간 축',color:'#c084fc',desc:'discourse_order(텍스트 순서, 단조 증가) + story_order(서사 시점, null 가능). 회상/비선형 서사를 예외 분기 없이 처리.'},
-  {id:'hard_soft',label:'Hard/Soft 구분',color:'#ef4444',desc:'Hard: 논리적 불가능, 자동 판정. Soft: 맥락에 따라 의도적, 사용자 확인. 판정: hard? → 자동 / LLM≥0.8? → 자동 / 나머지 → UserConfirmation'},
+  {id:'hard_soft',label:'Hard/Soft 구분',color:'#ef4444',desc:'Hard: 논리적 불가능, 자동 판정. Soft: 맥락에서 의도적일 수 있음, 사용자 확인. 판정: hard? → 자동 / LLM>=0.8? → 자동 / 나머지 → UserConfirmation'},
   {id:'graph_isolation',label:'임시 그래프 격리',color:'#38bdf8',desc:'analyze() 시 canonical graph를 In-Memory 스냅샷으로 복제. 복제본에서만 작업. Push 시에만 canonical 업데이트. 오염 가능성 0%.'},
-  {id:'truth_belief',label:'Truth vs Belief',color:'#34d399',desc:'Fact.is_true(서사 세계의 진실) + LEARNS.believed_true(캐릭터의 믿음). 거짓말 전파 체인 추적.'},
+  {id:'truth_belief',label:'Truth vs Belief',color:'#34d399',desc:'Fact.is_true(서사 세계의 진실) + LEARNS.believed_true(캐릭터의 믿음). 거짓말 전파 체인 추적. 진실 인지 후 거짓 기반 행동 → Hard.'},
+  {id:'version_mgmt',label:'버전 관리',color:'#fbbf24',desc:'Stage → Push → 텍스트 치환 → 버전 스냅샷(StorageService) → 그래프 재구축 → 검색 재인덱싱. Source.file_path는 최신 스냅샷, original_file_path는 최초 업로드(불변, diff 기준점).'},
+  {id:'llm_detect',label:'LLM 기반 탐지',color:'#a78bfa',desc:'구조적 쿼리 11종이 먼저 실행되고, LLM 탐지기 2종(세계 규칙, 이벤트 일관성)이 병렬로 실행. 결과 통합 후 3단계 중복 제거 (hard 우선 → exact → Jaccard).'},
 ];
 
 const POS={character:{x:400,y:130},fact:{x:700,y:60},event:{x:400,y:310},trait:{x:100,y:260},organization:{x:100,y:130},location:{x:700,y:260},item:{x:100,y:400},source:{x:700,y:420},confirmation:{x:400,y:480}};
@@ -111,23 +121,24 @@ function draw(canvas,selN,selE,hovN){
     ctx.fillText(lbl,p.x,p.y-2*sc);ctx.font=`${7*sc}px sans-serif`;ctx.fillStyle=isSel?'#a1a1aa':'#52525b';ctx.fillText(n.desc,p.x,p.y+9*sc);
   });
 }
-function hsTag(hs){if(!hs)return'';if(hs==='hard')return'<span class="hs hard">HARD</span>';if(hs==='soft')return'<span class="hs soft">SOFT</span>';if(hs==='both')return'<span class="hs hard">HARD</span><span class="hs soft">SOFT</span>';return''}
+function hsTag(hs){if(!hs)return'';if(hs==='hard')return'<span class="hs hard">HARD</span>';if(hs==='soft')return'<span class="hs soft">SOFT</span>';if(hs==='both')return'<span class="hs hard">HARD</span><span class="hs soft">SOFT</span>';if(hs==='llm')return'<span class="hs llm">LLM</span>';return''}
 function App(){
   const root=document.getElementById('root');
   let state={tab:'nodes',selN:null,selE:null,hovN:null,detail:null,detailType:null};
   const set=u=>{Object.assign(state,u);render()};
   function render(){
-    root.innerHTML=`<div class="app"><div class="sb"><div class="sb-h"><h1>온톨로지 v2.2</h1><p>9 Vertices · 13 Edges · 7 모순 · Hard/Soft · 이중 시간 축</p></div>
-    <div class="tabs"><button class="tab ${state.tab==='nodes'?'on':''}" onclick="app.tab('nodes')">노드(9)</button><button class="tab ${state.tab==='edges'?'on':''}" onclick="app.tab('edges')">엣지(13)</button><button class="tab ${state.tab==='confirm'?'on':''}" onclick="app.tab('confirm')">확인(8)</button><button class="tab ${state.tab==='design'?'on':''}" onclick="app.tab('design')">설계</button></div>
-    <div class="sb-c">${state.tab==='nodes'?rNodes():''}${state.tab==='edges'?rEdges():''}${state.tab==='confirm'?rConfirm():''}${state.tab==='design'?rDesign():''}</div></div>
+    root.innerHTML=`<div class="app"><div class="sb"><div class="sb-h"><h1>온톨로지 v3.1</h1><p>9 Vertices · 13 Edges · 11+2 탐지기 · 9 확인 유형 · Hard/Soft · 이중 시간 축</p></div>
+    <div class="tabs"><button class="tab ${state.tab==='nodes'?'on':''}" onclick="app.tab('nodes')">노드(9)</button><button class="tab ${state.tab==='edges'?'on':''}" onclick="app.tab('edges')">엣지(13)</button><button class="tab ${state.tab==='detect'?'on':''}" onclick="app.tab('detect')">탐지(13)</button><button class="tab ${state.tab==='confirm'?'on':''}" onclick="app.tab('confirm')">확인(9)</button><button class="tab ${state.tab==='design'?'on':''}" onclick="app.tab('design')">설계</button></div>
+    <div class="sb-c">${state.tab==='nodes'?rNodes():''}${state.tab==='edges'?rEdges():''}${state.tab==='detect'?rDetect():''}${state.tab==='confirm'?rConfirm():''}${state.tab==='design'?rDesign():''}</div></div>
     <div class="cv"><canvas id="cv"></canvas>${rLegend()}${rDetail()}</div></div>`;
     requestAnimationFrame(setupCanvas);
   }
   function rNodes(){return NODES.map(n=>`<div class="nc ${state.selN===n.id?'sel':''}" onclick="app.selN('${n.id}')" onmouseenter="app.hov('${n.id}')" onmouseleave="app.hov(null)"><div class="nm"><div class="dot" style="background:${n.color}"></div>${n.label}</div><div class="ds">${n.desc}</div></div>`).join('')}
   function rEdges(){const g={};EDGES.forEach(e=>{if(!g[e.cat])g[e.cat]=[];g[e.cat].push(e)});return Object.entries(g).map(([c,es])=>`<div class="st"><div class="st-s">${c}</div>${es.map(e=>`<div class="ec ${state.selE===e.id?'sel':''}" onclick="app.selE('${e.id}')"><div style="flex:1"><div style="font-size:10px;font-weight:600;color:${e.color};display:flex;align-items:center">${e.label}${hsTag(e.hs)}</div><div style="font-size:7px;color:#52525b">${e.from} → ${e.to}</div></div></div>`).join('')}</div>`).join('')}
-  function rConfirm(){return CONFIRM_TYPES.map(c=>`<div class="nc" onclick="app.selConf('${c.id}')"><div class="nm"><div class="dot" style="background:${c.color}"></div>${c.label}${hsTag(c.hs)}</div><div class="ds">${c.desc}</div></div>`).join('')}
-  function rDesign(){return DESIGN.map(d=>`<div class="nc" onclick="app.selDesign('${d.id}')"><div class="nm"><div class="dot" style="background:${d.color}"></div>${d.label}</div><div class="ds">${d.desc.slice(0,60)}...</div></div>`).join('')}
-  function rLegend(){return`<div class="lg"><div class="lg-t">범례</div>${NODES.map(n=>`<div class="lg-i"><div class="lg-d" style="background:${n.color}"></div>${n.label}</div>`).join('')}<div style="margin-top:4px;border-top:1px solid rgba(63,63,70,.08);padding-top:4px"><div class="lg-i" style="color:#f87171;font-weight:600">HARD = 자동 판정</div><div class="lg-i" style="color:#fbbf24;font-weight:600">SOFT = 사용자 확인</div></div></div>`}
+  function rDetect(){return DETECT_TYPES.map(d=>`<div class="nc ${state.detail===d.id&&state.detailType==='detect'?'sel':''}" onclick="app.selDetect('${d.id}')"><div class="nm"><div class="dot" style="background:${d.color}"></div>${d.label}</div><div class="ds">${d.desc.slice(0,80)}...</div></div>`).join('')}
+  function rConfirm(){return CONFIRM_TYPES.map(c=>`<div class="nc ${state.detail===c.id&&state.detailType==='confirm'?'sel':''}" onclick="app.selConf('${c.id}')"><div class="nm"><div class="dot" style="background:${c.color}"></div>${c.label}${hsTag(c.hs)}</div><div class="ds">${c.desc}</div></div>`).join('')}
+  function rDesign(){return DESIGN.map(d=>`<div class="nc ${state.detail===d.id&&state.detailType==='design'?'sel':''}" onclick="app.selDesign('${d.id}')"><div class="nm"><div class="dot" style="background:${d.color}"></div>${d.label}</div><div class="ds">${d.desc.slice(0,60)}...</div></div>`).join('')}
+  function rLegend(){return`<div class="lg"><div class="lg-t">범례</div>${NODES.map(n=>`<div class="lg-i"><div class="lg-d" style="background:${n.color}"></div>${n.label}</div>`).join('')}<div style="margin-top:4px;border-top:1px solid rgba(63,63,70,.08);padding-top:4px"><div class="lg-i" style="color:#f87171;font-weight:600">HARD = 자동 판정</div><div class="lg-i" style="color:#fbbf24;font-weight:600">SOFT = 사용자 확인</div><div class="lg-i" style="color:#a78bfa;font-weight:600">LLM = LLM 기반 탐지</div></div></div>`}
   function rDetail(){
     if(!state.detail)return'<div class="dt"></div>';let c='';
     if(state.detailType==='node'){
@@ -139,21 +150,26 @@ function App(){
       const e=EDGES.find(x=>x.id===state.detail);if(!e)return'<div class="dt"></div>';
       c=`<h3 style="color:${e.color}">${e.label} ${hsTag(e.hs)}<span style="font-size:9px;color:#52525b;font-weight:400;margin-left:6px">${e.from} → ${e.to}</span></h3><p style="color:#a1a1aa;font-size:10px;margin-bottom:4px">${e.desc}</p><span class="tg" style="background:rgba(16,185,129,.05);color:#34d399;border:1px solid rgba(16,185,129,.12)">${e.cat}</span>${e.query?`<div style="margin-top:6px;font-size:8px;font-weight:600;color:#52525b">탐지 로직 (Hard/Soft)</div><div class="qb">${e.query}</div>`:''}`;
     }
+    if(state.detailType==='detect'){
+      const d=DETECT_TYPES.find(x=>x.id===state.detail);if(!d)return'<div class="dt"></div>';
+      c=`<h3><div class="dot" style="background:${d.color}"></div>${d.label}</h3><p style="color:#a1a1aa;font-size:10px;line-height:1.6;white-space:pre-wrap">${d.desc}</p>`;
+    }
     if(state.detailType==='confirm'){
       const ct=CONFIRM_TYPES.find(x=>x.id===state.detail);if(!ct)return'<div class="dt"></div>';
-      c=`<h3><div class="dot" style="background:${ct.color}"></div>${ct.label}${hsTag(ct.hs)}</h3><p style="color:#a1a1aa;font-size:10px;margin-bottom:5px">${ct.desc}</p><div style="background:rgba(248,113,113,.04);border:1px solid rgba(248,113,113,.08);border-radius:5px;padding:7px;margin-top:4px"><div style="font-size:8px;font-weight:600;color:#f87171;margin-bottom:2px">Soft Inconsistency → 사용자 확인</div><p style="font-size:9px;color:#e4e4e7;line-height:1.5">질문 + <strong>관련 원본 발췌</strong> 필수. 사용자가 "모순" 또는 "의도적"으로 판정.</p></div>`;
+      c=`<h3><div class="dot" style="background:${ct.color}"></div>${ct.label}${hsTag(ct.hs)}</h3><p style="color:#a1a1aa;font-size:10px;margin-bottom:5px">${ct.desc}</p><div style="background:rgba(248,113,113,.04);border:1px solid rgba(248,113,113,.08);border-radius:5px;padding:7px;margin-top:4px"><div style="font-size:8px;font-weight:600;color:#f87171;margin-bottom:2px">Soft Inconsistency → 사용자 확인</div><p style="font-size:9px;color:#e4e4e7;line-height:1.5">질문 + <strong>관련 원본 발췌</strong> 필수. 사용자가 "모순" 또는 "의도적"으로 판정. 원문(original_text)과 대사(dialogue) 표시.</p></div>`;
     }
     if(state.detailType==='design'){
       const d=DESIGN.find(x=>x.id===state.detail);if(!d)return'<div class="dt"></div>';
       c=`<h3><div class="dot" style="background:${d.color}"></div>${d.label}</h3><p style="color:#a1a1aa;font-size:10px;line-height:1.6">${d.desc}</p>`;
     }
-    return`<div class="dt show"><button class="cl" onclick="app.closeDt()">✕</button>${c}</div>`;
+    return`<div class="dt show"><button class="cl" onclick="app.closeDt()">&#10005;</button>${c}</div>`;
   }
   function setupCanvas(){const cv=document.getElementById('cv');if(!cv)return;const ct=cv.parentElement,dpr=window.devicePixelRatio||1;cv.width=ct.clientWidth*dpr;cv.height=ct.clientHeight*dpr;cv.style.width=ct.clientWidth+'px';cv.style.height=ct.clientHeight+'px';cv.getContext('2d').scale(dpr,dpr);draw(cv,state.selN,state.selE,state.hovN)}
   window.app={
     tab(t){set({tab:t,selN:null,selE:null,detail:null,detailType:null})},
     selN(id){set({selN:id,selE:null,detail:id,detailType:'node'})},
     selE(id){set({selE:id,selN:null,detail:id,detailType:'edge',tab:'edges'})},
+    selDetect(id){set({detail:id,detailType:'detect'})},
     selConf(id){set({detail:id,detailType:'confirm'})},
     selDesign(id){set({detail:id,detailType:'design'})},
     hov(id){state.hovN=id;const cv=document.getElementById('cv');if(cv)draw(cv,state.selN,state.selE,state.hovN)},
