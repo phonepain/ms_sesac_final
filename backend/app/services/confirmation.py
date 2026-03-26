@@ -402,12 +402,61 @@ class ConfirmationService:
         elif ctype == ConfirmationType.FLASHBACK_CHECK:
             await self._confirm_nonlinear_event(confirmation, log)
 
+        elif ctype == ConfirmationType.TIMELINE_AMBIGUITY:
+            await self._confirm_nonlinear_event(confirmation, log)
+
+        elif ctype in (
+            ConfirmationType.EMOTION_SHIFT,
+            ConfirmationType.ITEM_DISCREPANCY,
+            ConfirmationType.RELATIONSHIP_AMBIGUITY,
+            ConfirmationType.UNRELIABLE_NARRATOR,
+            ConfirmationType.FORESHADOWING,
+        ):
+            await self._mark_related_edges_intentional(confirmation, log)
+
         else:
             log.debug(
                 "no_graph_update_for_type",
                 confirmation_type=ctype.value,
-                detail="피드백 루프에서 처리되거나 그래프 변경이 불필요한 유형입니다.",
             )
+
+    # ── 유형별 엣지 마킹 매핑 ──────────────────────────────────
+    _EDGE_MAP: dict = {
+        ConfirmationType.EMOTION_SHIFT: ["FEELS"],
+        ConfirmationType.ITEM_DISCREPANCY: ["POSSESSES", "LOSES"],
+        ConfirmationType.RELATIONSHIP_AMBIGUITY: ["RELATED_TO"],
+        ConfirmationType.UNRELIABLE_NARRATOR: ["LEARNS"],
+        ConfirmationType.FORESHADOWING: ["LEARNS", "MENTIONS"],
+    }
+
+    async def _mark_related_edges_intentional(
+        self,
+        confirmation: UserConfirmation,
+        log: structlog.BoundLogger,
+    ) -> None:
+        """범용: related_entity_ids의 관련 엣지에 confirmed_intentional 마킹"""
+        edge_labels = self._EDGE_MAP.get(confirmation.confirmation_type, [])
+        for entity_id in confirmation.related_entity_ids:
+            for edge_label in edge_labels:
+                try:
+                    await self._run_graph(
+                        self._graph.mark_edge_intentional,
+                        edge_label=edge_label,
+                        vertex_id=entity_id,
+                        confirmation_id=confirmation.id,
+                    )
+                except Exception as exc:
+                    log.warning(
+                        "mark_intentional_failed",
+                        edge=edge_label,
+                        entity_id=entity_id,
+                        error=str(exc),
+                    )
+        log.info(
+            "edges_marked_intentional",
+            type=confirmation.confirmation_type.value,
+            entity_ids=confirmation.related_entity_ids,
+        )
 
     # ──────────────────────────────────────────────────────────────
     # Private: 그래프 업데이트 서브루틴
@@ -542,7 +591,12 @@ class ConfirmationService:
         │ FLASHBACK_CHECK        │ story_order 확정 → 계층4(Detection) 재탐지      │
         │ SOURCE_CONFLICT        │ 비정본 비활성화 → 계층3(Graph) canonical rebuild │
         │ INTENTIONAL_CHANGE     │ Trait valid_until → 계층3 violation 정리        │
-        │ 기타                    │ 피드백 루프 없음                                 │
+        │ EMOTION_SHIFT          │ FEELS 엣지 intentional 마킹                     │
+        │ ITEM_DISCREPANCY       │ POSSESSES/LOSES 엣지 intentional 마킹           │
+        │ RELATIONSHIP_AMBIGUITY │ RELATED_TO 엣지 intentional 마킹                │
+        │ UNRELIABLE_NARRATOR    │ LEARNS 엣지 intentional 마킹                    │
+        │ TIMELINE_AMBIGUITY     │ story_order 확정 (flashback_check 재활용)        │
+        │ FORESHADOWING          │ LEARNS/MENTIONS 엣지 intentional 마킹           │
         └────────────────────────┴────────────────────────────────────────────────┘
         """
         ctype = confirmation.confirmation_type
@@ -556,6 +610,17 @@ class ConfirmationService:
 
         elif ctype == ConfirmationType.INTENTIONAL_CHANGE:
             await self._feedback_intentional_change(confirmation, log)
+
+        elif ctype == ConfirmationType.TIMELINE_AMBIGUITY:
+            # flashback_check와 동일: story_order 확정
+            await self._feedback_flashback(confirmation, log)
+
+        elif ctype in self._EDGE_MAP:
+            # EMOTION_SHIFT, ITEM_DISCREPANCY, RELATIONSHIP_AMBIGUITY,
+            # UNRELIABLE_NARRATOR, FORESHADOWING
+            # _handle_confirmed_intentional에서 이미 엣지 마킹 완료
+            # 피드백 루프에서는 추가 작업 없음 (재탐지 시 필터로 제외됨)
+            log.info("feedback_edge_marking_done", confirmation_type=ctype.value)
 
         else:
             log.debug("no_feedback_loop", confirmation_type=ctype.value)
@@ -677,7 +742,7 @@ class ConfirmationService:
         try:
             raw = await self._run_graph(
                 self._graph.get_vertex,
-                vertex_id=confirmation_id,
+                vertex_id=str(confirmation_id),
                 partition_key="confirmation",
             )
         except Exception as exc:
