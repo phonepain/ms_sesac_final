@@ -14,8 +14,9 @@ from typing import Any
 PRICING: dict[str, tuple[float, float]] = {
     "gpt-5.4-mini": (0.15, 0.60),
     "gpt-5.3-chat": (2.50, 10.00),
+    "claude-sonnet-4-6": (3.00, 15.00),
 }
-DEFAULT_PRICING: tuple[float, float] = (1.00, 3.00)  # 미등록 모델 폴백
+DEFAULT_PRICING: tuple[float, float] = (3.00, 15.00)  # 미등록 모델 폴백
 
 
 @dataclass
@@ -33,11 +34,13 @@ class LLMCostTracker:
         self.records: list[LLMUsageRecord] = []
 
     def add(self, model: str, usage: Any) -> None:
-        """LLM 응답의 usage 객체를 받아 토큰·비용을 기록합니다."""
+        """LLM 응답의 usage 객체를 받아 토큰·비용을 기록합니다.
+        OpenAI: prompt_tokens/completion_tokens, Anthropic: input_tokens/output_tokens
+        """
         if usage is None:
             return
-        pt = int(getattr(usage, "prompt_tokens", 0) or 0)
-        ct = int(getattr(usage, "completion_tokens", 0) or 0)
+        pt = int(getattr(usage, "prompt_tokens", 0) or getattr(usage, "input_tokens", 0) or 0)
+        ct = int(getattr(usage, "completion_tokens", 0) or getattr(usage, "output_tokens", 0) or 0)
         in_price, out_price = PRICING.get(model, DEFAULT_PRICING)
         cost = (pt * in_price + ct * out_price) / 1_000_000
         self.records.append(

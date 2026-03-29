@@ -36,6 +36,19 @@ class Settings(BaseSettings):
     AZURE_OPENAI_DETECTION_DEPLOYMENT: str = "gpt-5.3-chat"
     AZURE_OPENAI_API_VERSION: str = "2024-08-01-preview"
 
+    # LLM 프로바이더: "azure" | "anthropic" | "gemini"
+    LLM_PROVIDER: str = "azure"
+
+    # Anthropic API (Sonnet 평가용)
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_MODEL: str = "claude-sonnet-4-6"
+
+    # Google Gemini API
+    GOOGLE_API_KEY: str = ""
+    GOOGLE_EXTRACTION_MODEL: str = "gemini-3.1-pro-preview"
+    GOOGLE_NORMALIZATION_MODEL: str = "gemini-3.1-pro-preview"
+    GOOGLE_DETECTION_MODEL: str = "gemini-3.1-flash-lite-preview"
+
     model_config = ConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()

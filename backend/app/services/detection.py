@@ -7,6 +7,7 @@ from typing import Dict, Any, Optional, Tuple, Literal, List
 from openai import AsyncAzureOpenAI
 
 from app.config import settings
+from app.services.llm_client import is_azure, is_gemini, is_anthropic, create_gemini_client, create_anthropic_client, call_llm_structured, call_llm_text
 from app.models.intermediate import ContradictionVerification
 from app.models.api import (
     ManuscriptInput, AnalysisResponse, ContradictionReport, EvidenceItem
@@ -37,21 +38,34 @@ logger = structlog.get_logger()
 
 class DetectionService:
     def __init__(self):
-        self._mock_mode = not (
-            settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_API_KEY
-        )
-        if self._mock_mode:
-            logger.warning("DetectionService: API 키/엔드포인트 없음 → mock 모드로 동작 (soft violation은 confidence=0.5로 처리)")
-            self.client = None
-            self.deployment_name = None
-            return
+        self._gemini_client = None
+        self._anthropic_client = None
+        self.client = None
 
-        self.client = AsyncAzureOpenAI(
-            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-            api_key=settings.AZURE_OPENAI_API_KEY,
-            api_version=settings.AZURE_OPENAI_API_VERSION,
-        )
-        self.deployment_name = settings.AZURE_OPENAI_DETECTION_DEPLOYMENT
+        if is_gemini():
+            self._mock_mode = False
+            self._gemini_client = create_gemini_client()
+            self.deployment_name = settings.GOOGLE_DETECTION_MODEL
+        elif is_anthropic():
+            self._mock_mode = False
+            self._anthropic_client = create_anthropic_client()
+            self.deployment_name = settings.ANTHROPIC_MODEL
+        else:
+            self._mock_mode = not (
+                settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_API_KEY
+            )
+            if self._mock_mode:
+                logger.warning("DetectionService: API 키/엔드포인트 없음 → mock 모드로 동작 (soft violation은 confidence=0.5로 처리)")
+                self.client = None
+                self.deployment_name = None
+                return
+
+            self.client = AsyncAzureOpenAI(
+                azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+                api_key=settings.AZURE_OPENAI_API_KEY,
+                api_version=settings.AZURE_OPENAI_API_VERSION,
+            )
+            self.deployment_name = settings.AZURE_OPENAI_DETECTION_DEPLOYMENT
 
     # ── Hard / Soft 분류 ──────────────────────────────────────
 
@@ -78,18 +92,19 @@ class DetectionService:
 
         prompt = CONTRADICTION_PROMPT.format(violation_data=str(violation))
         try:
-            response = await self.client.beta.chat.completions.parse(
-                model=self.deployment_name,
-                messages=[
-                    {"role": "system", "content": "당신은 서사 정합성 및 논리 구조 분석 전문가입니다."},
-                    {"role": "user", "content": prompt},
-                ],
-                response_format=ContradictionVerification,
+            result, usage, model_name = await call_llm_structured(
+                system_prompt="당신은 서사 정합성 및 논리 구조 분석 전문가입니다.",
+                user_prompt=prompt,
+                response_model=ContradictionVerification,
+                deployment_name=self.deployment_name,
+                azure_client=self.client,
+                anthropic_client=self._anthropic_client,
+                gemini_client=self._gemini_client,
+                gemini_model=self.deployment_name,
             )
-            result = response.choices[0].message.parsed
-            if response.usage:
+            if usage:
                 from app.services.cost_tracker import get_tracker
-                get_tracker().add(self.deployment_name, response.usage)
+                get_tracker().add(model_name, usage)
             logger.info(
                 "soft_llm_verify",
                 confidence=result.confidence,
@@ -481,18 +496,19 @@ class DetectionService:
 
         try:
             prompt = EVENT_CONSISTENCY_CHECK_PROMPT.format(events=event_text)
-            response = await self.client.chat.completions.create(
-                model=self.deployment_name,
-                messages=[
-                    {"role": "system", "content": "당신은 서사 작품의 내적 일관성 오류 전문 분석가입니다. 반드시 JSON 배열만 반환하세요."},
-                    {"role": "user", "content": prompt},
-                ],
+            raw_content, usage, model_name = await call_llm_text(
+                system_prompt="당신은 서사 작품의 내적 일관성 오류 전문 분석가입니다. 반드시 JSON 배열만 반환하세요.",
+                user_prompt=prompt,
+                deployment_name=self.deployment_name,
+                azure_client=self.client,
+                anthropic_client=self._anthropic_client,
+                gemini_client=self._gemini_client,
+                gemini_model=self.deployment_name,
                 temperature=1,
             )
-            raw_content = response.choices[0].message.content.strip()
-            if response.usage:
+            if usage:
                 from app.services.cost_tracker import get_tracker
-                get_tracker().add(self.deployment_name, response.usage)
+                get_tracker().add(model_name, usage)
 
             if raw_content.startswith("```"):
                 raw_content = raw_content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
@@ -593,18 +609,19 @@ class DetectionService:
             return []
 
         try:
-            response = await self.client.chat.completions.create(
-                model=self.deployment_name,
-                messages=[
-                    {"role": "system", "content": "당신은 서사 작품의 세계관 규칙 위반 전문 분석가입니다. 반드시 JSON 배열만 반환하세요."},
-                    {"role": "user", "content": prompt},
-                ],
+            raw_content, usage, model_name = await call_llm_text(
+                system_prompt="당신은 서사 작품의 세계관 규칙 위반 전문 분석가입니다. 반드시 JSON 배열만 반환하세요.",
+                user_prompt=prompt,
+                deployment_name=self.deployment_name,
+                azure_client=self.client,
+                anthropic_client=self._anthropic_client,
+                gemini_client=self._gemini_client,
+                gemini_model=self.deployment_name,
                 temperature=1,
             )
-            raw_content = response.choices[0].message.content.strip()
-            if response.usage:
+            if usage:
                 from app.services.cost_tracker import get_tracker
-                get_tracker().add(self.deployment_name, response.usage)
+                get_tracker().add(model_name, usage)
 
             # JSON 파싱 (```json ... ``` 래핑 처리)
             if raw_content.startswith("```"):
@@ -1168,18 +1185,19 @@ class DetectionService:
         logger.info("Starting LLM verification for violation", violation_type=violation_data.get("type"))
         prompt = CONTRADICTION_PROMPT.format(violation_data=str(violation_data))
         try:
-            response = await self.client.beta.chat.completions.parse(
-                model=self.deployment_name,
-                messages=[
-                    {"role": "system", "content": "당신은 서사 정합성 및 논리 구조 분석 전문가입니다."},
-                    {"role": "user", "content": prompt},
-                ],
-                response_format=ContradictionVerification,
+            verification_result, usage, model_name = await call_llm_structured(
+                system_prompt="당신은 서사 정합성 및 논리 구조 분석 전문가입니다.",
+                user_prompt=prompt,
+                response_model=ContradictionVerification,
+                deployment_name=self.deployment_name,
+                azure_client=self.client,
+                anthropic_client=self._anthropic_client,
+                gemini_client=self._gemini_client,
+                gemini_model=self.deployment_name,
             )
-            verification_result = response.choices[0].message.parsed
-            if response.usage:
+            if usage:
                 from app.services.cost_tracker import get_tracker
-                get_tracker().add(self.deployment_name, response.usage)
+                get_tracker().add(model_name, usage)
             logger.info(
                 "LLM Verification complete",
                 is_contradiction=verification_result.is_contradiction,

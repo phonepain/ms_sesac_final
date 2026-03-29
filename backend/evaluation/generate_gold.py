@@ -91,11 +91,22 @@ CATEGORY_RULES = [
      "TRAIT_SETTING"),
 ]
 
-# Hard 판정 키워드 — 이 패턴이 포함되면 HARD
-HARD_PATTERNS = [
-    "사망", "시체", "재등장", "죽은", "부활", "사망 후", "죽었",
-    "관계.*동시", "어머니.*남매", "남매.*어머니",
-    "형제.*부모.*동시", "부모.*형제.*동시",
+# Soft 판정 키워드 — 이 패턴이 포함되면 SOFT, 나머지는 HARD
+# (전체 expectation 분석 결과: 91%가 HARD이므로 SOFT를 특정하는 방식이 정확)
+SOFT_PATTERNS = [
+    # 약한 모순 (원문에 명시)
+    r"약한 모순",
+    # 감정 변화 (트리거 없는 급변)
+    r"갑자기.*감정", r"갑자기.*적의", r"갑자기.*신뢰", r"갑자기.*해소",
+    r"경계심.*해소", r"불신.*신뢰",
+    # 판단력 저하 상태에서의 진술
+    r"판단력.*저하", r"저혈당.*판단", r"약물.*판단",
+    # 공식 채널 위반 (조직 내규 수준, 금지 아닌 것만)
+    r"개인.*DM", r"개인 통화",
+    # 경미한 신체 제약 위반 (부분적 가능)
+    r"색맹.*판독", r"발목.*염좌.*이동", r"손.*떨림.*시술",
+    # 맥락상 모호
+    r"직접.*모순.*아니", r"직접적 모순은 아니",
 ]
 
 
@@ -109,11 +120,11 @@ def classify_category(text: str) -> str:
 
 
 def classify_hard_soft(text: str) -> str:
-    """Hard/Soft 판정."""
-    for pattern in HARD_PATTERNS:
+    """Hard/Soft 판정. SOFT 패턴에 매칭되면 SOFT, 나머지는 HARD."""
+    for pattern in SOFT_PATTERNS:
         if re.search(pattern, text):
-            return "HARD"
-    return "SOFT"
+            return "SOFT"
+    return "HARD"
 
 
 def extract_keywords(text: str) -> List[str]:
@@ -257,26 +268,82 @@ TESTSETS_MULTI = [
     ]),
 ]
 
+# wss4000 케이스 (3파일 분리지만 expectation은 단일 파일)
+TESTSETS_WSS4000 = [
+    ("wss4000", "wss4000", [
+        ("case29", "case29", "expectation29.txt", "추리/범죄"),
+        ("case30", "case30", "expectation30.txt", "판타지/중세"),
+        ("case31", "case31", "expectation31.txt", "의료/병원"),
+        ("case32", "case32", "expectation32.txt", "SF/항해"),
+    ]),
+]
+
 # variation 케이스는 기존 gold_standard.py에 있으므로 제외
 
 
 def parse_expectation(filepath: str) -> List[Tuple[str, int]]:
-    """expectation 파일 파싱. (설명, 번호) 리스트 반환."""
+    """expectation 파일 파싱. (설명, 번호) 리스트 반환.
+
+    두 가지 형식을 모두 처리:
+    형식 A (1줄 = 1모순): "1. 설명 전체가 한 줄"
+    형식 B (번호 + 하위줄):
+        1. 성격/설정 모순 (Hard)
+        - 설정: ...
+        - 시나리오: ...
+    → 하위줄("-"로 시작)을 번호 줄에 병합하여 1건으로 처리.
+    헤더([기대되는...]), 푸터([기대 모순 개수], - 총 N건) 줄은 제거.
+    """
     if not os.path.exists(filepath):
         return []
     with open(filepath, encoding="utf-8") as f:
         text = f.read()
+
+    # 헤더/푸터 필터용 패턴
+    skip_patterns = [
+        r'^\[기대되는',
+        r'^\[기대 모순',
+        r'^-\s*총\s*\d+건',
+        r'^\ufeff?\[기대',       # BOM + 헤더
+    ]
+
+    lines = text.strip().split("\n")
     results = []
-    for line in text.strip().split("\n"):
+    current_num = 0
+    current_text = ""
+
+    def flush():
+        nonlocal current_text, current_num
+        if current_text.strip():
+            results.append((current_text.strip(), current_num))
+        current_text = ""
+        current_num = 0
+
+    for line in lines:
         line = line.strip()
         if not line:
             continue
-        # "1. 설명" 형식
+
+        # 헤더/푸터 스킵
+        if any(re.match(p, line) for p in skip_patterns):
+            continue
+
+        # 번호 줄: "1. ..."
         m = re.match(r'^(\d+)\.\s*(.+)', line)
         if m:
-            results.append((m.group(2).strip(), int(m.group(1))))
+            flush()
+            current_num = int(m.group(1))
+            current_text = m.group(2).strip()
+        elif line.startswith("-") and current_num > 0:
+            # 하위 줄: "- 설정: ...", "- 시나리오: ..." → 현재 항목에 병합
+            sub = line.lstrip("-").strip()
+            current_text += " " + sub
         else:
-            results.append((line, len(results) + 1))
+            # 번호 없는 독립 줄 (batch 형식: "물리 규칙 (Hard): 설명")
+            flush()
+            current_num = len(results) + 1
+            current_text = line
+
+    flush()
     return results
 
 
@@ -327,7 +394,7 @@ def main():
             })
 
     # 3파일 분리 케이스
-    for set_name, data_dir, cases in TESTSETS_MULTI:
+    for set_name, data_dir, cases in TESTSETS_MULTI + TESTSETS_WSS4000:
         for case_name, case_prefix, exp_file, genre in cases:
             exp_path = os.path.join(base_dir, data_dir, exp_file)
             entries = parse_expectation(exp_path)

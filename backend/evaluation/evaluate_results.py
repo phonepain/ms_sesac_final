@@ -36,6 +36,16 @@ from evaluation.metrics import (
 
 # ── 결과 로드 ──────────────────────────────────────────────────
 
+def _infer_group(filename: str) -> str:
+    """파일명에서 테스트셋 그룹 추론. 예: wss4000_case31.json → wss4000"""
+    stem = filename.rsplit(".json", 1)[0]
+    for sep in ("_case", "_test", "_테스트"):
+        if sep in stem:
+            return stem.rsplit(sep, 1)[0]
+    # variation 등
+    return stem.split("_")[0] if "_" in stem else "unknown"
+
+
 def load_results(results_dir: str) -> List[Dict[str, Any]]:
     """results/ 디렉토리에서 모든 JSON 결과 로드."""
     results = []
@@ -50,6 +60,8 @@ def load_results(results_dir: str) -> List[Dict[str, Any]]:
         with open(filepath, encoding="utf-8") as f:
             data = json.load(f)
         data["_filename"] = filename
+        if "_group" not in data:
+            data["_group"] = _infer_group(filename)
         results.append(data)
 
     return results
@@ -240,6 +252,10 @@ def main():
         print("결과 파일 없음. 먼저 테스트를 실행하세요:")
         print("  python scripts/run_all_tests.py --save")
         return
+
+    # expectation 없는 셋 제외
+    _SKIP_GROUPS = {"variation"}
+    results = [r for r in results if r.get("_group", "") not in _SKIP_GROUPS]
 
     # 셋 필터
     if args.set:

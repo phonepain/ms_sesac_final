@@ -4,7 +4,8 @@ import functools
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import structlog
 
@@ -749,4 +750,20 @@ async def query_ai(req: AIQueryRequest):
         answer = f"⚠️ LLM 호출 실패: {err_msg}"
 
     return {"answer": answer, "sources": sources}
+
+
+# ─── SPA 정적 파일 서빙 (프론트엔드 빌드 결과) ───
+import os as _os
+_static_dir = _os.path.join(_os.path.dirname(_os.path.dirname(__file__)), "static")
+if _os.path.isdir(_static_dir):
+    # /assets 등 정적 리소스
+    app.mount("/assets", StaticFiles(directory=_os.path.join(_static_dir, "assets")), name="static-assets")
+
+    # /api가 아닌 모든 경로 → index.html (SPA 라우팅)
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        file_path = _os.path.join(_static_dir, full_path)
+        if _os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(_os.path.join(_static_dir, "index.html"))
 

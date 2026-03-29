@@ -10,6 +10,7 @@ import structlog
 from openai import AsyncAzureOpenAI
 
 from app.config import settings
+from app.services.llm_client import is_azure, is_gemini, is_anthropic, create_gemini_client, create_anthropic_client, call_llm_structured
 from app.models.intermediate import (
     ConflictDescription,
     ExtractionResult,
@@ -373,18 +374,26 @@ class MockNormalizationService(_NormalizationCore):
 class NormalizationService(_NormalizationCore):
     def __init__(self):
         self._mock_service: Optional[MockNormalizationService] = None
-        # [CHANGED][PHASE0-3][CONFIG-COMPAT] Config field names aligned to original config.py (AZURE_OPENAI_*).
-        if not (settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_API_KEY):
-            # [CHANGED][PHASE2-3] 내부 분기 대신 MockNormalizationService 인스턴스로 위임.
+        self._gemini_client = None
+        self._anthropic_client = None
+        self.client = None
+
+        if is_gemini():
+            self._gemini_client = create_gemini_client()
+            self.deployment_name = settings.GOOGLE_NORMALIZATION_MODEL
+        elif is_anthropic():
+            self._anthropic_client = create_anthropic_client()
+            self.deployment_name = settings.ANTHROPIC_MODEL
+        elif not (settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_API_KEY):
             self._mock_service = MockNormalizationService()
             return
-
-        self.client = AsyncAzureOpenAI(
-            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-            api_key=settings.AZURE_OPENAI_API_KEY,
-            api_version=settings.AZURE_OPENAI_API_VERSION,
-        )
-        self.deployment_name = settings.AZURE_OPENAI_NORMALIZATION_DEPLOYMENT
+        else:
+            self.client = AsyncAzureOpenAI(
+                azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+                api_key=settings.AZURE_OPENAI_API_KEY,
+                api_version=settings.AZURE_OPENAI_API_VERSION,
+            )
+            self.deployment_name = settings.AZURE_OPENAI_NORMALIZATION_DEPLOYMENT
 
     @property
     def use_mock(self) -> bool:
@@ -446,19 +455,20 @@ class NormalizationService(_NormalizationCore):
         prompt = NORMALIZE_PROMPT.format(json_data=json.dumps(unique_names_map, ensure_ascii=False))
 
         try:
-            response = await self.client.beta.chat.completions.parse(
-                model=self.deployment_name,
-                messages=[
-                    {"role": "system", "content": "당신은 데이터 정규화 전문가입니다. 동일 인물을 찾아 그룹화하세요."},
-                    {"role": "user", "content": prompt},
-                ],
-                response_format=NormalizationResult,
+            result, usage, model_name = await call_llm_structured(
+                system_prompt="당신은 데이터 정규화 전문가입니다. 동일 인물을 찾아 그룹화하세요.",
+                user_prompt=prompt,
+                response_model=NormalizationResult,
+                deployment_name=self.deployment_name,
+                azure_client=self.client,
+                anthropic_client=self._anthropic_client,
+                gemini_client=self._gemini_client,
+                gemini_model=self.deployment_name,
             )
 
-            result: NormalizationResult = response.choices[0].message.parsed
-            if response.usage:
+            if usage:
                 from app.services.cost_tracker import get_tracker
-                get_tracker().add(self.deployment_name, response.usage)
+                get_tracker().add(model_name, usage)
 
             used_raw_names: Set[str] = set()
             linked_characters: List[NormalizedCharacter] = []

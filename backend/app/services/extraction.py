@@ -11,26 +11,37 @@ from app.config import settings
 from app.models.api import DocumentChunk
 from app.models.intermediate import ExtractionResult
 from app.prompts.extract_entities import SCENARIO_PROMPT, SETTINGS_PROMPT, WORLDVIEW_PROMPT
+from app.services.llm_client import is_azure, is_gemini, is_anthropic, create_gemini_client, create_anthropic_client, call_llm_structured
 
 logger = structlog.get_logger(__name__)
 
 
 class ExtractionService:
     def __init__(self):
-        # [CHANGED][PHASE0-3] guide 기준 동시 처리량 5 유지
         self.semaphore = asyncio.Semaphore(5)
-        # [CHANGED][PHASE0-3][CONFIG-COMPAT] Config field names aligned to original config.py (AZURE_OPENAI_*).
-        self.use_mock = settings.use_mock_extraction or not (
-            settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_API_KEY
-        )
+        self._gemini_client = None
+        self._anthropic_client = None
+        self.client = None
 
-        if not self.use_mock:
-            self.client = AsyncAzureOpenAI(
-                azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-                api_key=settings.AZURE_OPENAI_API_KEY,
-                api_version=settings.AZURE_OPENAI_API_VERSION,
+        if is_gemini():
+            self.use_mock = False
+            self._gemini_client = create_gemini_client()
+            self.deployment_name = settings.GOOGLE_EXTRACTION_MODEL
+        elif is_anthropic():
+            self.use_mock = False
+            self._anthropic_client = create_anthropic_client()
+            self.deployment_name = settings.ANTHROPIC_MODEL
+        else:
+            self.use_mock = settings.use_mock_extraction or not (
+                settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_API_KEY
             )
-            self.deployment_name = settings.AZURE_OPENAI_EXTRACTION_DEPLOYMENT
+            if not self.use_mock:
+                self.client = AsyncAzureOpenAI(
+                    azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+                    api_key=settings.AZURE_OPENAI_API_KEY,
+                    api_version=settings.AZURE_OPENAI_API_VERSION,
+                )
+                self.deployment_name = settings.AZURE_OPENAI_EXTRACTION_DEPLOYMENT
 
     async def extract_from_chunks(self, chunks: List[DocumentChunk], source_type: str) -> List[ExtractionResult]:
         logger.info("Starting batch extraction", total_chunks=len(chunks), source_type=source_type)
@@ -684,32 +695,21 @@ class ExtractionService:
             try:
                 logger.debug("Calling LLM", chunk_id=chunk_id)
 
-                response = await self.client.beta.chat.completions.parse(
-                    model=self.deployment_name,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are an extraction assistant. Return strict JSON matching schema.",
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    response_format=ExtractionResult,
+                result, usage, model_name = await call_llm_structured(
+                    system_prompt="You are an extraction assistant. Return strict JSON matching schema.",
+                    user_prompt=prompt,
+                    response_model=ExtractionResult,
+                    deployment_name=self.deployment_name,
+                    azure_client=self.client,
+                    anthropic_client=self._anthropic_client,
+                    gemini_client=self._gemini_client,
+                    gemini_model=self.deployment_name,
                 )
 
-                try:
-                    result = response.choices[0].message.parsed
-                    if result is None:
-                        content = response.choices[0].message.content
-                        data = json.loads(content)
-                        result = ExtractionResult(**data)
-                except Exception as parse_error:
-                    logger.error("JSON parsing error", chunk_id=chunk_id, error=str(parse_error))
-                    result = ExtractionResult(source_chunk_id=chunk_id)
-
                 result.source_chunk_id = chunk_id
-                if response and response.usage:
+                if usage:
                     from app.services.cost_tracker import get_tracker
-                    get_tracker().add(self.deployment_name, response.usage)
+                    get_tracker().add(model_name, usage)
                 return result
 
             except Exception as api_error:

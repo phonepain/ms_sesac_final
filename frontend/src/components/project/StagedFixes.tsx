@@ -67,7 +67,7 @@ export default function StagedFixes({ staged, onRemove, onPush, onClear }: Stage
             {s.isIntentional ? (
               <>
                 <span className="inline-block text-[9px] font-bold bg-[rgba(124,92,191,0.1)] text-[#7c5cbf] px-1.5 py-0.5 rounded mr-1.5">의도된 설정</span>
-                <span className="text-[#6b5c47]">{s.ch} · {TYPE_LABELS[s.tp] ?? s.tp}</span>
+                <span className="text-[#6b5c47]">{s.ch} · {(s.tp ? TYPE_LABELS[s.tp] : undefined) ?? s.tp ?? ''}</span>
                 {s.intentNote && <div className="text-[#a89880] mt-0.5 italic">메모: "{s.intentNote}"</div>}
               </>
             ) : (
